@@ -13,6 +13,7 @@ public class HookCatcher : MonoBehaviour
         Rigidbody2D body = GetComponent<Rigidbody2D>();
         body.bodyType = RigidbodyType2D.Kinematic;
         body.gravityScale = 0f;
+        body.useFullKinematicContacts = true; // Also detect kinematic objects (fetchables are kinematic)
         GetComponent<Collider2D>().isTrigger = true;
     }
 

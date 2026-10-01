@@ -25,6 +25,11 @@ public class GrabbableObject : MonoBehaviour
     void Start()
     {
         UpdateObjectProperties();
+
+        // Solid and immovable: the player bumps into it and stops instead of pushing it.
+        // The hook is a trigger, so it still detects (and catches) solid objects.
+        body.bodyType = RigidbodyType2D.Kinematic;
+        GetComponent<Collider2D>().isTrigger = false;
     }
 
     // OnValidate runs automatically in the Unity Editor whenever you change a value, 
