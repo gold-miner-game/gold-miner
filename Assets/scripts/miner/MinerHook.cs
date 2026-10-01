@@ -11,6 +11,8 @@ public class MinerHook : MonoBehaviour
     public float retractSpeed = 6f;
     public float maxDistance = 5f;
     public float timeBetweenShots = 1f;
+    [Tooltip("Pull strength when carrying an object. Return speed = pullForce / object mass, capped at retractSpeed.")]
+    public float pullForce = 30f;
 
     private enum State { Waiting, Shooting, Retracting }
     private State currentState = State.Waiting;
@@ -62,7 +64,7 @@ public class MinerHook : MonoBehaviour
 
             case State.Retracting:
                 // Move the hook back to the miner
-                hookHead.position = Vector3.MoveTowards(hookHead.position, transform.position, retractSpeed * Time.deltaTime);
+                hookHead.position = Vector3.MoveTowards(hookHead.position, transform.position, CurrentRetractSpeed() * Time.deltaTime);
                 
                 // Check if it returned
                 if (Vector3.Distance(transform.position, hookHead.position) < 0.1f)
@@ -89,6 +91,18 @@ public class MinerHook : MonoBehaviour
         linkLine.SetPosition(1, hookHead.position);
     }
 
+    // Empty hook returns at retractSpeed; heavier objects come back slower
+    float CurrentRetractSpeed()
+    {
+        if (caughtObject == null)
+        {
+            return retractSpeed;
+        }
+
+        float mass = Mathf.Max(caughtObject.TotalWeight, 0.0001f);
+        return Mathf.Min(pullForce / mass, retractSpeed);
+    }
+
     // Called by HookCatcher. Only catches while shooting, one object per shot.
     public void TryCatch(GrabbableObject grabbable)
     {
@@ -99,7 +113,7 @@ public class MinerHook : MonoBehaviour
 
         grabbable.Catch(hookHead);
         caughtObject = grabbable;
-        currentState = State.Retracting; // Head straight back at retractSpeed
+        currentState = State.Retracting; // Head straight back, speed depends on its mass
     }
 
     void ShootRandomly()
