@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2a79c72126d61b14c91e842a93dc6ef7, type: 3}
+  m_Name: Gold
+  m_EditorClassIdentifier: Assembly-CSharp::ResourceType
+  materialName: Gold
+  valuePerVolume: 1000
+  densityPerVolume: 30
+  baseColor: {r: 0.9960785, g: 0.9607844, b: 0.18431373, a: 1}
