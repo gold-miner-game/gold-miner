@@ -33,24 +33,13 @@ public class die : MonoBehaviour
         Debug.Log("Game Over: the player was caught by the hook");
         onGameOver.Invoke();
 
-        // Freeze the game
-        Time.timeScale = 0f;
-    }
-
-    void OnGUI()
-    {
-        if (!IsDead)
+        // LevelManager shows GAME OVER and handles retry
+        if (LevelManager.Instance != null)
         {
-            return;
+            LevelManager.Instance.PlayerCaught();
         }
 
-        GUIStyle style = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = 48,
-            fontStyle = FontStyle.Bold,
-            alignment = TextAnchor.MiddleCenter,
-        };
-        style.normal.textColor = Color.red;
-        GUI.Label(new Rect(0, 0, Screen.width, Screen.height), "GAME OVER", style);
+        // Freeze the game
+        Time.timeScale = 0f;
     }
 }

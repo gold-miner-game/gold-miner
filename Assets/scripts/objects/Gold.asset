@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Gold
   m_EditorClassIdentifier: Assembly-CSharp::ResourceType
   materialName: Gold
-  valuePerVolume: 1000
+  valuePerVolume: 100
   densityPerVolume: 30
   baseColor: {r: 0.9960785, g: 0.9607844, b: 0.18431373, a: 1}

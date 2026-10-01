@@ -88,6 +88,10 @@ public class GrabbableObject : MonoBehaviour
     public void Collect()
     {
         Debug.Log($"Collected {name}: value {TotalValue}, weight {TotalWeight}");
+        if (LevelManager.Instance != null)
+        {
+            LevelManager.Instance.AddScore(TotalValue);
+        }
         Destroy(gameObject);
     }
 

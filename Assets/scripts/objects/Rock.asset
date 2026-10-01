@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Rock
   m_EditorClassIdentifier: Assembly-CSharp::ResourceType
   materialName: 
-  valuePerVolume: 20
+  valuePerVolume: 10
   densityPerVolume: 20
   baseColor: {r: 0.6509434, g: 0.6509434, b: 0.6509434, a: 1}

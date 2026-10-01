@@ -453,6 +453,8 @@ GameObject:
   - component: {fileID: 596345569}
   - component: {fileID: 596345572}
   - component: {fileID: 596345571}
+  - component: {fileID: 596345573}
+  - component: {fileID: 596345574}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -473,6 +475,35 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::player
   moveSpeed: 5
+--- !u!114 &596345573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 596345568}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b995d14ace97a7c498182a9f98911a50, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::fetch
+  inputForce: 30
+  grabRange: 0.1
+--- !u!114 &596345574
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 596345568}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e92cbc6c68e16c442b33894ee92f03c3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::die
+  onGameOver:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &596345570
 Transform:
   m_ObjectHideFlags: 0
@@ -1165,6 +1196,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6012241609034907159, guid: e4329b344ae1fde49928d0c28e618490, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6012241609034907159, guid: e4329b344ae1fde49928d0c28e618490, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.3
+      objectReference: {fileID: 0}
     - target: {fileID: 9086390239344872489, guid: e4329b344ae1fde49928d0c28e618490, type: 3}
       propertyPath: m_Name
       value: fetchable (2)
@@ -1505,6 +1544,57 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 437067004}
   m_SourcePrefab: {fileID: 100100000, guid: 411998059f597224cb668c0a73e06345, type: 3}
+--- !u!1 &1900000001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1900000002}
+  - component: {fileID: 1900000003}
+  m_Layer: 0
+  m_Name: LevelManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1900000002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1900000003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1900000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eb3f82fb216f4ef299cd89edd37b21a2, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::LevelManager
+  levels:
+  - targetScore: 200
+    timeLimit: 60
+  - targetScore: 250
+    timeLimit: 50
+  - targetScore: 280
+    timeLimit: 45
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -1515,3 +1605,4 @@ SceneRoots:
   - {fileID: 1402084323}
   - {fileID: 446967254}
   - {fileID: 596345570}
+  - {fileID: 1900000002}
