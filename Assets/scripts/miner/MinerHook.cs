@@ -116,6 +116,17 @@ public class MinerHook : MonoBehaviour
         currentState = State.Retracting; // Head straight back, speed depends on its mass
     }
 
+    // Called by HookCatcher when the hook touches the player
+    public void TryCatchPlayer(die victim)
+    {
+        if (currentState != State.Shooting || victim.IsDead)
+        {
+            return;
+        }
+
+        victim.Die(hookHead);
+    }
+
     void ShootRandomly()
     {
         // Pick a random angle between 0 and 360 degrees

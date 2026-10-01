@@ -19,10 +19,18 @@ public class HookCatcher : MonoBehaviour
 
     void OnTriggerEnter2D(Collider2D other)
     {
-        GrabbableObject grabbable = other.GetComponent<GrabbableObject>();
-        if (grabbable != null && owner != null)
+        if (owner == null)
+        {
+            return;
+        }
+
+        if (other.TryGetComponent(out GrabbableObject grabbable))
         {
             owner.TryCatch(grabbable);
+        }
+        else if (other.TryGetComponent(out die victim))
+        {
+            owner.TryCatchPlayer(victim);
         }
     }
 }

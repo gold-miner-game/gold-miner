@@ -7,6 +7,9 @@ public class player : MonoBehaviour
     [Header("Settings")]
     public float moveSpeed = 5f;
 
+    // Lowered by other scripts (e.g. fetch while dragging something heavy)
+    [HideInInspector] public float speedLimit = float.PositiveInfinity;
+
     private bool facingRight = true; // Default facing is right
     private Rigidbody2D body;
     private Vector2 input;
@@ -50,7 +53,7 @@ public class player : MonoBehaviour
     void FixedUpdate()
     {
         // Normalize so diagonals are not faster; physics stops us at colliders
-        body.linearVelocity = moveSpeed * input.normalized;
+        body.linearVelocity = Mathf.Min(moveSpeed, speedLimit) * input.normalized;
     }
 
     // Mirror the whole player (and its children) horizontally
