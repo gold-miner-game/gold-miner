@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[RequireComponent(typeof(SpriteRenderer), typeof(Collider2D))]
+[RequireComponent(typeof(SpriteRenderer), typeof(Collider2D), typeof(Rigidbody2D))]
 public class GrabbableObject : MonoBehaviour
 {
     [Header("Object Properties")]
@@ -15,6 +15,12 @@ public class GrabbableObject : MonoBehaviour
     public float TotalWeight => resourceType != null ? resourceType.densityPerVolume * volume : 0f;
 
     private SpriteRenderer spriteRenderer;
+    private Rigidbody2D body;
+
+    // Set while a hook is holding this object
+    private Transform caughtBy;
+    private Vector3 catchOffset;
+    public bool IsCaught => caughtBy != null;
 
     void Start()
     {
@@ -33,7 +39,19 @@ public class GrabbableObject : MonoBehaviour
         // 1. Automatically calculate volume from Scale X * Scale Y
         volume = transform.localScale.x * transform.localScale.y;
 
-        // 2. Override the color immediately based on the ResourceType
+        // 2. Use the weight as the physics mass
+        if (body == null)
+        {
+            body = GetComponent<Rigidbody2D>();
+        }
+
+        if (body != null)
+        {
+            body.useAutoMass = false;
+            body.mass = Mathf.Max(TotalWeight, 0.0001f); // Rigidbody2D mass must be positive
+        }
+
+        // 3. Override the color immediately based on the ResourceType
         if (resourceType != null)
         {
             if (spriteRenderer == null)
@@ -45,6 +63,35 @@ public class GrabbableObject : MonoBehaviour
             {
                 spriteRenderer.color = resourceType.baseColor;
             }
+        }
+    }
+
+    // Called by the hook when it touches this object
+    public void Catch(Transform hook)
+    {
+        caughtBy = hook;
+        catchOffset = transform.position - hook.position;
+
+        // Let the hook carry it: no more physics pushing it around or catching it twice
+        body.linearVelocity = Vector2.zero;
+        body.angularVelocity = 0f;
+        body.bodyType = RigidbodyType2D.Kinematic;
+        GetComponent<Collider2D>().enabled = false;
+    }
+
+    // Called by the hook once it has pulled this object back to the miner
+    public void Collect()
+    {
+        Debug.Log($"Collected {name}: value {TotalValue}, weight {TotalWeight}");
+        Destroy(gameObject);
+    }
+
+    void LateUpdate()
+    {
+        // Follow the hook while caught
+        if (caughtBy != null)
+        {
+            transform.position = caughtBy.position + catchOffset;
         }
     }
 }

@@ -17,6 +17,7 @@ public class MinerHook : MonoBehaviour
 
     private Vector3 shootDirection;
     private float timer;
+    private GrabbableObject caughtObject;
 
     void Start()
     {
@@ -26,6 +27,14 @@ public class MinerHook : MonoBehaviour
         
         // Snap hook to miner at the start
         hookHead.position = transform.position; 
+
+        // Hook head reports what it touches back to us
+        HookCatcher catcher = hookHead.GetComponent<HookCatcher>();
+        if (catcher == null)
+        {
+            catcher = hookHead.gameObject.AddComponent<HookCatcher>();
+        }
+        catcher.owner = this;
     }
 
     void Update()
@@ -59,6 +68,13 @@ public class MinerHook : MonoBehaviour
                 if (Vector3.Distance(transform.position, hookHead.position) < 0.1f)
                 {
                     hookHead.position = transform.position; // Snap perfectly to center
+
+                    if (caughtObject != null)
+                    {
+                        caughtObject.Collect();
+                        caughtObject = null;
+                    }
+
                     timer = timeBetweenShots;
                     currentState = State.Waiting;
                 }
@@ -71,6 +87,19 @@ public class MinerHook : MonoBehaviour
         // Keep the visual line connected every frame
         linkLine.SetPosition(0, transform.position);
         linkLine.SetPosition(1, hookHead.position);
+    }
+
+    // Called by HookCatcher. Only catches while shooting, one object per shot.
+    public void TryCatch(GrabbableObject grabbable)
+    {
+        if (currentState != State.Shooting || grabbable.IsCaught)
+        {
+            return;
+        }
+
+        grabbable.Catch(hookHead);
+        caughtObject = grabbable;
+        currentState = State.Retracting; // Head straight back at retractSpeed
     }
 
     void ShootRandomly()
