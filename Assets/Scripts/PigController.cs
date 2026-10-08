@@ -7,13 +7,13 @@ public class PigController : MonoBehaviour
     public float moveSpeed = 5f;
 
     private Rigidbody2D rb;
-    private SpriteRenderer sr;
+    private SpriteRenderer[] sprites;
     private Vector2 input;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
-        sr = GetComponent<SpriteRenderer>();
+        sprites = GetComponentsInChildren<SpriteRenderer>();
     }
 
     void Update()
@@ -21,11 +21,12 @@ public class PigController : MonoBehaviour
         // WASD or arrow keys
         input = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")).normalized;
 
-        // Blink while invincible (right after losing a Life)
-        if (sr != null)
+        // Blink the whole pig while invincible (right after losing a Life)
+        bool invincible = GameManager.Instance != null && GameManager.Instance.IsInvincible;
+        bool show = !invincible || Mathf.FloorToInt(Time.time * 10f) % 2 == 0;
+        for (int i = 0; i < sprites.Length; i++)
         {
-            bool invincible = GameManager.Instance != null && GameManager.Instance.IsInvincible;
-            sr.enabled = !invincible || Mathf.FloorToInt(Time.time * 10f) % 2 == 0;
+            sprites[i].enabled = show;
         }
     }
 
