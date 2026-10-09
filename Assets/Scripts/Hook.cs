@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Owner: D (Hook & UI)
+// ExecuteAlways: the claw is also drawn in edit mode, so the scene shows the real look before Play
+[ExecuteAlways]
 public class Hook : MonoBehaviour
 {
     [Header("Speed")]
@@ -17,13 +19,19 @@ public class Hook : MonoBehaviour
     [Header("Collision")]
     public float hitRadius = 0.2f;
 
-    [Header("Color")]
-    public SpriteRenderer hookSprite;  // defaults to the SpriteRenderer on this object
+    [Header("Look")]
     public Color defaultColor = Color.yellow;
-
-    [Header("Rope (optional)")]
-    public Transform rope;           // a Square sprite at the scene root
+    public Material lineMaterial;    // defaults to the material of this object's sprite
     public float ropeWidth = 0.05f;
+    public Color outlineColor = new Color(0.15f, 0.12f, 0.1f);
+    public float outlineWidth = 0.03f;   // extra width on each side
+
+    [Header("Claw")]
+    public float clawLength = 0.35f;
+    public float clawWidth = 0.06f;
+    public float clawOpenAngle = 40f;    // degrees from the center line
+    public float clawClosedAngle = 12f;
+    public float clawCloseSpeed = 10f;   // how fast it opens/closes
 
     public bool IsBusy => state != State.Idle;
 
@@ -31,24 +39,56 @@ public class Hook : MonoBehaviour
     private State state = State.Idle;
 
     private Vector2 origin;
-    private Vector2 dir;
+    private Vector2 dir = Vector2.down;
     private float maxLength;
     private float traveled;
     private Treasure carried;
-    private SpriteRenderer ropeSprite;
+
+    private Stroke rope;
+    private Stroke clawLeft;
+    private Stroke clawRight;
+    private float clawAngle;
+    private Color color;
 
     // Colliders this shot has already reacted to, so nothing is handled twice
     private readonly HashSet<Collider2D> touched = new HashSet<Collider2D>();
 
-    void Awake()
+    void OnEnable()
     {
-        if (hookSprite == null) hookSprite = GetComponent<SpriteRenderer>();
-        if (rope != null) ropeSprite = rope.GetComponent<SpriteRenderer>();
+        // The placeholder sprite is hidden and only lends its material and sorting.
+        // forceRenderingOff is not serialized, so the scene file is left untouched.
+        SpriteRenderer sprite = GetComponent<SpriteRenderer>();
+        Material material = lineMaterial;
+        int sortingLayer = 0;
+        int sortingOrder = 5;
+        if (sprite != null)
+        {
+            if (material == null) material = sprite.sharedMaterial;
+            sortingLayer = sprite.sortingLayerID;
+            sortingOrder = sprite.sortingOrder;
+            sprite.forceRenderingOff = true;
+        }
+
+        // Back to front: rope outline, rope, claw outlines, claws (all above treasure at 0)
+        rope = new Stroke(transform, "Rope", 2, material, sortingLayer, sortingOrder - 3);
+        clawLeft = new Stroke(transform, "ClawLeft", 3, material, sortingLayer, sortingOrder - 1);
+        clawRight = new Stroke(transform, "ClawRight", 3, material, sortingLayer, sortingOrder - 1);
+
+        clawAngle = clawOpenAngle;
+        color = defaultColor;
+        UpdateRope();
+        UpdateClaw();
     }
 
-    void Start()
+    void OnDisable()
     {
-        if (rope != null) rope.gameObject.SetActive(false);
+        SpriteRenderer sprite = GetComponent<SpriteRenderer>();
+        if (sprite != null) sprite.forceRenderingOff = false;
+
+        rope?.Destroy();
+        clawLeft?.Destroy();
+        clawRight?.Destroy();
+        rope = clawLeft = clawRight = null;
     }
 
     public void Fire(Vector2 from, Vector2 direction, float length)
@@ -57,7 +97,7 @@ public class Hook : MonoBehaviour
     }
 
     // Called by MinerAI when the telegraph ends. Yellow = treasure shot, red = player shot.
-    public void Fire(Vector2 from, Vector2 direction, float length, Color color)
+    public void Fire(Vector2 from, Vector2 direction, float length, Color shotColor)
     {
         if (IsBusy) return;
 
@@ -69,25 +109,34 @@ public class Hook : MonoBehaviour
         touched.Clear();
 
         transform.position = origin;
-        // The Triangle sprite points up by default; turn it along the trajectory
+        // The sprite points up by default; turn it along the trajectory
         float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
         transform.rotation = Quaternion.Euler(0f, 0f, angle);
 
-        if (hookSprite != null) hookSprite.color = color;
-        if (ropeSprite != null) ropeSprite.color = color;
-
+        color = shotColor;
         state = State.Extending;
     }
 
     void Update()
     {
-        if (state == State.Idle) return;
-        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
+        if (Application.isPlaying)
+        {
+            // When the round ends mid-shot, the hook still comes home but stops reacting
+            bool roundOver = GameManager.Instance != null && !GameManager.Instance.IsPlaying;
 
-        if (state == State.Extending) Extend();
-        else Retract();
+            if (state == State.Extending)
+            {
+                if (roundOver) state = State.Retracting;
+                else Extend();
+            }
+            else if (state == State.Retracting)
+            {
+                Retract(!roundOver);
+            }
+        }
 
         UpdateRope();
+        UpdateClaw();
     }
 
     void Extend()
@@ -100,6 +149,7 @@ public class Hook : MonoBehaviour
 
             // First valid object on the path: stop here and pull back
             transform.position += (Vector3)(dir * hit.distance);
+            if (carried != null) HoldInClaw();
             state = State.Retracting;
             return;
         }
@@ -109,7 +159,7 @@ public class Hook : MonoBehaviour
         if (traveled >= maxLength - 0.001f) state = State.Retracting;
     }
 
-    void Retract()
+    void Retract(bool react)
     {
         Vector2 pos = transform.position;
         float remaining = Vector2.Distance(pos, origin);
@@ -117,13 +167,13 @@ public class Hook : MonoBehaviour
 
         // An empty hook still reacts to what it touches on the way back;
         // once it carries something it ignores everything else
-        if (carried == null && remaining > 0.0001f)
+        if (react && carried == null && remaining > 0.0001f)
         {
             Vector2 back = (origin - pos) / remaining;
             foreach (RaycastHit2D hit in CastAhead(back, step))
             {
                 HandleHit(hit.collider);
-                if (carried != null) break;
+                if (carried != null) { HoldInClaw(); break; }
             }
         }
 
@@ -135,6 +185,10 @@ public class Hook : MonoBehaviour
         if (carried != null) Destroy(carried.gameObject);
         carried = null;
         state = State.Idle;
+
+        // Rest pointing down, ready for the next shot
+        dir = Vector2.down;
+        transform.rotation = Quaternion.identity;
     }
 
     // Everything the hook would touch moving this far, nearest first, excluding itself
@@ -199,16 +253,131 @@ public class Hook : MonoBehaviour
         }
     }
 
+    // Put the treasure in front of the claw so the closed tips grip its near edge
+    void HoldInClaw()
+    {
+        float radius = 0f;
+        SpriteRenderer sr = carried.GetComponent<SpriteRenderer>();
+        if (sr != null) radius = Mathf.Min(sr.bounds.extents.x, sr.bounds.extents.y);
+
+        float edge = clawLength * 0.8f;   // a little short of the closed tips
+        carried.transform.position = (Vector2)transform.position + dir * (edge + radius);
+    }
+
     void UpdateRope()
     {
         if (rope == null) return;
 
         Vector2 tip = transform.position;
-        float length = Vector2.Distance(origin, tip);
+        bool visible = Application.isPlaying && state != State.Idle && (tip - origin).sqrMagnitude > 0.0001f;
 
-        rope.gameObject.SetActive(state != State.Idle && length > 0.01f);
-        rope.position = (origin + tip) * 0.5f;
-        rope.rotation = transform.rotation;
-        rope.localScale = new Vector3(ropeWidth, length, 1f);
+        rope.SetVisible(visible);
+        if (!visible) return;
+
+        rope.SetStyle(ropeWidth, ropeWidth, outlineWidth, color, outlineColor);
+        rope.SetPosition(0, origin);
+        rope.SetPosition(1, tip);
+    }
+
+    void UpdateClaw()
+    {
+        if (clawLeft == null) return;
+
+        // Closed while holding treasure, open otherwise
+        float target = carried != null ? clawClosedAngle : clawOpenAngle;
+        clawAngle = Application.isPlaying
+            ? Mathf.Lerp(clawAngle, target, 1f - Mathf.Exp(-clawCloseSpeed * Time.deltaTime))
+            : target;
+
+        DrawArm(clawLeft, 1f);
+        DrawArm(clawRight, -1f);
+    }
+
+    // One arm: out from the pivot at clawAngle, then bent back toward the center line
+    void DrawArm(Stroke arm, float side)
+    {
+        Vector2 pivot = transform.position;
+        Vector2 outward = Rotate(dir, side * clawAngle);
+        Vector2 inward = Rotate(dir, -side * clawAngle * 0.8f);
+
+        Vector2 elbow = pivot + outward * (clawLength * 0.6f);
+        Vector2 tip = elbow + inward * (clawLength * 0.5f);
+
+        arm.SetStyle(clawWidth, clawWidth * 0.6f, outlineWidth, color, outlineColor);
+        arm.SetPosition(0, pivot);
+        arm.SetPosition(1, elbow);
+        arm.SetPosition(2, tip);
+    }
+
+    static Vector2 Rotate(Vector2 v, float degrees)
+    {
+        return Quaternion.Euler(0f, 0f, degrees) * v;
+    }
+
+    // A colored line drawn over a slightly wider dark line, so it reads on any background
+    class Stroke
+    {
+        private readonly LineRenderer fill;
+        private readonly LineRenderer outline;
+
+        public Stroke(Transform parent, string name, int points, Material material, int sortingLayer, int sortingOrder)
+        {
+            outline = CreateLine(parent, name + "Outline", points, material, sortingLayer, sortingOrder);
+            fill = CreateLine(parent, name, points, material, sortingLayer, sortingOrder + 1);
+        }
+
+        static LineRenderer CreateLine(Transform parent, string name, int points, Material material, int sortingLayer, int sortingOrder)
+        {
+            // Generated at runtime and in edit mode; never saved into the scene
+            GameObject go = new GameObject(name);
+            go.hideFlags = HideFlags.HideAndDontSave;
+            go.transform.SetParent(parent, false);
+
+            LineRenderer line = go.AddComponent<LineRenderer>();
+            line.useWorldSpace = true;
+            line.positionCount = points;
+            line.sharedMaterial = material;
+            line.sortingLayerID = sortingLayer;
+            line.sortingOrder = sortingOrder;
+            line.numCapVertices = 2;
+            line.numCornerVertices = 2;
+            return line;
+        }
+
+        public void SetStyle(float startWidth, float endWidth, float border, Color fillColor, Color borderColor)
+        {
+            fill.startWidth = startWidth;
+            fill.endWidth = endWidth;
+            fill.startColor = fill.endColor = fillColor;
+
+            outline.startWidth = startWidth + border * 2f;
+            outline.endWidth = endWidth + border * 2f;
+            outline.startColor = outline.endColor = borderColor;
+        }
+
+        public void SetPosition(int index, Vector2 position)
+        {
+            fill.SetPosition(index, position);
+            outline.SetPosition(index, position);
+        }
+
+        public void SetVisible(bool visible)
+        {
+            fill.enabled = visible;
+            outline.enabled = visible;
+        }
+
+        public void Destroy()
+        {
+            DestroyLine(fill);
+            DestroyLine(outline);
+        }
+
+        static void DestroyLine(LineRenderer line)
+        {
+            if (line == null) return;
+            if (Application.isPlaying) Object.Destroy(line.gameObject);
+            else Object.DestroyImmediate(line.gameObject);
+        }
     }
 }
