@@ -70,7 +70,7 @@ public class MinerAI : MonoBehaviour
             if (!GameManager.Instance.IsPlaying) yield break;
 
             // 4. Fire, then wait for the hook to come back
-            hook.Fire(origin, dir, length);
+            hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
 
             yield return new WaitForSeconds(cooldown);
