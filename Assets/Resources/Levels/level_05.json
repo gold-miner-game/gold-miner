@@ -1,0 +1,95 @@
+{
+  "pig_start": [
+    0.0,
+    -1.0
+  ],
+  "hooks": [
+    [
+      -2.1892149095076805,
+      3.1904614321179725
+    ],
+    [
+      -5.78960037957056,
+      -0.5308136623447881
+    ],
+    [
+      4.451309225637042,
+      -3.6452154962833503
+    ]
+  ],
+  "items": [
+    {
+      "type": "Gold_Large",
+      "x": 5.693162385336569,
+      "y": -1.3523759613321142
+    },
+    {
+      "type": "Diamond",
+      "x": 4.825153164006439,
+      "y": 1.6224284282006702
+    },
+    {
+      "type": "Gold_Large",
+      "x": -4.52460604433571,
+      "y": 2.5521323236482054
+    },
+    {
+      "type": "Diamond",
+      "x": -6.24846479441236,
+      "y": -2.691364005942937
+    },
+    {
+      "type": "Gold_Medium",
+      "x": 0.8793242215171341,
+      "y": 0.6360948753976053
+    },
+    {
+      "type": "Diamond",
+      "x": -7.689746501016572,
+      "y": -2.5165097258186035
+    },
+    {
+      "type": "Gold_Medium",
+      "x": -0.45593274443535386,
+      "y": 0.5705306188918338
+    },
+    {
+      "type": "Gold_Medium",
+      "x": 5.172869962125162,
+      "y": 2.338894845932549
+    }
+  ],
+  "params": {
+    "pig_speed": 5.0,
+    "digest_time": 0.17863041796401685,
+    "digest_per_value": 0.0020935228337540515,
+    "hook_extend": 10.679036919842664,
+    "hook_retract": 8.0,
+    "overshoot": 0.6,
+    "start_delay": 1.5,
+    "telegraph_min": 1.0,
+    "telegraph_max": 2.0,
+    "cooldown": 0.8,
+    "min_treasure_shots": 2,
+    "max_treasure_shots": 3,
+    "round_time": 90.0,
+    "starting_lives": 0,
+    "invincible_time": 1.5,
+    "hook_kills": false
+  },
+  "level": {
+    "level": 5,
+    "gold": 8,
+    "value": 2600,
+    "hooks": 3,
+    "try_": 4,
+    "target_win": 0.4857,
+    "pig_win": 0.47,
+    "margin": 245.3,
+    "margin_se": 9.2,
+    "digest_time": 0.1786,
+    "digest_per_value": 0.0021,
+    "hook_extend": 10.679,
+    "hook_retract": 8.0
+  }
+}

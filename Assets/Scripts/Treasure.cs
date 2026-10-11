@@ -17,15 +17,21 @@ public class Treasure : MonoBehaviour
     void OnEnable()  { if (!IsTaken) Active.Add(this); }
     void OnDisable() { Active.Remove(this); }
 
-    // The pig touches the treasure
-    void OnTriggerEnter2D(Collider2D other)
+    // The pig touches the treasure. While it is digesting it can't eat; Stay retries every
+    // physics step, so it eats as soon as the digest ends if it is still touching
+    void OnTriggerEnter2D(Collider2D other) { TryEat(other); }
+    void OnTriggerStay2D(Collider2D other)  { TryEat(other); }
+
+    void TryEat(Collider2D other)
     {
         if (IsTaken) return;
-        if (other.GetComponent<PigController>() == null) return;
+        PigController pig = other.GetComponent<PigController>();
+        if (pig == null || !pig.CanEat) return;
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
 
         IsTaken = true;
         Active.Remove(this);
+        pig.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
         Destroy(gameObject);
     }

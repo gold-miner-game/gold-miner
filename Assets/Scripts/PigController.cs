@@ -8,10 +8,20 @@ public class PigController : MonoBehaviour
     [Header("Settings")]
     public float moveSpeed = 5f;
 
+    [Header("Digest (0 = off)")]
+    public float digestTime = 0f;       // after eating, the pig can't eat for digestTime + digestPerValue * value
+    public float digestPerValue = 0f;
+    public Color digestTint = new Color(0.65f, 0.9f, 0.55f);
+
+    // Treasure asks this before letting the pig eat it
+    public bool CanEat => Time.time >= digestUntil;
+
     private bool facingRight = true; // Default facing is right
     private Rigidbody2D body;
     private SpriteRenderer sr;
+    private Color baseColor;
     private Vector2 input;
+    private float digestUntil;
 
     void Awake()
     {
@@ -22,14 +32,25 @@ public class PigController : MonoBehaviour
         body.freezeRotation = true; // Don't spin when bumping into things
         body.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         body.interpolation = RigidbodyInterpolation2D.Interpolate;
+        // Never sleep: Treasure re-checks every physics step while touched, so a pig standing on
+        // gold eats it as soon as its digest ends
+        body.sleepMode = RigidbodySleepMode2D.NeverSleep;
 
         sr = GetComponent<SpriteRenderer>();
+        if (sr != null) baseColor = sr.color;
+    }
+
+    // Called by Treasure when the pig eats it
+    public void Digest(int value)
+    {
+        digestUntil = Time.time + digestTime + digestPerValue * value;
     }
 
     void Update()
     {
         ReadInput();
         UpdateBlink();
+        if (sr != null) sr.color = CanEat ? baseColor : digestTint;
     }
 
     void ReadInput()

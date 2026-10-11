@@ -18,6 +18,7 @@ public class Hook : MonoBehaviour
 
     [Header("Collision")]
     public float hitRadius = 0.2f;
+    public bool hitsPig = true;      // false: the hook passes through the pig (no-kill levels)
 
     [Header("Look")]
     public Color defaultColor = Color.yellow;
@@ -229,6 +230,7 @@ public class Hook : MonoBehaviour
 
         if (col.GetComponent<PigController>() != null)
         {
+            if (!hitsPig) return false;
             // No color check: any hook that touches the pig hurts it.
             // GameManager decides the outcome (lose a Life, or end the round).
             if (GameManager.Instance != null) GameManager.Instance.PlayerHit();
@@ -241,9 +243,13 @@ public class Hook : MonoBehaviour
     // Heavier treasure is pulled back more slowly
     float RetractMultiplier()
     {
-        if (carried == null) return 1f;
+        return carried == null ? 1f : RetractMultiplier(carried.type);
+    }
 
-        switch (carried.type)
+    // Also used by MinerAI to estimate how long a shot takes
+    public float RetractMultiplier(TreasureType type)
+    {
+        switch (type)
         {
             case TreasureType.SmallGold:  return smallGoldSpeed;
             case TreasureType.MediumGold: return mediumGoldSpeed;
