@@ -13,8 +13,17 @@ public class PigController : MonoBehaviour
     public float digestPerValue = 0f;
     public Color digestTint = new Color(0.65f, 0.9f, 0.55f);
 
+    [Header("Block (Space)")]
+    public bool canBlock = false;       // turned on per level by LevelLoader
+    public float blockDuration = 0.8f;  // how long one block lasts
+    public float blockCooldown = 1f;    // wait after a block ends before the next one
+    public Color blockTint = new Color(0.45f, 0.75f, 1f);
+
     // Treasure asks this before letting the pig eat it
     public bool CanEat => Time.time >= digestUntil;
+
+    // Hook asks this when it touches the pig: a blocking pig bounces the hook back
+    public bool IsBlocking => Time.time < blockUntil;
 
     private bool facingRight = true; // Default facing is right
     private Rigidbody2D body;
@@ -22,6 +31,8 @@ public class PigController : MonoBehaviour
     private Color baseColor;
     private Vector2 input;
     private float digestUntil;
+    private float blockUntil;
+    private float blockReadyAt;
 
     void Awake()
     {
@@ -50,7 +61,7 @@ public class PigController : MonoBehaviour
     {
         ReadInput();
         UpdateBlink();
-        if (sr != null) sr.color = CanEat ? baseColor : digestTint;
+        if (sr != null) sr.color = IsBlocking ? blockTint : CanEat ? baseColor : digestTint;
     }
 
     void ReadInput()
@@ -67,6 +78,8 @@ public class PigController : MonoBehaviour
         if (keyboard.sKey.isPressed) input.y -= 1f;
         if (keyboard.wKey.isPressed) input.y += 1f;
 
+        if (keyboard.spaceKey.wasPressedThisFrame) TryBlock();
+
         // Flip only when the horizontal direction changes; keep facing when moving vertically
         if (input.x < 0f && facingRight)
         {
@@ -76,6 +89,16 @@ public class PigController : MonoBehaviour
         {
             Flip();
         }
+    }
+
+    // Start a block if the skill is on and off cooldown
+    void TryBlock()
+    {
+        if (!canBlock || Time.time < blockReadyAt) return;
+        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
+
+        blockUntil = Time.time + blockDuration;
+        blockReadyAt = blockUntil + blockCooldown;
     }
 
     // Blink while invincible (right after losing a Life)

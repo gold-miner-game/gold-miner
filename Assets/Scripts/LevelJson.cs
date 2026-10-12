@@ -6,7 +6,10 @@ using UnityEngine;
 // A level file from tools/sim (gold_miner_heuristic.py levels), e.g.
 //   { "pig_start": [0, -1], "hooks": [[0, 3.4], [5, -1.5]],
 //     "items": [{"type": "Diamond", "x": 6.2, "y": 0.0}, ...],
-//     "params": {"pig_speed": 5, "digest_time": 1.06, ...}, "level": {...} }
+//     "params": {"pig_speed": 5, "digest_time": 1.06, ...}, "level": {...},
+//     "skills": {"block": true, "block_duration": 0.3, "block_cooldown": 1} }
+// "skills" is optional and Unity-only (the simulator doesn't model it); it is read into the same
+// parameter table as "params".
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.
 public class LevelData
 {
@@ -44,17 +47,20 @@ public class LevelData
                 });
             }
         }
-        if (root.TryGetValue("params", out object ps))
-        {
-            foreach (var kv in (Dictionary<string, object>)ps)
-            {
-                if (kv.Value is double d) level.parameters[kv.Key] = d;
-                else if (kv.Value is bool b) level.parameters[kv.Key] = b ? 1.0 : 0.0;
-            }
-        }
+        if (root.TryGetValue("params", out object ps)) level.AddParameters(ps);
+        if (root.TryGetValue("skills", out object skills)) level.AddParameters(skills);
         if (root.TryGetValue("level", out object info) && info is Dictionary<string, object> dict)
             foreach (var kv in dict) level.info[kv.Key] = kv.Value;
         return level;
+    }
+
+    void AddParameters(object table)
+    {
+        foreach (var kv in (Dictionary<string, object>)table)
+        {
+            if (kv.Value is double d) parameters[kv.Key] = d;
+            else if (kv.Value is bool b) parameters[kv.Key] = b ? 1.0 : 0.0;
+        }
     }
 
     public float Param(string name, float fallback)
