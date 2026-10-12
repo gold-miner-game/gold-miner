@@ -42,6 +42,16 @@
       "type": "Diamond",
       "x": -6.000640235576861,
       "y": -3.2380992985003494
+    },
+    {
+      "type": "Gold_Large",
+      "x": 5.502,
+      "y": 0.578
+    },
+    {
+      "type": "Gold_Small",
+      "x": 5.803,
+      "y": -2.764
     }
   ],
   "params": {
@@ -62,10 +72,15 @@
     "invincible_time": 1.5,
     "hook_kills": false
   },
+  "skills": {
+    "block": true,
+    "block_duration": 0.8,
+    "block_cooldown": 1.0
+  },
   "level": {
     "level": 2,
-    "gold": 5,
-    "value": 1250,
+    "gold": 7,
+    "value": 1550,
     "hooks": 3,
     "try_": 3,
     "target_win": 0.5714,

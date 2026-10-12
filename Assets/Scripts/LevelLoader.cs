@@ -6,7 +6,7 @@ using UnityEngine.InputSystem;
 // Put it in the Game scene: before anything else starts it removes the scene's treasure, spawns the
 // level's items from the item prefabs, moves the pig, makes one miner + hook + telegraph per hook
 // origin (copies of the scene's own, so they keep their look), and applies the level's speeds and
-// timings. N / P load the next / previous level.
+// timings. N / P load the next / previous level; winning a round moves on to the next one by itself.
 [DefaultExecutionOrder(-1000)]
 public class LevelLoader : MonoBehaviour
 {
@@ -29,6 +29,12 @@ public class LevelLoader : MonoBehaviour
     public bool balancedMinerPolicy = true;
     public bool showLevelLabel = true;
 
+    [Header("Progression")]
+    [Tooltip("After a win, load the next level by itself")]
+    public bool autoAdvance = true;
+    [Tooltip("Seconds the result stays on screen before the next level loads")]
+    public float advanceDelay = 3f;
+
     // The level index survives GameManager.Restart (which reloads the scene)
     private static int current = -1;
 
@@ -36,6 +42,7 @@ public class LevelLoader : MonoBehaviour
     private LevelData level;
     private string label = "";
     private readonly List<GameObject> spawned = new List<GameObject>();
+    private float advanceAt = -1f;   // time the next level loads; -1 = not scheduled
 
     public static int CurrentLevel => current + 1;
 
@@ -72,6 +79,7 @@ public class LevelLoader : MonoBehaviour
         SetUpRound();
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
+        if (pig != null && pig.canBlock) label += "  [Space] block";
         if (level.info.TryGetValue("target_win", out object target) && target is double t)
             label += $"  (balanced for pig win {t:P0})";
         Debug.Log("LevelLoader: " + label + " from " + list[current].name);
@@ -117,6 +125,10 @@ public class LevelLoader : MonoBehaviour
         pig.moveSpeed = level.Param("pig_speed", pig.moveSpeed);
         pig.digestTime = level.Param("digest_time", 0f);
         pig.digestPerValue = level.Param("digest_per_value", 0f);
+
+        pig.canBlock = level.Param("block", 0f) > 0.5f;
+        pig.blockDuration = level.Param("block_duration", pig.blockDuration);
+        pig.blockCooldown = level.Param("block_cooldown", pig.blockCooldown);
     }
 
     void SetUpMiners()
@@ -179,11 +191,27 @@ public class LevelLoader : MonoBehaviour
 
     void Update()
     {
+        if (list == null || list.Length == 0) return;
+        UpdateAdvance();
+
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null || list == null || list.Length == 0) return;
+        if (keyboard == null) return;
         if (keyboard.nKey.wasPressedThisFrame) Load(current + 1);
         else if (keyboard.pKey.wasPressedThisFrame) Load(current - 1);
     }
+
+    // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
+    // the next level. A loss stays put so R can retry. The last level doesn't wrap around.
+    void UpdateAdvance()
+    {
+        GameManager gm = GameManager.Instance;
+        if (!autoAdvance || gm == null || gm.IsPlaying || !gm.PlayerWon || IsLastLevel) return;
+
+        if (advanceAt < 0f) advanceAt = Time.time + advanceDelay;
+        else if (Time.time >= advanceAt) Load(current + 1);
+    }
+
+    bool IsLastLevel => current >= list.Length - 1;
 
     // Switch level by reloading the scene (the index is static)
     public void Load(int index)
@@ -198,5 +226,15 @@ public class LevelLoader : MonoBehaviour
     {
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;
         GUI.Label(new Rect(10, Screen.height - 30, 700, 24), label + "   [N] next  [P] previous  [R] restart");
+
+        GameManager gm = GameManager.Instance;
+        if (gm == null || gm.IsPlaying) return;
+        string status;
+        if (!gm.PlayerWon) status = "Press R to retry this level";
+        else if (IsLastLevel) status = "All " + list.Length + " levels cleared!";
+        else if (advanceAt >= 0f)
+            status = "Level " + (current + 2) + " in " + Mathf.CeilToInt(advanceAt - Time.time) + "...";
+        else return;
+        GUI.Label(new Rect(10, Screen.height - 54, 700, 24), status);
     }
 }
