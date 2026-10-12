@@ -27,6 +27,9 @@ public class LevelLoader : MonoBehaviour
     [Header("Rules")]
     [Tooltip("Use the miner policy the levels were balanced against (MinerAI.Strategy.Efficient)")]
     public bool balancedMinerPolicy = true;
+    [Tooltip("Scales the level's pig and hook speeds (1 = as balanced, 0.8 = everything 20% slower)")]
+    [Range(0.1f, 2f)]
+    public float gameSpeed = 0.8f;
     public bool showLevelLabel = true;
 
     [Header("Progression")]
@@ -122,7 +125,7 @@ public class LevelLoader : MonoBehaviour
         var body = pig.GetComponent<Rigidbody2D>();
         if (body != null) body.position = level.pigStart;
 
-        pig.moveSpeed = level.Param("pig_speed", pig.moveSpeed);
+        pig.moveSpeed = level.Param("pig_speed", pig.moveSpeed) * gameSpeed;
         pig.digestTime = level.Param("digest_time", 0f);
         pig.digestPerValue = level.Param("digest_per_value", 0f);
 
@@ -176,8 +179,8 @@ public class LevelLoader : MonoBehaviour
         bool kills = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
         miner.shootsPlayer = kills;
         miner.hook.hitsPig = kills;
-        miner.hook.extendSpeed = level.Param("hook_extend", miner.hook.extendSpeed);
-        miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed);
+        miner.hook.extendSpeed = level.Param("hook_extend", miner.hook.extendSpeed) * gameSpeed;
+        miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed) * gameSpeed;
     }
 
     void SetUpRound()
