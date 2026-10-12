@@ -91,6 +91,11 @@
     "invincible_time": 1.5,
     "hook_kills": false
   },
+  "skills": {
+    "block": true,
+    "block_duration": 0.8,
+    "block_cooldown": 1.0
+  },
   "level": {
     "level": 7,
     "gold": 10,
