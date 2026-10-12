@@ -22,8 +22,17 @@ public class PigController : MonoBehaviour
     // Treasure asks this before letting the pig eat it
     public bool CanEat => Time.time >= digestUntil;
 
+    // The HUD's digest bar reads these
+    public bool UsesDigest => digestTime > 0f || digestPerValue > 0f;
+    public float DigestLeft => Mathf.Max(0f, digestUntil - Time.time);
+    public float DigestLength { get; private set; }
+
     // Hook asks this when it touches the pig: a blocking pig bounces the hook back
     public bool IsBlocking => Time.time < blockUntil;
+
+    // The HUD's block bar reads these: time left in the current block, and until the next one
+    public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
+    public float BlockReadyIn => Mathf.Max(0f, blockReadyAt - Time.time);
 
     private bool facingRight = true; // Default facing is right
     private Rigidbody2D body;
@@ -54,7 +63,8 @@ public class PigController : MonoBehaviour
     // Called by Treasure when the pig eats it
     public void Digest(int value)
     {
-        digestUntil = Time.time + digestTime + digestPerValue * value;
+        DigestLength = digestTime + digestPerValue * value;
+        digestUntil = Time.time + DigestLength;
     }
 
     void Update()
