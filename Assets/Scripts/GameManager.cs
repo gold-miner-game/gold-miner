@@ -48,7 +48,7 @@ public class GameManager : MonoBehaviour
             TimeLeft = 0f;
             EndRound(false, "Time's up!");
         }
-        else if (hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
+        else if (hadTreasure && Treasure.Active.Count == 0)
         {
             EndRound(false, "All treasure collected!");
         }

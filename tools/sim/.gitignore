@@ -1,3 +1,0 @@
-__pycache__/
-# per-try checkpoints of the levels command (kept for resuming; the chosen maps are level_NN.json)
-levels/*_try*.json
