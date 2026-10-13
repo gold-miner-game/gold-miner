@@ -171,6 +171,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 4448970507760710517, guid: e8d4b2b63cd914f47b1a19fa72738d24, type: 3}
+      propertyPath: type
+      value: 2
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -217,6 +221,8 @@ MonoBehaviour:
   telegraphMax: 2
   cooldown: 0.8
   overshoot: 0.6
+  strategy: 0
+  shootsPlayer: 1
   treasureColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   playerColor: {r: 1, g: 0, b: 0, a: 1}
 --- !u!212 &354516875
@@ -660,6 +666,66 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 354516876}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1012256856
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1012256858}
+  - component: {fileID: 1012256857}
+  m_Layer: 0
+  m_Name: LevelLoader
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1012256857
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1012256856}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6a0482500db8416d9f044fb0027724e1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LevelLoader
+  levels: []
+  startLevel: 1
+  itemPrefabs:
+  - {fileID: 3699368570777298312, guid: 91900b9bedffd4b4c98ae8c0c16e1ba8, type: 3}
+  - {fileID: 2241667528812766344, guid: 4dd0380e0a3c040d9a9a4351ec4ea3b0, type: 3}
+  - {fileID: 2975636195656694761, guid: e8d4b2b63cd914f47b1a19fa72738d24, type: 3}
+  - {fileID: 1189056177124728266, guid: e2fd3b0a33c654a68b1d6eb0265f03e5, type: 3}
+  - {fileID: 2741159981115148644, guid: 4e34c722b87a84da990afa1ebfc70695, type: 3}
+  - {fileID: 9191124566675381325, guid: 8a849846dfb434d6d803a4ad5edfe73b, type: 3}
+  minerTemplate: {fileID: 0}
+  pig: {fileID: 0}
+  clearSceneItems: 1
+  balancedMinerPolicy: 1
+  showLevelLabel: 1
+  autoAdvance: 1
+  advanceDelay: 3
+--- !u!4 &1012256858
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1012256856}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1018122339
 GameObject:
@@ -1314,9 +1380,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Hook
   extendSpeed: 12
   retractSpeed: 16
+  smallGoldSpeed: 1
+  mediumGoldSpeed: 0.7
+  largeGoldSpeed: 0.45
+  diamondSpeed: 1.1
   hitRadius: 0.2
-  rope: {fileID: 0}
+  hitsPig: 1
+  defaultColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  lineMaterial: {fileID: 0}
   ropeWidth: 0.05
+  outlineColor: {r: 0.15, g: 0.12, b: 0.1, a: 1}
+  outlineWidth: 0.03
+  clawLength: 0.35
+  clawWidth: 0.06
+  clawOpenAngle: 40
+  clawClosedAngle: 12
+  clawCloseSpeed: 10
 --- !u!212 &1432390431
 SpriteRenderer:
   serializedVersion: 2
@@ -1832,3 +1911,4 @@ SceneRoots:
   - {fileID: 1166779733}
   - {fileID: 189645861}
   - {fileID: 1507244784}
+  - {fileID: 1012256858}

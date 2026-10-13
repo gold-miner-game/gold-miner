@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Goldminer.slnx"
+    "dotnet.defaultSolution": "gold-miner.slnx"
 }
