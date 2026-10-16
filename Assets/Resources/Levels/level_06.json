@@ -1,0 +1,105 @@
+{
+  "pig_start": [
+    0.0,
+    -1.0
+  ],
+  "hooks": [
+    [
+      -3.599210682873217,
+      2.8794720749018623
+    ],
+    [
+      2.7684922399962897,
+      1.451457434238546
+    ],
+    [
+      5.012892998550695,
+      -0.8816597740951941
+    ]
+  ],
+  "items": [
+    {
+      "type": "Gold_Small",
+      "x": 3.5721857997434334,
+      "y": -4.370150838895102
+    },
+    {
+      "type": "Gold_Medium",
+      "x": 1.5777613778633668,
+      "y": 2.307382705726965
+    },
+    {
+      "type": "Diamond",
+      "x": -1.9680276144747242,
+      "y": 2.317505022184183
+    },
+    {
+      "type": "Gold_Small",
+      "x": 2.8901004385999047,
+      "y": -1.0769734092250018
+    },
+    {
+      "type": "Diamond",
+      "x": 4.983114547890605,
+      "y": -0.3971285376182862
+    },
+    {
+      "type": "Diamond",
+      "x": -1.3523042098719258,
+      "y": -4.350878078329866
+    },
+    {
+      "type": "Gold_Large",
+      "x": -7.401276460595905,
+      "y": -1.3016397840820353
+    },
+    {
+      "type": "Gold_Small",
+      "x": -7.60802765843279,
+      "y": 0.6979187793011794
+    },
+    {
+      "type": "Gold_Large",
+      "x": -7.75464551394954,
+      "y": -4.476897594491946
+    }
+  ],
+  "params": {
+    "pig_speed": 5.0,
+    "digest_time": 0.36221007161760566,
+    "digest_per_value": 0.0036164690642355012,
+    "hook_extend": 14.39924113541484,
+    "hook_retract": 17.231751764183944,
+    "overshoot": 0.6,
+    "start_delay": 1.5,
+    "telegraph_min": 1.0,
+    "telegraph_max": 2.0,
+    "cooldown": 0.8,
+    "min_treasure_shots": 2,
+    "max_treasure_shots": 3,
+    "round_time": 90.0,
+    "starting_lives": 0,
+    "invincible_time": 1.5,
+    "hook_kills": false
+  },
+  "skills": {
+    "block": true,
+    "block_duration": 0.8,
+    "block_cooldown": 1.0
+  },
+  "level": {
+    "level": 6,
+    "gold": 9,
+    "value": 2550,
+    "hooks": 3,
+    "try_": 2,
+    "target_win": 0.4571,
+    "pig_win": 0.4441,
+    "margin": 8.4,
+    "margin_se": 7.3,
+    "digest_time": 0.3622,
+    "digest_per_value": 0.0036,
+    "hook_extend": 14.3992,
+    "hook_retract": 17.2318
+  }
+}

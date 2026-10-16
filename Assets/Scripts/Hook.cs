@@ -18,6 +18,7 @@ public class Hook : MonoBehaviour
 
     [Header("Collision")]
     public float hitRadius = 0.2f;
+    public bool hitsPig = true;      // false: the hook passes through the pig (no-kill levels)
 
     [Header("Look")]
     public Color defaultColor = Color.yellow;
@@ -165,13 +166,19 @@ public class Hook : MonoBehaviour
         float remaining = Vector2.Distance(pos, origin);
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
 
-        // An empty hook still reacts to what it touches on the way back;
-        // once it carries something it ignores everything else
-        if (react && carried == null && remaining > 0.0001f)
+        // An empty hook still reacts to what it touches on the way back. A carrying hook ignores
+        // everything except a blocking pig, which knocks the treasure loose
+        if (react && remaining > 0.0001f)
         {
             Vector2 back = (origin - pos) / remaining;
             foreach (RaycastHit2D hit in CastAhead(back, step))
             {
+                if (carried != null)
+                {
+                    PigController pig = hit.collider.GetComponent<PigController>();
+                    if (pig != null && pig.IsBlocking) DropCarried();
+                    continue;
+                }
                 HandleHit(hit.collider);
                 if (carried != null) { HoldInClaw(); break; }
             }
@@ -181,8 +188,8 @@ public class Hook : MonoBehaviour
         transform.position = next;
         if ((next - origin).sqrMagnitude > 0.0001f) return;
 
-        // Back at the miner (the miner was already paid in Treasure.GrabByHook)
-        if (carried != null) Destroy(carried.gameObject);
+        // Back at the miner: now the treasure counts
+        if (carried != null) carried.DeliverToMiner();
         carried = null;
         state = State.Idle;
 
@@ -209,6 +216,11 @@ public class Hook : MonoBehaviour
     // Returns true if this object is a valid stop (treasure, rock or pig)
     bool HandleHit(Collider2D col)
     {
+        // The pig is checked before the touched set, so a hook that passed through it can still be
+        // bounced by a block later in the same shot
+        PigController pig = col.GetComponent<PigController>();
+        if (pig != null) return HandlePig(pig, col);
+
         if (!touched.Add(col)) return false;
 
         Treasure treasure = col.GetComponent<Treasure>();
@@ -227,23 +239,32 @@ public class Hook : MonoBehaviour
             return true;
         }
 
-        if (col.GetComponent<PigController>() != null)
-        {
-            // No color check: any hook that touches the pig hurts it.
-            // GameManager decides the outcome (lose a Life, or end the round).
-            if (GameManager.Instance != null) GameManager.Instance.PlayerHit();
-            return true;
-        }
-
         return false; // walls, Life items: the hook passes through
+    }
+
+    bool HandlePig(PigController pig, Collider2D col)
+    {
+        // Blocking: the hook bounces off and goes home empty, even in no-kill levels
+        if (pig.IsBlocking) return touched.Add(col);
+        if (!hitsPig) return false;
+        if (!touched.Add(col)) return false;
+
+        // No color check: any hook that touches the pig hurts it.
+        // GameManager decides the outcome (lose a Life, or end the round).
+        if (GameManager.Instance != null) GameManager.Instance.PlayerHit();
+        return true;
     }
 
     // Heavier treasure is pulled back more slowly
     float RetractMultiplier()
     {
-        if (carried == null) return 1f;
+        return carried == null ? 1f : RetractMultiplier(carried.type);
+    }
 
-        switch (carried.type)
+    // Also used by MinerAI to estimate how long a shot takes
+    public float RetractMultiplier(TreasureType type)
+    {
+        switch (type)
         {
             case TreasureType.SmallGold:  return smallGoldSpeed;
             case TreasureType.MediumGold: return mediumGoldSpeed;
@@ -254,6 +275,12 @@ public class Hook : MonoBehaviour
     }
 
     // Put the treasure in front of the claw so the closed tips grip its near edge
+    void DropCarried()
+    {
+        carried.DropFromHook();
+        carried = null;
+    }
+
     void HoldInClaw()
     {
         float radius = 0f;
