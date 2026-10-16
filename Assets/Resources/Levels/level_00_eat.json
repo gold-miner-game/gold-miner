@@ -1,0 +1,23 @@
+{
+  "guide": "EAT GOLD\nMove with W A S D. Eat all the gold and diamonds!\nGreen pig = digesting: wait until it's pink to eat again.",
+  "pig_start": [
+    0.0,
+    -1.0
+  ],
+  "hooks": [],
+  "items": [
+    { "type": "Gold_Small", "x": -3.0, "y": -1.0 },
+    { "type": "Gold_Medium", "x": 3.0, "y": 0.5 },
+    { "type": "Gold_Large", "x": -6.0, "y": -3.5 },
+    { "type": "Diamond", "x": 6.0, "y": -3.0 },
+    { "type": "Diamond", "x": -5.5, "y": 1.0 },
+    { "type": "Diamond", "x": 1.5, "y": -3.5 }
+  ],
+  "params": {
+    "pig_speed": 5.0,
+    "digest_time": 0.8,
+    "digest_per_value": 0.003,
+    "round_time": 90.0,
+    "starting_lives": 0
+  }
+}

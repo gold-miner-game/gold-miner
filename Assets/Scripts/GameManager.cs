@@ -8,7 +8,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Round")]
     public float roundTime = 90f;
-    public int startingLives = 0;
+    public int startingLives = 0;         // the hit that takes the last Life ends the round
     public float invincibleTime = 1.5f;   // after losing a Life
 
     public int PlayerMoney { get; private set; }
@@ -48,7 +48,7 @@ public class GameManager : MonoBehaviour
             TimeLeft = 0f;
             EndRound(false, "Time's up!");
         }
-        else if (hadTreasure && Treasure.Active.Count == 0)
+        else if (hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
         {
             EndRound(false, "All treasure collected!");
         }
@@ -63,13 +63,14 @@ public class GameManager : MonoBehaviour
     {
         if (!IsPlaying || IsInvincible) return;
 
-        if (Lives > 0)
+        if (Lives > 1)
         {
             Lives--;
             invincibleUntil = Time.time + invincibleTime;
         }
         else
         {
+            Lives = 0;
             EndRound(true, "Killed by the hook!");
         }
     }
@@ -79,6 +80,15 @@ public class GameManager : MonoBehaviour
         IsPlaying = false;
         EndReason = reason;
         PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
+    }
+
+    // Win now, whatever the money: for levels with another goal (the block tutorial)
+    public void WinRound(string reason)
+    {
+        if (!IsPlaying) return;
+        IsPlaying = false;
+        EndReason = reason;
+        PlayerWon = true;
     }
 
     public void Restart()
