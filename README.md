@@ -15,13 +15,13 @@
 - Addition to that, one can spend money on tools that is easily consumed. Such as life, shield, bomb, and so on... 
 
 ## To-Do List
-- Cross Level Status Recorder (Top Priority, the memory for player, Zhan Li)
-- UI redesign (Doeun Kim)
-- First design a linear like tutorial (Penny)
-- The menu for choosing different level (Penny)
-- The store for buying (Zhan Li) 
-- Different skill set attach to new characters (Yukun Li)
-- Survival Mode (Butian Xiong)
+- Cross Level Status Recorder (Top Priority, the memory for player, Zhan Li, merge to main, 10/17/2026, this means a base data class, everyone can inherent)
+- UI redesign (Doeun Kim 10/17/2026)
+- First design a linear like tutorial (Penny 10/17/2026)
+- The menu for choosing different level (Penny 10/17/2026)
+- The store for buying (Zhan Li, 10/18/2026) 
+- Different skill set attach to new characters (Yukun Li 10/17/2026)
+- Survival Mode (Butian Xiong 10/17/2026)
 
 <img width="1696" height="1498" alt="image" src="https://github.com/user-attachments/assets/4d8e2c8d-f9e0-4f3a-9d52-e244e2fe6d73" />
 Map Design Concepts
