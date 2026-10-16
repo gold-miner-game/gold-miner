@@ -26,6 +26,9 @@
 <img width="1696" height="1498" alt="image" src="https://github.com/user-attachments/assets/4d8e2c8d-f9e0-4f3a-9d52-e244e2fe6d73" />
 Map Design Concepts
 
+<img width="2182" height="1514" alt="image" src="https://github.com/user-attachments/assets/07d28617-8d5d-457f-8f44-8f76a9d9b8cb" />
+UI Redesign
+
 ## Current Status
 ![Level 4 in play](figures/example_level.png)
 
