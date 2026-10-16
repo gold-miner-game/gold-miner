@@ -33,18 +33,12 @@ public class HUDController : MonoBehaviour
     public Color lifeLostColor = Color.red;
     public Color lifeGainedColor = Color.green;
 
-    [Header("Bars (skills side by side at the top centre, money side by side at the bottom centre)")]
-    public Vector2 barSize = new Vector2(240f, 18f);
-    public float barSpacing = 12f;        // gap between two bars in a row
-    public float skillBarsTop = 20f;      // pixels from the top of the screen
-    public float moneyBarsBottom = 90f;   // pixels from the bottom (clear of LevelLoader's label lines)
+    [Header("Money bar (top centre; cooldowns are drawn on the pig)")]
+    public Vector2 barSize = new Vector2(480f, 22f);
+    public float moneyBarTop = 20f;       // pixels from the top of the screen
     public Color barBack = new Color(0f, 0f, 0f, 0.55f);
     public Color playerMoneyBar = new Color(1f, 0.55f, 0.75f);    // pink
     public Color minerMoneyBar = new Color(0.6f, 0.6f, 0.6f);     // gray
-    public Color digestBarFill = new Color(0.65f, 0.9f, 0.55f);   // matches PigController.digestTint
-    public Color digestBarReady = new Color(1f, 0.85f, 0.2f);
-    public Color blockBarActive = new Color(0.45f, 0.75f, 1f);    // matches PigController.blockTint
-    public Color blockBarCooldown = new Color(0.6f, 0.6f, 0.6f);
 
     private Label playerMoney;
     private Label minerMoney;
@@ -52,7 +46,6 @@ public class HUDController : MonoBehaviour
     private Color timerBaseColor;
     private Vector3 timerBaseScale;
     private bool roundHasLives;
-    private PigController pig;
     private GUIStyle barStyle;
 
     // Last values seen, to detect changes (not set until the first Update)
@@ -75,7 +68,6 @@ public class HUDController : MonoBehaviour
         playerMoney = new Label(playerMoneyText);
         minerMoney = new Label(minerMoneyText);
         lives = new Label(livesText);
-        pig = FindFirstObjectByType<PigController>();
 
         // A round "has Lives" if it starts with some or a Life pickup is in the scene
         GameManager gm = GameManager.Instance;
@@ -172,10 +164,12 @@ public class HUDController : MonoBehaviour
         if (resultText != null) resultText.text = gm.PlayerWon ? "YOU WIN" : "YOU LOSE";
         if (detailText == null) return;
 
-        string detail = gm.EndReason
-            + "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
+        string detail = gm.EndReason;
+        // Levels without money (the block tutorial) skip the score line
+        if (gm.PlayerMoney + gm.MinerMoney > 0)
+            detail += "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
         // GameManager counts a tie as a loss; say so, or it looks like a bug
-        if (gm.PlayerMoney == gm.MinerMoney) detail += "\nTie - the miner wins ties";
+        if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) detail += "\nTie - the miner wins ties";
         detailText.text = detail + "\nPress R to restart";
     }
 
@@ -184,85 +178,38 @@ public class HUDController : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm == null || !gm.IsPlaying) return;
 
-        DrawMoneyBars(gm);
-        if (pig == null) return;
-
-        // Only the skills this level uses; one bar alone is centred
-        int skills = (pig.UsesDigest ? 1 : 0) + (pig.canBlock ? 1 : 0);
-        int slot = 0;
-        if (pig.UsesDigest) DrawDigestBar(BarInRow(slot++, skills, skillBarsTop));
-        if (pig.canBlock) DrawBlockBar(BarInRow(slot, skills, skillBarsTop));
+        DrawMoneyBar(gm);
     }
 
-    // The i-th of `count` bars in a centred row whose top edge is `y` pixels down the screen
-    Rect BarInRow(int i, int count, float y)
+    // One bar split by the money so far: pink for the pig from the left, gray for the miner from
+    // the right, each as wide as its share of what both have. Before anyone scores it's empty
+    void DrawMoneyBar(GameManager gm)
     {
-        float rowWidth = count * barSize.x + (count - 1) * barSpacing;
-        float x = (Screen.width - rowWidth) / 2f + i * (barSize.x + barSpacing);
-        return new Rect(x, y, barSize.x, barSize.y);
-    }
+        Rect bar = new Rect((Screen.width - barSize.x) / 2f, moneyBarTop, barSize.x, barSize.y);
+        float total = gm.PlayerMoney + gm.MinerMoney;
+        float playerShare = total > 0f ? gm.PlayerMoney / total : 0f;
+        float minerShare = total > 0f ? 1f - playerShare : 0f;
 
-    // Each side's share of all the money in the round: what both have plus the treasure still
-    // out there. A side past half has won, whatever happens to the rest
-    void DrawMoneyBars(GameManager gm)
-    {
-        int left = 0;
-        foreach (Treasure t in Treasure.Active) left += t.value;
-        foreach (Treasure t in Treasure.OnHooks) left += t.value;
-        float pot = gm.PlayerMoney + gm.MinerMoney + left;
-
-        float y = Screen.height - moneyBarsBottom;
-        DrawBar(BarInRow(0, 2, y), pot > 0f ? gm.PlayerMoney / pot : 0f, playerMoneyBar,
-                "You $" + gm.PlayerMoney.ToString("N0"));
-        DrawBar(BarInRow(1, 2, y), pot > 0f ? gm.MinerMoney / pot : 0f, minerMoneyBar,
-                "Miner $" + gm.MinerMoney.ToString("N0"));
-    }
-
-    // After eating, the bar fills back up over the digest time; full means the pig can eat again
-    void DrawDigestBar(Rect bar)
-    {
-        float left = pig.DigestLeft;
-        if (left > 0f)
-            DrawBar(bar, Fraction(left, pig.DigestLength, true), digestBarFill, "Digesting " + left.ToString("0.0") + "s");
-        else
-            DrawBar(bar, 1f, digestBarReady, "Ready to eat");
-    }
-
-    // Blocking: the bar drains over the block. Cooldown: it fills back up. Full: Space blocks again
-    void DrawBlockBar(Rect bar)
-    {
-        float blockLeft = pig.BlockLeft;
-        float readyIn = pig.BlockReadyIn;
-        if (blockLeft > 0f)
-            DrawBar(bar, Fraction(blockLeft, pig.blockDuration, false), blockBarActive, "Blocking!");
-        else if (readyIn > 0f)
-            DrawBar(bar, Fraction(readyIn, pig.blockCooldown, true), blockBarCooldown, "Block in " + readyIn.ToString("0.0") + "s");
-        else
-            DrawBar(bar, 1f, blockBarActive, "[Space] Block ready");
-    }
-
-    // Share of the bar to fill with `left` of `total` seconds remaining
-    static float Fraction(float left, float total, bool refilling)
-    {
-        float t = total > 0f ? Mathf.Clamp01(left / total) : 0f;
-        return refilling ? 1f - t : t;
-    }
-
-    void DrawBar(Rect back, float filled, Color fill, string text)
-    {
         Color old = GUI.color;
         GUI.color = barBack;
-        GUI.DrawTexture(back, Texture2D.whiteTexture);
-        GUI.color = fill;
-        GUI.DrawTexture(new Rect(back.x, back.y, back.width * filled, back.height), Texture2D.whiteTexture);
+        GUI.DrawTexture(bar, Texture2D.whiteTexture);
+        GUI.color = playerMoneyBar;
+        GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * playerShare, bar.height), Texture2D.whiteTexture);
+        GUI.color = minerMoneyBar;
+        float minerWidth = bar.width * minerShare;
+        GUI.DrawTexture(new Rect(bar.xMax - minerWidth, bar.y, minerWidth, bar.height), Texture2D.whiteTexture);
         GUI.color = old;
 
         if (barStyle == null)
         {
-            barStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
-            barStyle.normal.textColor = Color.black;
+            barStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, padding = new RectOffset(8, 8, 0, 0) };
         }
-        GUI.Label(back, text, barStyle);
+        // Dark text on the pink and gray, light on the empty bar
+        barStyle.normal.textColor = total > 0f ? Color.black : Color.white;
+        barStyle.alignment = TextAnchor.MiddleLeft;
+        GUI.Label(bar, "You $" + gm.PlayerMoney.ToString("N0"), barStyle);
+        barStyle.alignment = TextAnchor.MiddleRight;
+        GUI.Label(bar, "Miner $" + gm.MinerMoney.ToString("N0"), barStyle);
     }
 
     // "+$600" next to a money label: a copy of the label, so it shares its font and size

@@ -30,7 +30,23 @@ public class LevelLoader : MonoBehaviour
     [Tooltip("Scales the level's pig and hook speeds (1 = as balanced, 0.8 = everything 20% slower)")]
     [Range(0.1f, 2f)]
     public float gameSpeed = 0.8f;
+    [Tooltip("Chance each hook shot aims at the pig (red) instead of treasure; a pig shot is always " +
+             "followed by a treasure shot. A level's pig_shot_chance overrides it. 0 = the level's " +
+             "min/max_treasure_shots rhythm")]
+    [Range(0f, 1f)]
+    public float pigShotChance = 0.3f;
+    [Tooltip("Seed for the hooks' random choices, so every play of a level goes the same way " +
+             "(0 = different every time). A level's random_seed overrides it")]
+    public int randomSeed = 0;
+    [Tooltip("Lives the pig starts every level with (0 = the level file's starting_lives)")]
+    public int livesPerLevel = 3;
     public bool showLevelLabel = true;
+
+    [Header("Tutorial")]
+    [Tooltip("Steal stage: seconds the hook rests on its treasure before pulling it back")]
+    public float stealHold = 1.5f;
+    [Tooltip("Steal stage: seconds between one pull ending and the next starting")]
+    public float stealPause = 1f;
 
     [Header("Progression")]
     [Tooltip("After a win, load the next level by itself")]
@@ -46,6 +62,11 @@ public class LevelLoader : MonoBehaviour
     private string label = "";
     private readonly List<GameObject> spawned = new List<GameObject>();
     private float advanceAt = -1f;   // time the next level loads; -1 = not scheduled
+    private readonly List<MinerAI> miners = new List<MinerAI>();
+    private int stage = -1;          // index in level.stages; -1 = the level has none
+    private int stageStart;          // the goal counter when the stage began
+    private float nextPullAt;        // steal stage: when the hooks get their next treasure
+    private GUIStyle guideStyle;
 
     public static int CurrentLevel => current + 1;
 
@@ -60,6 +81,8 @@ public class LevelLoader : MonoBehaviour
         if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
 
         level = LevelData.Parse(list[current].text);
+        int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
+        if (seed != 0) Random.InitState(seed);
         Build();
     }
 
@@ -80,6 +103,7 @@ public class LevelLoader : MonoBehaviour
         SetUpPig();
         SetUpMiners();
         SetUpRound();
+        if (level.stages.Count > 0) StartStage(0);
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
         if (pig != null && pig.canBlock) label += "  [Space] block";
@@ -101,21 +125,29 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    void SpawnItems()
+    void SpawnItems() { Spawn(level.items); }
+
+    // Returns the treasure among what it spawned
+    List<Treasure> Spawn(List<LevelData.Item> items)
     {
+        var treasure = new List<Treasure>();
         var byName = new Dictionary<string, GameObject>();
         foreach (GameObject p in itemPrefabs)
             if (p != null) byName[p.name] = p;
 
-        foreach (LevelData.Item item in level.items)
+        foreach (LevelData.Item item in items)
         {
             if (!byName.TryGetValue(item.type, out GameObject prefab))
             {
                 Debug.LogWarning("LevelLoader: no prefab named " + item.type + " in Item Prefabs");
                 continue;
             }
-            spawned.Add(Instantiate(prefab, item.position, Quaternion.identity));
+            GameObject go = Instantiate(prefab, item.position, Quaternion.identity);
+            spawned.Add(go);
+            Treasure t = go.GetComponent<Treasure>();
+            if (t != null) treasure.Add(t);
         }
+        return treasure;
     }
 
     void SetUpPig()
@@ -141,6 +173,15 @@ public class LevelLoader : MonoBehaviour
             Debug.LogWarning("LevelLoader: no MinerAI in the scene to copy");
             return;
         }
+        // A level without hooks has no miner: hide the scene's one before its Start runs
+        if (level.hooks.Count == 0)
+        {
+            minerTemplate.gameObject.SetActive(false);
+            if (minerTemplate.hook != null) minerTemplate.hook.gameObject.SetActive(false);
+            if (minerTemplate.telegraph != null) minerTemplate.telegraph.gameObject.SetActive(false);
+            return;
+        }
+
         // The template's body sits this far from its hook origin; copies keep the same offset
         Vector3 bodyOffset = minerTemplate.transform.position - minerTemplate.hookOrigin.position;
 
@@ -162,6 +203,7 @@ public class LevelLoader : MonoBehaviour
             miner.hook.transform.position = origin;
             miner.pig = pig != null ? pig.transform : minerTemplate.pig;
             Configure(miner);
+            miners.Add(miner);
         }
     }
 
@@ -176,6 +218,8 @@ public class LevelLoader : MonoBehaviour
         miner.maxTreasureShots = Mathf.RoundToInt(level.Param("max_treasure_shots", miner.maxTreasureShots));
         if (balancedMinerPolicy) miner.strategy = MinerAI.Strategy.Efficient;
 
+        miner.pigShotChance = level.Param("pig_shot_chance", pigShotChance);
+
         bool kills = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
         miner.shootsPlayer = kills;
         miner.hook.hitsPig = kills;
@@ -188,19 +232,87 @@ public class LevelLoader : MonoBehaviour
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
         gm.roundTime = level.Param("round_time", gm.roundTime);
-        gm.startingLives = Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+        gm.startingLives = livesPerLevel > 0
+            ? livesPerLevel
+            : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
         gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
     }
 
     void Update()
     {
         if (list == null || list.Length == 0) return;
+        UpdateGoal();
         UpdateAdvance();
 
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
         if (keyboard.nKey.wasPressedThisFrame) Load(current + 1);
         else if (keyboard.pKey.wasPressedThisFrame) Load(current - 1);
+    }
+
+    // Tutorial stages: set the hooks up for the stage's goal and put out its items
+    void StartStage(int index)
+    {
+        stage = index;
+        LevelData.Stage s = level.stages[stage];
+        stageStart = GoalCount(s.goal);
+
+        // Blocking: the miners shoot at the pig as usual. Stealing: they stop shooting and
+        // UpdateSteal hands each hook a treasure it has already caught, to pull back past the pig
+        bool steal = s.goal == "steal";
+        foreach (MinerAI miner in miners)
+        {
+            miner.autoShoot = !steal;
+            miner.shootsPlayer = !steal;
+            miner.hook.hitsPig = !steal;
+        }
+        if (pig != null)
+            pig.moveSpeed = (s.pigSpeed >= 0f ? s.pigSpeed : level.Param("pig_speed", pig.moveSpeed)) * gameSpeed;
+        nextPullAt = Time.time + stealPause;
+        if (!steal) Spawn(s.items);
+    }
+
+    int GoalCount(string goal)
+    {
+        if (pig == null) return 0;
+        return goal == "steal" ? pig.TreasureStolen : goal == "block" ? pig.HooksBlocked : 0;
+    }
+
+    int StageProgress => Mathf.Min(GoalCount(level.stages[stage].goal) - stageStart, level.stages[stage].count);
+
+    // Next stage once this one's count is reached; the last one wins the round. A stage whose
+    // treasure is all gone (eaten or taken by the miner) gets a fresh set
+    void UpdateGoal()
+    {
+        GameManager gm = GameManager.Instance;
+        if (stage < 0 || gm == null || !gm.IsPlaying) return;
+
+        LevelData.Stage s = level.stages[stage];
+        if (StageProgress >= s.count)
+        {
+            if (stage + 1 < level.stages.Count) StartStage(stage + 1);
+            else gm.WinRound("Tutorial done!");
+            return;
+        }
+        if (s.goal == "steal") UpdateSteal(s);
+        else if (s.items.Count > 0 && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0) Spawn(s.items);
+    }
+
+    // Steal stage: once every hook is home, wait stealPause, clear what's left lying around, and
+    // start a fresh round with each hook already holding one of the stage's items
+    void UpdateSteal(LevelData.Stage s)
+    {
+        foreach (MinerAI miner in miners)
+            if (miner.hook.IsBusy) { nextPullAt = Time.time + stealPause; return; }
+        if (Time.time < nextPullAt || s.items.Count == 0) return;
+
+        foreach (Treasure t in new List<Treasure>(Treasure.Active)) Destroy(t.gameObject);
+        List<Treasure> fresh = Spawn(s.items);
+        for (int i = 0; i < miners.Count && fresh.Count > 0; i++)
+        {
+            MinerAI miner = miners[i];
+            miner.hook.PullBack(miner.hookOrigin.position, fresh[i % fresh.Count], miner.treasureColor, stealHold);
+        }
     }
 
     // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
@@ -231,6 +343,7 @@ public class LevelLoader : MonoBehaviour
         GUI.Label(new Rect(10, Screen.height - 30, 700, 24), label + "   [N] next  [P] previous  [R] restart");
 
         GameManager gm = GameManager.Instance;
+        if (gm != null && gm.IsPlaying) DrawGuide();
         if (gm == null || gm.IsPlaying) return;
         string status;
         if (!gm.PlayerWon) status = "Press R to retry this level";
@@ -239,5 +352,40 @@ public class LevelLoader : MonoBehaviour
             status = "Level " + (current + 2) + " in " + Mathf.CeilToInt(advanceAt - Time.time) + "...";
         else return;
         GUI.Label(new Rect(10, Screen.height - 54, 700, 24), status);
+    }
+
+    // The guide text (the stage's, else the level's) in a box under the HUD's money bar, with progress
+    void DrawGuide()
+    {
+        if (level == null) return;
+        string text;
+        if (stage >= 0)
+        {
+            LevelData.Stage s = level.stages[stage];
+            string done = s.goal == "steal" ? "Stolen" : "Blocked";
+            text = s.guide + "\n" + done + " " + StageProgress + " / " + s.count;
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(level.guide)) return;
+            text = level.guide;
+            if (level.items.Count > 0)
+                text += "\nLeft: " + (Treasure.Active.Count + Treasure.OnHooks.Count);
+        }
+
+        if (guideStyle == null)
+        {
+            guideStyle = new GUIStyle(GUI.skin.box)
+            {
+                fontSize = 18,
+                alignment = TextAnchor.MiddleCenter,
+                wordWrap = true,
+                padding = new RectOffset(16, 16, 12, 12),
+            };
+            guideStyle.normal.textColor = Color.white;
+        }
+        float width = Mathf.Min(760f, Screen.width - 40f);
+        float height = guideStyle.CalcHeight(new GUIContent(text), width);
+        GUI.Box(new Rect((Screen.width - width) / 2f, 54f, width, height), text, guideStyle);
     }
 }
