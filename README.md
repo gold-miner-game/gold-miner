@@ -15,7 +15,7 @@
 - Addition to that, one can spend money on tools that is easily consumed. Such as life, shield, bomb, and so on... 
 
 ## To-Do List
-- Cross Level Status Recorder (Top Priority, the memory for player)
+- Cross Level Status Recorder (Top Priority, the memory for player, Zhan Li)
 - UI redesign (Doeun Kim)
 - First design a linear like tutorial (Penny)
 - The menu for choosing different level (Penny)
@@ -23,6 +23,8 @@
 - Different skill set attach to new characters (Yukun Li)
 - Survival Mode (Butian Xiong)
 
+<img width="1696" height="1498" alt="image" src="https://github.com/user-attachments/assets/4d8e2c8d-f9e0-4f3a-9d52-e244e2fe6d73" />
+Map Design Concepts
 
 ## Current Status
 ![Level 4 in play](figures/example_level.png)
