@@ -53,6 +53,7 @@ public class PigController : MonoBehaviour
     // the top (ears) down to the bottom as the cooldown runs out, so the pink comes back top first
     private SpriteRenderer cooldownTint;
     private SpriteMask cooldownMask;
+    private SpriteRenderer shieldBubble;
     private Bounds bodyBounds;   // the body sprite, in the pig's local space
 
     void Awake()
@@ -73,6 +74,7 @@ public class PigController : MonoBehaviour
         {
             baseColor = sr.color;
             CreateCooldownTint();
+            CreateShieldBubble();
         }
     }
 
@@ -111,6 +113,21 @@ public class PigController : MonoBehaviour
         mask.transform.localPosition = new Vector3(bodyBounds.center.x, bodyBounds.min.y, 0f);
     }
 
+    // A larger copy of the body, drawn over the pig while the shield is up
+    void CreateShieldBubble()
+    {
+        var bubble = new GameObject("ShieldBubble");
+        bubble.transform.SetParent(transform, false);
+        bubble.transform.localScale = Vector3.one * 1.45f;
+        shieldBubble = bubble.AddComponent<SpriteRenderer>();
+        shieldBubble.sprite = sr.sprite;
+        shieldBubble.sharedMaterial = sr.sharedMaterial;
+        shieldBubble.sortingLayerID = sr.sortingLayerID;
+        shieldBubble.sortingOrder = sr.sortingOrder + 2;
+        shieldBubble.color = new Color(0.45f, 0.85f, 1f, 0.4f);
+        shieldBubble.enabled = false;
+    }
+
     // Digest shows green, else the block cooldown shows blue; each drains from the top down.
     // While blocking the whole body is blue.
     void UpdateCooldownTint()
@@ -136,7 +153,17 @@ public class PigController : MonoBehaviour
     // Called by Treasure when the pig eats it
     public void Digest(int value)
     {
-        DigestLength = digestTime + digestPerValue * value;
+        CrossLevelStatus player = LevelLoader.Tutorial ? null : CrossLevelStatus.Active;
+        if (player != null && player.hasNoDigest())
+        {
+            DigestLength = 0f;
+            digestUntil = Time.time;
+            return;
+        }
+
+        float time = player != null ? player.getDigestTime() : digestTime;
+        float per = player != null ? player.getDigestPerValue() : digestPerValue;
+        DigestLength = time + per * value;
         digestUntil = Time.time + DigestLength;
     }
 
@@ -146,6 +173,8 @@ public class PigController : MonoBehaviour
         UpdateBlink();
         if (sr != null) sr.color = IsBlocking ? blockTint : baseColor;
         UpdateCooldownTint();
+        if (shieldBubble != null)
+            shieldBubble.enabled = !LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded();
     }
 
     void ReadInput()
@@ -178,11 +207,15 @@ public class PigController : MonoBehaviour
     // Start a block if the skill is on and off cooldown
     void TryBlock()
     {
-        if (!canBlock || Time.time < blockReadyAt) return;
+        CrossLevelStatus player = LevelLoader.Tutorial ? null : CrossLevelStatus.Active;
+        bool blockOn = player != null ? player.getCanBlock() : canBlock;
+        float duration = player != null ? player.getBlockDuration() : blockDuration;
+        float cooldown = player != null ? player.getBlockCooldown() : blockCooldown;
+        if (!blockOn || Time.time < blockReadyAt) return;
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
 
-        blockUntil = Time.time + blockDuration;
-        blockReadyAt = blockUntil + blockCooldown;
+        blockUntil = Time.time + duration;
+        blockReadyAt = blockUntil + cooldown;
     }
 
     // Blink while invincible (right after losing a Life)
@@ -216,8 +249,12 @@ public class PigController : MonoBehaviour
             return;
         }
 
-        // Normalize so diagonals are not faster; physics stops us at colliders
-        body.linearVelocity = moveSpeed * input.normalized;
+        // Normalize so diagonals are not faster; physics stops us at colliders.
+        // Swift Water multiplies the level speed without rewriting it.
+        CrossLevelStatus player = LevelLoader.Tutorial ? null : CrossLevelStatus.Active;
+        float speed = player != null ? player.getSpeed() : moveSpeed;
+        if (player != null) speed *= player.getSpeedMultiplier();
+        body.linearVelocity = speed * input.normalized;
     }
 
     // Mirror the whole pig (and its children) horizontally

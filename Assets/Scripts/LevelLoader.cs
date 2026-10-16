@@ -70,6 +70,9 @@ public class LevelLoader : MonoBehaviour
 
     public static int CurrentLevel => current + 1;
 
+    // Eat and block/steal tutorials. Cross-level speed, digest, shield, and wallet stay untouched.
+    public static bool Tutorial { get; private set; }
+
     void Awake()
     {
         list = levels != null && levels.Length > 0 ? levels : LoadFromResources();
@@ -97,6 +100,8 @@ public class LevelLoader : MonoBehaviour
     {
         if (pig == null) pig = FindFirstObjectByType<PigController>();
         if (minerTemplate == null) minerTemplate = FindFirstObjectByType<MinerAI>();
+
+        Tutorial = level.stages.Count > 0 || !string.IsNullOrEmpty(level.guide);
 
         if (clearSceneItems) ClearItems();
         SpawnItems();
@@ -157,13 +162,33 @@ public class LevelLoader : MonoBehaviour
         var body = pig.GetComponent<Rigidbody2D>();
         if (body != null) body.position = level.pigStart;
 
-        pig.moveSpeed = level.Param("pig_speed", pig.moveSpeed) * gameSpeed;
-        pig.digestTime = level.Param("digest_time", 0f);
-        pig.digestPerValue = level.Param("digest_per_value", 0f);
+        if (Tutorial)
+        {
+            pig.moveSpeed = level.Param("pig_speed", pig.moveSpeed) * gameSpeed;
+            pig.digestTime = level.Param("digest_time", 0f);
+            pig.digestPerValue = level.Param("digest_per_value", 0f);
+            pig.canBlock = level.Param("block", 0f) > 0.5f;
+            pig.blockDuration = level.Param("block_duration", pig.blockDuration);
+            pig.blockCooldown = level.Param("block_cooldown", pig.blockCooldown);
+            return;
+        }
 
-        pig.canBlock = level.Param("block", 0f) > 0.5f;
-        pig.blockDuration = level.Param("block_duration", pig.blockDuration);
-        pig.blockCooldown = level.Param("block_cooldown", pig.blockCooldown);
+        // Level rules go into the player record. The skin in the scene only copies them out.
+        CrossLevelStatus player = CrossLevelStatus.Ensure();
+        player.setSpeed(level.Param("pig_speed", player.getSpeed()) * gameSpeed);
+        player.setDigestTime(level.Param("digest_time", 0f));
+        player.setDigestPerValue(level.Param("digest_per_value", 0f));
+        player.setCanBlock(level.Param("block", 0f) > 0.5f);
+        player.setBlockDuration(level.Param("block_duration", player.getBlockDuration()));
+        player.setBlockCooldown(level.Param("block_cooldown", player.getBlockCooldown()));
+        player.onLevelStarted();
+
+        pig.moveSpeed = player.getSpeed();
+        pig.digestTime = player.getDigestTime();
+        pig.digestPerValue = player.getDigestPerValue();
+        pig.canBlock = player.getCanBlock();
+        pig.blockDuration = player.getBlockDuration();
+        pig.blockCooldown = player.getBlockCooldown();
     }
 
     void SetUpMiners()
@@ -232,10 +257,22 @@ public class LevelLoader : MonoBehaviour
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
         gm.roundTime = level.Param("round_time", gm.roundTime);
-        gm.startingLives = livesPerLevel > 0
+        if (Tutorial)
+        {
+            gm.startingLives = livesPerLevel > 0
+                ? livesPerLevel
+                : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+            gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
+            return;
+        }
+        CrossLevelStatus player = CrossLevelStatus.Ensure();
+        int levelLives = livesPerLevel > 0
             ? livesPerLevel
             : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
-        gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
+        player.setLives(levelLives + player.getExtraLives());
+        player.setInvincibleTime(level.Param("invincible_time", player.getInvincibleTime()));
+        gm.startingLives = player.getLives();
+        gm.invincibleTime = player.getInvincibleTime();
     }
 
     void Update()
@@ -267,7 +304,9 @@ public class LevelLoader : MonoBehaviour
             miner.hook.hitsPig = !steal;
         }
         if (pig != null)
+        {
             pig.moveSpeed = (s.pigSpeed >= 0f ? s.pigSpeed : level.Param("pig_speed", pig.moveSpeed)) * gameSpeed;
+        }
         nextPullAt = Time.time + stealPause;
         if (!steal) Spawn(s.items);
     }
@@ -315,15 +354,35 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
+    // Fired once when a won level's money is stored. Listeners must not be required for the next level to load.
+    public static event System.Action LevelWon;
+
+    // A listener can hold the countdown. It loads the next level itself by setting AdvanceNow.
+    public static bool WaitToAdvance { get; set; }
+    public static bool AdvanceNow { get; set; }
+
     // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
     // the next level. A loss stays put so R can retry. The last level doesn't wrap around.
     void UpdateAdvance()
     {
         GameManager gm = GameManager.Instance;
-        if (!autoAdvance || gm == null || gm.IsPlaying || !gm.PlayerWon || IsLastLevel) return;
+        if (gm == null || gm.IsPlaying || !gm.PlayerWon) return;
 
-        if (advanceAt < 0f) advanceAt = Time.time + advanceDelay;
-        else if (Time.time >= advanceAt) Load(current + 1);
+        if (advanceAt < 0f)
+        {
+            advanceAt = Time.time + advanceDelay;
+            if (!Tutorial)
+            {
+                CrossLevelStatus.Ensure().bank(CurrentLevel, gm.PlayerMoney);
+                if (LevelWon != null) LevelWon();
+            }
+        }
+        if (!autoAdvance || IsLastLevel || WaitToAdvance) return;
+        if (AdvanceNow || Time.time >= advanceAt)
+        {
+            AdvanceNow = false;
+            Load(current + 1);
+        }
     }
 
     bool IsLastLevel => current >= list.Length - 1;
@@ -348,6 +407,7 @@ public class LevelLoader : MonoBehaviour
         string status;
         if (!gm.PlayerWon) status = "Press R to retry this level";
         else if (IsLastLevel) status = "All " + list.Length + " levels cleared!";
+        else if (WaitToAdvance) return;
         else if (advanceAt >= 0f)
             status = "Level " + (current + 2) + " in " + Mathf.CeilToInt(advanceAt - Time.time) + "...";
         else return;
