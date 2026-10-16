@@ -44,6 +44,7 @@ public class Hook : MonoBehaviour
     private float maxLength;
     private float traveled;
     private Treasure carried;
+    private float holdUntil;   // PullBack: the hook waits on its treasure until then
 
     private Stroke rope;
     private Stroke clawLeft;
@@ -118,6 +119,26 @@ public class Hook : MonoBehaviour
         state = State.Extending;
     }
 
+    // Start a shot that has already caught `treasure`: the hook appears on it, holds still for
+    // `hold` seconds with the rope out, then pulls it home (the steal tutorial)
+    public void PullBack(Vector2 from, Treasure treasure, Color shotColor, float hold)
+    {
+        if (IsBusy || treasure == null || treasure.IsTaken) return;
+
+        Vector2 at = treasure.transform.position;
+        Fire(from, at - from, Vector2.Distance(from, at), shotColor);
+        transform.position = at;
+        traveled = maxLength;
+
+        Collider2D col = treasure.GetComponent<Collider2D>();
+        if (col != null) touched.Add(col);   // don't grab it again once knocked loose
+        treasure.GrabByHook(transform);
+        carried = treasure;
+        HoldInClaw();
+        holdUntil = Time.time + hold;
+        state = State.Retracting;
+    }
+
     void Update()
     {
         if (Application.isPlaying)
@@ -130,7 +151,7 @@ public class Hook : MonoBehaviour
                 if (roundOver) state = State.Retracting;
                 else Extend();
             }
-            else if (state == State.Retracting)
+            else if (state == State.Retracting && (roundOver || Time.time >= holdUntil))
             {
                 Retract(!roundOver);
             }
@@ -176,7 +197,11 @@ public class Hook : MonoBehaviour
                 if (carried != null)
                 {
                     PigController pig = hit.collider.GetComponent<PigController>();
-                    if (pig != null && pig.IsBlocking) DropCarried();
+                    if (pig != null && pig.IsBlocking)
+                    {
+                        DropCarried();
+                        pig.OnTreasureKnocked();
+                    }
                     continue;
                 }
                 HandleHit(hit.collider);
@@ -245,7 +270,12 @@ public class Hook : MonoBehaviour
     bool HandlePig(PigController pig, Collider2D col)
     {
         // Blocking: the hook bounces off and goes home empty, even in no-kill levels
-        if (pig.IsBlocking) return touched.Add(col);
+        if (pig.IsBlocking)
+        {
+            if (!touched.Add(col)) return false;
+            pig.OnHookBlocked();
+            return true;
+        }
         if (!hitsPig) return false;
         if (!touched.Add(col)) return false;
 

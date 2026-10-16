@@ -51,7 +51,7 @@
     "round_time": 90.0,
     "starting_lives": 0,
     "invincible_time": 1.5,
-    "hook_kills": false
+    "hook_kills": true
   },
   "level": {
     "level": 1,

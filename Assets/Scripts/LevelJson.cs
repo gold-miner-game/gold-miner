@@ -10,6 +10,11 @@ using UnityEngine;
 //     "skills": {"block": true, "block_duration": 0.3, "block_cooldown": 1} }
 // "skills" is optional and Unity-only (the simulator doesn't model it); it is read into the same
 // parameter table as "params".
+// "guide" is optional too: text shown on screen during the level (tutorial levels).
+// "stages" (tutorials) is a list of steps played in order, each with its own guide and goal:
+//   {"guide": "...", "goal": "block" | "steal", "count": 2, "pig_speed": 0, "items": [...]}
+// "block" counts hooks bounced off the pig, "steal" counts treasure knocked off a hook. A stage's
+// items are spawned when it starts, and again whenever none are left. Clearing the last stage wins.
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.
 public class LevelData
 {
@@ -19,11 +24,22 @@ public class LevelData
         public Vector2 position;
     }
 
+    public class Stage
+    {
+        public string guide = "";
+        public string goal = "";
+        public int count;
+        public float pigSpeed = -1f;   // < 0: the level's pig_speed
+        public readonly List<Item> items = new List<Item>();
+    }
+
     public Vector2 pigStart = new Vector2(0f, -1f);
     public readonly List<Vector2> hooks = new List<Vector2>();
     public readonly List<Item> items = new List<Item>();
     public readonly Dictionary<string, double> parameters = new Dictionary<string, double>();
     public readonly Dictionary<string, object> info = new Dictionary<string, object>();   // the "level" summary
+    public string guide = "";
+    public readonly List<Stage> stages = new List<Stage>();
 
     public static LevelData Parse(string json)
     {
@@ -32,26 +48,43 @@ public class LevelData
 
         var level = new LevelData();
         if (root.TryGetValue("pig_start", out object pig)) level.pigStart = ToVector(pig);
+        // No "hooks" key: one default hook. An empty list: no miner at all (the eat tutorial)
         if (root.TryGetValue("hooks", out object hooks))
             foreach (object h in (List<object>)hooks) level.hooks.Add(ToVector(h));
-        if (level.hooks.Count == 0) level.hooks.Add(new Vector2(0f, 3.4f));
-        if (root.TryGetValue("items", out object items))
-        {
-            foreach (object o in (List<object>)items)
-            {
-                var it = (Dictionary<string, object>)o;
-                level.items.Add(new Item
-                {
-                    type = (string)it["type"],
-                    position = new Vector2(ToFloat(it["x"]), ToFloat(it["y"])),
-                });
-            }
-        }
+        else level.hooks.Add(new Vector2(0f, 3.4f));
+        if (root.TryGetValue("items", out object items)) ReadItems(items, level.items);
         if (root.TryGetValue("params", out object ps)) level.AddParameters(ps);
         if (root.TryGetValue("skills", out object skills)) level.AddParameters(skills);
+        if (root.TryGetValue("guide", out object guide) && guide is string text) level.guide = text;
+        if (root.TryGetValue("stages", out object stages))
+            foreach (object s in (List<object>)stages) level.stages.Add(ReadStage((Dictionary<string, object>)s));
         if (root.TryGetValue("level", out object info) && info is Dictionary<string, object> dict)
             foreach (var kv in dict) level.info[kv.Key] = kv.Value;
         return level;
+    }
+
+    static void ReadItems(object list, List<Item> into)
+    {
+        foreach (object o in (List<object>)list)
+        {
+            var it = (Dictionary<string, object>)o;
+            into.Add(new Item
+            {
+                type = (string)it["type"],
+                position = new Vector2(ToFloat(it["x"]), ToFloat(it["y"])),
+            });
+        }
+    }
+
+    static Stage ReadStage(Dictionary<string, object> s)
+    {
+        var stage = new Stage();
+        if (s.TryGetValue("guide", out object guide) && guide is string text) stage.guide = text;
+        if (s.TryGetValue("goal", out object goal) && goal is string g) stage.goal = g;
+        if (s.TryGetValue("count", out object count) && count is double c) stage.count = (int)c;
+        if (s.TryGetValue("pig_speed", out object speed) && speed is double v) stage.pigSpeed = (float)v;
+        if (s.TryGetValue("items", out object items)) ReadItems(items, stage.items);
+        return stage;
     }
 
     void AddParameters(object table)

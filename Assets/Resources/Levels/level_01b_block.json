@@ -1,0 +1,48 @@
+{
+  "stages": [
+    {
+      "guide": "SKILL 1: BLOCK\nRed line = hook coming for you.\nPress SPACE to block it!",
+      "goal": "block",
+      "count": 2,
+      "pig_speed": 0.0
+    },
+    {
+      "guide": "SKILL 2: STEAL\nThe hook caught gold!\nPress SPACE as it passes you to knock it loose, then eat it.",
+      "goal": "steal",
+      "count": 2,
+      "items": [
+        { "type": "Gold_Medium", "x": 0.0, "y": -3.6 }
+      ]
+    }
+  ],
+  "pig_start": [
+    0.0,
+    -1.0
+  ],
+  "hooks": [
+    [
+      0.0,
+      3.4
+    ]
+  ],
+  "items": [],
+  "params": {
+    "pig_speed": 5.0,
+    "hook_extend": 10.0,
+    "hook_retract": 8.0,
+    "overshoot": 0.6,
+    "start_delay": 2.5,
+    "telegraph_min": 1.5,
+    "telegraph_max": 2.5,
+    "cooldown": 1.5,
+    "round_time": 180.0,
+    "starting_lives": 3,
+    "invincible_time": 1.5,
+    "hook_kills": true
+  },
+  "skills": {
+    "block": true,
+    "block_duration": 0.8,
+    "block_cooldown": 1.0
+  }
+}
