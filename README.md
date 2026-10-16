@@ -15,12 +15,14 @@
 - Addition to that, one can spend money on tools that is easily consumed. Such as life, shield, bomb, and so on... 
 
 ## To-Do List
-- UI redesign
-- First design a linear like tutorial
-- The menu for choosing different level
-- The store for buying
-- Different skill set attach to new characters
-- Survival Mode
+- Cross Level Status Recorder (Top Priority, the memory for player)
+- UI redesign (Doeun Kim)
+- First design a linear like tutorial (Penny)
+- The menu for choosing different level (Penny)
+- The store for buying (Zhan Li) 
+- Different skill set attach to new characters (Yukun Li)
+- Survival Mode (Butian Xiong)
+
 
 ## Current Status
 ![Level 4 in play](figures/example_level.png)
