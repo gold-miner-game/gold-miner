@@ -56,12 +56,20 @@ public class GameManager : MonoBehaviour
 
     public void AddPlayerMoney(int amount) { if (IsPlaying) PlayerMoney += amount; }
     public void AddMinerMoney(int amount)  { if (IsPlaying) MinerMoney += amount; }
-    public void AddLife()                  { if (IsPlaying) Lives++; }
+    public void AddLife()
+    {
+        if (!IsPlaying) return;
+        Lives++;
+        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null) CrossLevelStatus.Active.setLives(Lives);
+    }
 
     // Called by Hook when it touches the pig
     public void PlayerHit()
     {
         if (!IsPlaying || IsInvincible) return;
+
+        // A shield absorbs the hit for its full minute. The hook still stops.
+        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
 
         if (Lives > 1)
         {
@@ -73,6 +81,8 @@ public class GameManager : MonoBehaviour
             Lives = 0;
             EndRound(true, "Killed by the hook!");
         }
+
+        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null) CrossLevelStatus.Active.setLives(Lives);
     }
 
     void EndRound(bool killed, string reason)
