@@ -50,6 +50,9 @@ public class HUDController : MonoBehaviour
 
     void Start()
     {
+        // The arena goes in the space the top bar and sidebar leave (HUDLayout)
+        GameplayCamera.Ensure(Camera.main);
+
         if (endPanel != null) endPanel.SetActive(false);
         if (timerText != null)
         {
