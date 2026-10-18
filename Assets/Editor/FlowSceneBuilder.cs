@@ -17,24 +17,26 @@ public static class FlowSceneBuilder
     const string LevelDir = "Assets/Resources/Levels/";
 
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
-    // The map is a top-down tree: the trunk is the tutorial + role pick, then Level 1 branches into
-    // a left path (store route) and a right path, which merge back at Level 7. Add a level = add a
-    // row here (and drop a level JSON); point its prereqs at whatever should unlock it.
+    // The map is a tree. The trunk is the tutorial + role pick; the Store hangs off role pick as its
+    // own side spur (reachable as soon as you have a character, not gated behind a battle). Level 1
+    // then splits into a left and a right path that merge back at Level 8. Add a level = add a row
+    // here (and drop a level JSON); point its prereqs at whatever should unlock it.
+    // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
         ("tut_basics", NodeType.Tutorial, "level_00_eat",    "Tutorial: Eat",   0.50f, 0.080f, new string[0]),
-        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge", 0.50f, 0.175f, new[]{ "tut_basics" }),
-        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block", 0.50f, 0.270f, new[]{ "tut_dodge" }),
-        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.365f, new[]{ "tut_block" }),
-        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.460f, new[]{ "role_pick" }),
-        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.28f, 0.555f, new[]{ "battle_01" }),
-        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.72f, 0.555f, new[]{ "battle_01" }),
-        ("store_1",    NodeType.Store,    null,              "Store",           0.28f, 0.650f, new[]{ "battle_02" }),
-        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.72f, 0.650f, new[]{ "battle_03" }),
-        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.28f, 0.745f, new[]{ "store_1" }),
-        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.72f, 0.745f, new[]{ "battle_04" }),
-        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.50f, 0.840f, new[]{ "battle_05", "battle_06" }),
-        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.930f, new[]{ "battle_07" }),
+        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge", 0.50f, 0.185f, new[]{ "tut_basics" }),
+        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block", 0.50f, 0.290f, new[]{ "tut_dodge" }),
+        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.395f, new[]{ "tut_block" }),
+        ("store_1",    NodeType.Store,    null,              "Store",           0.17f, 0.490f, new[]{ "role_pick" }),
+        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.490f, new[]{ "role_pick" }),
+        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.32f, 0.600f, new[]{ "battle_01" }),
+        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.68f, 0.600f, new[]{ "battle_01" }),
+        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.32f, 0.700f, new[]{ "battle_02" }),
+        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.68f, 0.700f, new[]{ "battle_03" }),
+        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.32f, 0.800f, new[]{ "battle_04" }),
+        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.68f, 0.800f, new[]{ "battle_05" }),
+        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.900f, new[]{ "battle_06", "battle_07" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]

@@ -2,137 +2,113 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Owner: Penny (Level map & tutorial)
-// The level-select map, laid out as a TREE. By default it flows LEFT -> RIGHT: the trunk's depth
-// runs along the x axis and branches spread along y, so one node can split into two children (same
-// parent) and two paths can merge back (one child, two parents). Set `horizontal = false` to flow
-// top -> bottom instead. Node positions are stored normalised as (spread = x, depth = y); this
-// controller projects them for the chosen orientation into a padded area that leaves room for the
-// title and legend, and sizes the boxes from the spacing so rows/columns never overlap and a line
-// never crosses a label (edges are drawn behind the opaque boxes, border to border).
-// Node colour shows state: green = cleared, gold = available, grey = locked. Alpha UI: plain OnGUI.
+// The level-select map, drawn as a TREE. By default it flows LEFT -> RIGHT (set horizontal = false
+// for top -> bottom). A node opens when it has no parents, is already cleared, or ANY of its
+// prerequisites is cleared, so one node can split into two and two paths can merge back (e.g. the
+// Store hangs off Pick Character on its own spur).
+//
+// The look is pure OnGUI but intentionally not bare: a vertical gradient backdrop, soft smooth
+// bezier connectors behind the nodes, and rounded "cards" with a drop shadow, an accent outline and
+// a hover lift. All of its textures are generated once at runtime (no art assets). State reads from
+// the accent + card tone: green = cleared, amber = available (with a soft glow), grey = locked.
 public class WorldMapController : MonoBehaviour
 {
     [Tooltip("Left-to-right tree. Off = top-to-bottom.")]
     public bool horizontal = true;
-    public Vector2 maxNodeSize = new Vector2(170f, 54f);
+    public Vector2 maxNodeSize = new Vector2(176f, 60f);
     public bool showResetButton = true;   // dev helper
 
-    static readonly Color BgColor    = new Color(0.11f, 0.13f, 0.18f, 1f);
-    static readonly Color DoneColor  = new Color(0.26f, 0.70f, 0.36f, 1f);
-    static readonly Color OpenColor  = new Color(0.98f, 0.78f, 0.26f, 1f);
-    static readonly Color LockColor  = new Color(0.33f, 0.36f, 0.42f, 1f);
-    static readonly Color EdgeOpen   = new Color(0.98f, 0.82f, 0.40f, 0.85f);
-    static readonly Color EdgeLocked = new Color(1f, 1f, 1f, 0.14f);
+    // Palette ------------------------------------------------------------------------------------
+    static readonly Color BgTop      = new Color(0.10f, 0.12f, 0.17f, 1f);
+    static readonly Color BgBottom   = new Color(0.05f, 0.06f, 0.09f, 1f);
+    static readonly Color CardAvail  = new Color(0.17f, 0.20f, 0.27f, 1f);
+    static readonly Color CardHover  = new Color(0.22f, 0.26f, 0.34f, 1f);
+    static readonly Color CardDone   = new Color(0.14f, 0.21f, 0.18f, 1f);
+    static readonly Color CardLock   = new Color(0.115f, 0.13f, 0.17f, 1f);
+    static readonly Color AccDone    = new Color(0.33f, 0.82f, 0.48f, 1f);
+    static readonly Color AccAvail   = new Color(0.98f, 0.80f, 0.33f, 1f);
+    static readonly Color AccLock    = new Color(0.32f, 0.35f, 0.42f, 1f);
+    static readonly Color TextBright = new Color(0.94f, 0.96f, 0.98f, 1f);
+    static readonly Color TextDim    = new Color(0.52f, 0.55f, 0.63f, 1f);
+    static readonly Color Shadow     = new Color(0f, 0f, 0f, 0.33f);
 
-    const float MarginSide = 20f;
-    const float MarginTop = 66f;    // keeps the title clear
-    const float MarginBottom = 48f; // keeps the legend clear
+    const float MarginSide = 26f;
+    const float MarginTop = 74f;    // keeps the title clear
+    const float MarginBottom = 52f; // keeps the legend clear
+    const int Radius = 11;
 
     GUIStyle title;
+    GUIStyle subtitle;
     GUIStyle legend;
-    GUIStyle nodeStyle;
+    GUIStyle nodeText;
+    GUIStyle roundBox;   // 9-sliced rounded background, tinted by GUI.backgroundColor
 
-    Rect area;        // where node centres may land
-    Vector2 nodeSize; // computed each frame from the spacing
+    Texture2D gradientTex;
+    Texture2D roundTex;
+
+    Rect area;
+    Vector2 nodeSize;
+    bool built;
 
     void OnGUI()
     {
+        Build();
         WorldMap map = GameFlow.Instance != null ? GameFlow.Instance.Map : null;
 
-        GUI.color = BgColor;
-        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
-        GUI.color = Color.white;
+        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), gradientTex, ScaleMode.StretchToFill);
 
         if (map == null)
         {
-            GUI.Label(new Rect(20, 20, 640, 30), "No WorldMap. Run Tools > Gold Miner > Build Flow Scenes.");
+            GUI.Label(new Rect(24, 24, 680, 30), "No WorldMap. Run Tools > Gold Miner > Build Flow Scenes.");
             return;
         }
 
-        EnsureStyles();
         Layout(map);
-        GUI.Label(new Rect(0, 16, Screen.width, 40), "WORLD MAP", title);
 
-        // 1) Edges first, so the opaque node boxes always sit on top of them.
-        DrawEdges(map);
+        GUI.Label(new Rect(0, 20, Screen.width, 34), "WORLD MAP", title);
+        DrawRoundRect(new Rect(Screen.width * 0.5f - 70f, 54f, 140f, 3f), AccAvail);
+        GUI.Label(new Rect(0, 54, Screen.width, 20), "clear a node to open the ones it points to", subtitle);
 
-        // 2) Nodes.
-        Color savedBg = GUI.backgroundColor;
-        for (int i = 0; i < map.nodes.Count; i++)
-        {
-            MapNode node = map.nodes[i];
-            if (node == null) continue;
+        DrawEdges(map);                 // behind the cards
+        for (int i = 0; i < map.nodes.Count; i++) DrawNode(map, i);
 
-            Rect rect = NodeRect(node);
-            bool unlocked = map.IsUnlocked(i);
-            bool done = ProgressStore.IsCompleted(node.id);
-
-            string label = node.displayName;
-            if (done) label = "\u2713 " + label;            // tick
-            else if (!unlocked) label = "\u25cf " + label;  // locked dot
-
-            GUI.backgroundColor = done ? DoneColor : unlocked ? OpenColor : LockColor;
-            GUI.enabled = unlocked;
-            if (GUI.Button(rect, label, nodeStyle)) GameFlow.Instance.EnterNode(node);
-            GUI.enabled = true;
-        }
-        GUI.backgroundColor = savedBg;
-
-        GUI.Label(new Rect(16, Screen.height - 44, Screen.width - 170, 28),
-            "\u2713 cleared   \u25a0 available   \u25a0 locked   \u2014 clear a node to open the ones it points to.", legend);
-
-        if (showResetButton && GUI.Button(new Rect(Screen.width - 150, Screen.height - 44, 134, 28), "Reset progress"))
+        DrawLegend();
+        if (showResetButton && GUI.Button(new Rect(Screen.width - 150, Screen.height - 46, 134, 30), "Reset progress"))
             ProgressStore.ResetAll();
     }
 
-    // Work out the usable area and a node size that fits the tightest spacing on each axis.
-    void Layout(WorldMap map)
+    // --- nodes ----------------------------------------------------------------------------------
+
+    void DrawNode(WorldMap map, int i)
     {
-        var depths = new List<float>();   // along the trunk  (stored as y)
-        var spreads = new List<float>();  // across branches  (stored as x)
-        foreach (MapNode n in map.nodes)
-        {
-            if (n == null) continue;
-            depths.Add(n.mapPosition.y);
-            spreads.Add(n.mapPosition.x);
-        }
+        MapNode node = map.nodes[i];
+        if (node == null) return;
 
-        float spanW = Mathf.Max(1f, Screen.width - 2f * MarginSide);
-        float spanH = Mathf.Max(1f, Screen.height - MarginTop - MarginBottom);
+        Rect rect = NodeRect(node);
+        bool unlocked = map.IsUnlocked(i);
+        bool done = ProgressStore.IsCompleted(node.id);
+        bool hover = unlocked && rect.Contains(Event.current.mousePosition);
 
-        // The axis a value drives depends on orientation.
-        float gapAlongX = horizontal ? MinGap(depths) : MinGap(spreads);
-        float gapAlongY = horizontal ? MinGap(spreads) : MinGap(depths);
+        Color accent = done ? AccDone : unlocked ? AccAvail : AccLock;
+        Color card = done ? CardDone : !unlocked ? CardLock : hover ? CardHover : CardAvail;
 
-        float w = Mathf.Clamp(gapAlongX * spanW * 0.92f, 56f, maxNodeSize.x);
-        float h = Mathf.Clamp(gapAlongY * spanH * 0.80f, 28f, maxNodeSize.y);
-        nodeSize = new Vector2(w, h);
+        DrawRoundRect(Shift(rect, 0f, 5f), Shadow);                       // drop shadow
+        if (unlocked && !done)                                            // soft glow on the next steps
+            DrawRoundRect(Expand(rect, 6f), new Color(accent.r, accent.g, accent.b, 0.16f));
+        DrawRoundRect(Expand(rect, 1.5f), done || unlocked ? accent : new Color(accent.r, accent.g, accent.b, 0.55f));
+        DrawRoundRect(rect, card);                                        // card face
 
-        area = Rect.MinMaxRect(
-            MarginSide + w * 0.5f,
-            MarginTop + h * 0.5f,
-            Screen.width - MarginSide - w * 0.5f,
-            Screen.height - MarginBottom - h * 0.5f);
+        nodeText.normal.textColor = unlocked ? TextBright : TextDim;
+        string label = (done ? "\u2713  " : "") + node.displayName;
+        GUI.Label(rect, label, nodeText);
+
+        GUI.enabled = unlocked;
+        if (GUI.Button(rect, GUIContent.none, GUIStyle.none)) GameFlow.Instance.EnterNode(node);
+        GUI.enabled = true;
     }
 
-    Vector2 Center(MapNode node)
-    {
-        float depth = node.mapPosition.y;   // 0..1 along the trunk
-        float spread = node.mapPosition.x;  // 0..1 across branches
-        float u = horizontal ? depth : spread;   // horizontal-axis coordinate
-        float v = horizontal ? spread : depth;    // vertical-axis coordinate
-        return new Vector2(Mathf.Lerp(area.xMin, area.xMax, u), Mathf.Lerp(area.yMin, area.yMax, v));
-    }
+    // --- connectors -----------------------------------------------------------------------------
 
-    Rect NodeRect(MapNode node)
-    {
-        Vector2 c = Center(node);
-        return new Rect(c.x - nodeSize.x * 0.5f, c.y - nodeSize.y * 0.5f, nodeSize.x, nodeSize.y);
-    }
-
-    // One line per (parent -> child) edge, from the parent's trailing edge to the child's leading
-    // edge (right->left when horizontal, bottom->top when vertical), so it lives in the gap between
-    // the two and never runs through a box/label.
     void DrawEdges(WorldMap map)
     {
         for (int i = 0; i < map.nodes.Count; i++)
@@ -145,22 +121,118 @@ public class WorldMapController : MonoBehaviour
             {
                 MapNode parent = map.Find(child.prerequisites[p]);
                 if (parent == null) continue;
-                bool edgeHot = childOpen || ProgressStore.IsCompleted(parent.id);
-                DrawLine(ExitAnchor(parent), EntryAnchor(child), edgeHot ? EdgeOpen : EdgeLocked, 3f);
+                bool hot = childOpen || ProgressStore.IsCompleted(parent.id);
+                Color c = hot ? new Color(AccAvail.r, AccAvail.g, AccAvail.b, 0.8f) : new Color(1f, 1f, 1f, 0.09f);
+                DrawBezier(ExitAnchor(parent), EntryAnchor(child), c, 3f);
             }
         }
     }
 
-    Vector2 ExitAnchor(MapNode node)   // where an edge leaves a parent
+    void DrawBezier(Vector2 p0, Vector2 p3, Color color, float width)
+    {
+        Vector2 flow = horizontal ? Vector2.right : Vector2.up;
+        float reach = horizontal ? Mathf.Abs(p3.x - p0.x) : Mathf.Abs(p3.y - p0.y);
+        float handle = Mathf.Max(26f, reach * 0.55f);
+        Vector2 p1 = p0 + flow * handle;
+        Vector2 p2 = p3 - flow * handle;
+
+        const int seg = 26;
+        Vector2 prev = p0;
+        for (int i = 1; i <= seg; i++)
+        {
+            float t = i / (float)seg;
+            float u = 1f - t;
+            Vector2 pt = u * u * u * p0 + 3f * u * u * t * p1 + 3f * u * t * t * p2 + t * t * t * p3;
+            DrawLine(prev, pt, color, width);
+            prev = pt;
+        }
+    }
+
+    // --- layout ---------------------------------------------------------------------------------
+
+    void Layout(WorldMap map)
+    {
+        var depths = new List<float>();
+        var spreads = new List<float>();
+        foreach (MapNode n in map.nodes)
+        {
+            if (n == null) continue;
+            depths.Add(n.mapPosition.y);
+            spreads.Add(n.mapPosition.x);
+        }
+
+        float spanW = Mathf.Max(1f, Screen.width - 2f * MarginSide);
+        float spanH = Mathf.Max(1f, Screen.height - MarginTop - MarginBottom);
+        float gapX = horizontal ? MinGap(depths) : MinGap(spreads);
+        float gapY = horizontal ? MinGap(spreads) : MinGap(depths);
+
+        float w = Mathf.Clamp(gapX * spanW * 0.9f, 60f, maxNodeSize.x);
+        float h = Mathf.Clamp(gapY * spanH * 0.78f, 30f, maxNodeSize.y);
+        nodeSize = new Vector2(w, h);
+        area = Rect.MinMaxRect(MarginSide + w * 0.5f, MarginTop + h * 0.5f,
+                               Screen.width - MarginSide - w * 0.5f, Screen.height - MarginBottom - h * 0.5f);
+    }
+
+    Vector2 Center(MapNode node)
+    {
+        float depth = node.mapPosition.y, spread = node.mapPosition.x;
+        float u = horizontal ? depth : spread;
+        float v = horizontal ? spread : depth;
+        return new Vector2(Mathf.Lerp(area.xMin, area.xMax, u), Mathf.Lerp(area.yMin, area.yMax, v));
+    }
+
+    Rect NodeRect(MapNode node)
+    {
+        Vector2 c = Center(node);
+        return new Rect(c.x - nodeSize.x * 0.5f, c.y - nodeSize.y * 0.5f, nodeSize.x, nodeSize.y);
+    }
+
+    Vector2 ExitAnchor(MapNode node)
     {
         Vector2 c = Center(node);
         return horizontal ? new Vector2(c.x + nodeSize.x * 0.5f, c.y) : new Vector2(c.x, c.y + nodeSize.y * 0.5f);
     }
 
-    Vector2 EntryAnchor(MapNode node)  // where an edge reaches a child
+    Vector2 EntryAnchor(MapNode node)
     {
         Vector2 c = Center(node);
         return horizontal ? new Vector2(c.x - nodeSize.x * 0.5f, c.y) : new Vector2(c.x, c.y - nodeSize.y * 0.5f);
+    }
+
+    // --- helpers --------------------------------------------------------------------------------
+
+    void DrawLegend()
+    {
+        float y = Screen.height - 42f;
+        float x = 20f;
+        x = Swatch(x, y, AccDone, "Cleared");
+        x = Swatch(x, y, AccAvail, "Available");
+        Swatch(x, y, AccLock, "Locked");
+    }
+
+    float Swatch(float x, float y, Color c, string text)
+    {
+        DrawRoundRect(new Rect(x, y + 3f, 13f, 13f), c);
+        var style = legend;
+        GUI.Label(new Rect(x + 19f, y, 120f, 20f), text, style);
+        return x + 24f + style.CalcSize(new GUIContent(text)).x;
+    }
+
+    static Rect Expand(Rect r, float p) => new Rect(r.x - p, r.y - p, r.width + 2f * p, r.height + 2f * p);
+    static Rect Shift(Rect r, float dx, float dy) => new Rect(r.x + dx, r.y + dy, r.width, r.height);
+
+    void DrawRoundRect(Rect r, Color color)
+    {
+        if (r.width < 2f * Radius || r.height < 2f * Radius)
+        {
+            Color prev = GUI.color; GUI.color = color;
+            GUI.DrawTexture(r, Texture2D.whiteTexture);
+            GUI.color = prev;
+            return;
+        }
+        Color pb = GUI.backgroundColor; GUI.backgroundColor = color;
+        GUI.Box(r, GUIContent.none, roundBox);
+        GUI.backgroundColor = pb;
     }
 
     static float MinGap(List<float> values)
@@ -188,35 +260,54 @@ public class WorldMapController : MonoBehaviour
         GUI.color = savedColor;
     }
 
-    void EnsureStyles()
+    // --- one-time texture + style build ---------------------------------------------------------
+
+    void Build()
     {
-        if (title == null)
+        if (built) return;
+        built = true;
+
+        gradientTex = new Texture2D(1, 64, TextureFormat.ARGB32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int i = 0; i < 64; i++)
+            gradientTex.SetPixel(0, i, Color.Lerp(BgBottom, BgTop, i / 63f));
+        gradientTex.Apply();
+
+        roundTex = MakeRounded(Radius);
+
+        roundBox = new GUIStyle { border = new RectOffset(Radius, Radius, Radius, Radius) };
+        roundBox.normal.background = roundTex;
+
+        title = new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+        title.normal.textColor = TextBright;
+        subtitle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
+        subtitle.normal.textColor = TextDim;
+        legend = new GUIStyle(GUI.skin.label) { fontSize = 13 };
+        legend.normal.textColor = new Color(1f, 1f, 1f, 0.78f);
+        nodeText = new GUIStyle(GUI.skin.label)
         {
-            title = new GUIStyle(GUI.skin.label)
+            fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = true,
+            padding = new RectOffset(8, 8, 4, 4),
+        };
+    }
+
+    static Texture2D MakeRounded(int radius)
+    {
+        int size = 2 * radius + 2;
+        var t = new Texture2D(size, size, TextureFormat.ARGB32, false)
+        {
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear,
+        };
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
             {
-                fontSize = 26,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-            };
-            title.normal.textColor = Color.white;
-        }
-        if (legend == null)
-        {
-            legend = new GUIStyle(GUI.skin.label) { fontSize = 13 };
-            legend.normal.textColor = new Color(1f, 1f, 1f, 0.8f);
-        }
-        if (nodeStyle == null)
-        {
-            nodeStyle = new GUIStyle(GUI.skin.button)
-            {
-                fontSize = 12,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-                wordWrap = true,
-            };
-            nodeStyle.normal.textColor = Color.white;
-            nodeStyle.hover.textColor = Color.white;
-            nodeStyle.active.textColor = Color.white;
-        }
+                float dx = Mathf.Max(radius - x, x - (size - 1 - radius), 0f);
+                float dy = Mathf.Max(radius - y, y - (size - 1 - radius), 0f);
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = Mathf.Clamp01(radius - dist + 0.5f);   // smooth 1px edge
+                t.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        t.Apply();
+        return t;
     }
 }

@@ -23,84 +23,84 @@ MonoBehaviour:
     type: 0
     levelAsset: {fileID: 4900000, guid: c9e5a0b1d6f74e82c3a4b5061728d9e5, type: 3}
     displayName: 'Tutorial: Dodge'
-    mapPosition: {x: 0.5, y: 0.175}
+    mapPosition: {x: 0.5, y: 0.185}
     prerequisites:
     - tut_basics
   - id: tut_block
     type: 0
     levelAsset: {fileID: 4900000, guid: 9e4c3b69cee44ef288e786c12a02f2c6, type: 3}
     displayName: 'Tutorial: Block'
-    mapPosition: {x: 0.5, y: 0.27}
+    mapPosition: {x: 0.5, y: 0.29}
     prerequisites:
     - tut_dodge
   - id: role_pick
     type: 2
     levelAsset: {fileID: 0}
     displayName: Pick Character
-    mapPosition: {x: 0.5, y: 0.365}
+    mapPosition: {x: 0.5, y: 0.395}
     prerequisites:
     - tut_block
+  - id: store_1
+    type: 3
+    levelAsset: {fileID: 0}
+    displayName: Store
+    mapPosition: {x: 0.17, y: 0.49}
+    prerequisites:
+    - role_pick
   - id: battle_01
     type: 1
     levelAsset: {fileID: 4900000, guid: 7643b720c7ae4e54b271617b8a336b02, type: 3}
     displayName: Level 1
-    mapPosition: {x: 0.5, y: 0.46}
+    mapPosition: {x: 0.5, y: 0.49}
     prerequisites:
     - role_pick
   - id: battle_02
     type: 1
     levelAsset: {fileID: 4900000, guid: 24ffbf985836433d9473ac61508a2cb7, type: 3}
     displayName: Level 2
-    mapPosition: {x: 0.28, y: 0.555}
+    mapPosition: {x: 0.32, y: 0.6}
     prerequisites:
     - battle_01
   - id: battle_03
     type: 1
     levelAsset: {fileID: 4900000, guid: 7fd8de94e9f3497395be132314b8c778, type: 3}
     displayName: Level 3
-    mapPosition: {x: 0.72, y: 0.555}
+    mapPosition: {x: 0.68, y: 0.6}
     prerequisites:
     - battle_01
-  - id: store_1
-    type: 3
-    levelAsset: {fileID: 0}
-    displayName: Store
-    mapPosition: {x: 0.28, y: 0.65}
-    prerequisites:
-    - battle_02
   - id: battle_04
     type: 1
     levelAsset: {fileID: 4900000, guid: 92542b7d19ed43da97932670b3ee1abb, type: 3}
     displayName: Level 4
-    mapPosition: {x: 0.72, y: 0.65}
+    mapPosition: {x: 0.32, y: 0.7}
     prerequisites:
-    - battle_03
+    - battle_02
   - id: battle_05
     type: 1
     levelAsset: {fileID: 4900000, guid: 981777666ae340d78c1d56b1cc54bc0f, type: 3}
     displayName: Level 5
-    mapPosition: {x: 0.28, y: 0.745}
+    mapPosition: {x: 0.68, y: 0.7}
     prerequisites:
-    - store_1
+    - battle_03
   - id: battle_06
     type: 1
     levelAsset: {fileID: 4900000, guid: 369a132cec1f40b8aa275c26e8b6f615, type: 3}
     displayName: Level 6
-    mapPosition: {x: 0.72, y: 0.745}
+    mapPosition: {x: 0.32, y: 0.8}
     prerequisites:
     - battle_04
   - id: battle_07
     type: 1
     levelAsset: {fileID: 4900000, guid: 462eebf065f04e42abc6906d20780115, type: 3}
     displayName: Level 7
-    mapPosition: {x: 0.5, y: 0.84}
+    mapPosition: {x: 0.68, y: 0.8}
     prerequisites:
     - battle_05
-    - battle_06
   - id: battle_08
     type: 1
     levelAsset: {fileID: 4900000, guid: 893a8ae59bf541a2a072c654cbf4bd60, type: 3}
     displayName: Level 8
-    mapPosition: {x: 0.5, y: 0.93}
+    mapPosition: {x: 0.5, y: 0.9}
     prerequisites:
+    - battle_06
     - battle_07

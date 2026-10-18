@@ -153,9 +153,12 @@ Role pick happens **once**, right after the tutorial.
 
 ## 6. Store contract / 商店契约 (Zhan Li)
 
-The map has a `Store` node. The store only needs to:
+The `Store` node hangs off **Pick Character** as its own side spur (`prerequisites: [role_pick]`),
+so it opens as soon as the player has a character and is never gated behind a battle — the player
+can drop in to spend the wallet whenever. The store only needs to:
 
-地图上有 `Store` 节点。商店只需做到：
+`Store` 节点作为 **Pick Character** 的侧枝（`prerequisites: [role_pick]`），选完角色就开放，
+**不卡在任何战斗关之后**，玩家随时可以进去花钱。商店只需做到：
 
 1. Read / write `CrossLevelStatus.Active` — `getWallet()`, `addWallet()`, `addSkill()`.
    读写 `CrossLevelStatus.Active` 的钱包与技能。
