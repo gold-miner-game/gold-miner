@@ -1,0 +1,34 @@
+{
+  "stages": [
+    {
+      "guide": "DODGE\nThe red dotted line shows where a hook will fly.\nThe aim locks when the dots appear - step out of the red line before it fires!\nStay alive to win.",
+      "goal": "survive",
+      "count": 15,
+      "pig_speed": 5.0
+    }
+  ],
+  "pig_start": [
+    0.0,
+    -2.0
+  ],
+  "hooks": [
+    [ -3.0, 3.6 ],
+    [ 3.0, 3.6 ]
+  ],
+  "items": [],
+  "params": {
+    "pig_speed": 5.0,
+    "hook_extend": 10.0,
+    "hook_retract": 9.0,
+    "overshoot": 0.6,
+    "start_delay": 2.0,
+    "telegraph_min": 1.6,
+    "telegraph_max": 2.3,
+    "cooldown": 1.0,
+    "round_time": 60.0,
+    "starting_lives": 3,
+    "invincible_time": 1.5,
+    "hook_kills": true,
+    "pig_shot_chance": 1.0
+  }
+}

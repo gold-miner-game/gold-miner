@@ -76,6 +76,7 @@ public class LevelLoader : MonoBehaviour
     private readonly List<MinerAI> miners = new List<MinerAI>();
     private int stage = -1;          // index in level.stages; -1 = the level has none
     private int stageStart;          // the goal counter when the stage began
+    private float stageTime;         // survive stage: Time.time when the stage began
     private float nextPullAt;        // steal stage: when the hooks get their next treasure
     private GUIStyle guideStyle;
     private int lastTutorial = -1;   // index of the last tutorial level; -1 = no tutorial
@@ -89,22 +90,51 @@ public class LevelLoader : MonoBehaviour
     // champion is picked on the select screen
     public static bool Tutorial { get; private set; }
 
+    // Set by GameFlow before loading the Game scene: build exactly this level instead of walking the
+    // index list. Left null in the editor so N / P dev testing keeps working. With a single-level
+    // list, the tutorial check below reads this one level's guide/stages, so it is correct per level.
+    public static TextAsset Requested;
+
+    // Set by GameFlow for map nodes. True = this visit is a tutorial (always Mr. Hyde). False = a
+    // battle, so the character saved at role pick is who plays, even if the level file mentions a
+    // skill. Null = no map (editor N/P), fall back to the guide/stages heuristic.
+    public static bool? ScriptedTutorial;
+
     void Awake()
     {
-        list = levels != null && levels.Length > 0 ? levels : LoadFromResources();
+        if (Requested != null)
+        {
+            list = new[] { Requested };
+            current = 0;
+        }
+        else
+        {
+            list = levels != null && levels.Length > 0 ? levels : LoadFromResources();
+            if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
+        }
         if (list.Length == 0)
         {
             Debug.LogWarning("LevelLoader: no level files (assign them, or put them in Resources/Levels)");
             return;
         }
-        if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
 
         lastTutorial = FindLastTutorial();
-        Tutorial = current <= lastTutorial;
+        // The map says whether this visit is a tutorial. The guide/stages scan is only for editor
+        // play (N/P through the level list), where no map node made the call.
+        Tutorial = ScriptedTutorial ?? current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
         if (seed != 0) Random.InitState(seed);
         Build();
+    }
+
+    // The character chosen on the role-pick screen, else whatever ChampionSpawner still remembers.
+    static int SavedChampion()
+    {
+        if (ProgressStore.HasPickedCharacter
+            && int.TryParse(ProgressStore.SelectedCharacter, out int picked) && picked >= 0)
+            return picked;
+        return ChampionSpawner.Chosen >= 0 ? ChampionSpawner.Chosen : ChampionSpawner.MrHyde;
     }
 
     // The tutorial is everything up to the last level with a guide or stages (level_01b_block)
@@ -128,11 +158,23 @@ public class LevelLoader : MonoBehaviour
 
     void Build()
     {
-        // Swap in the picked character before anything looks for it (Mr. Hyde in the tutorial)
+        // Swap in the picked character before anything looks for it (Mr. Hyde in the tutorial).
+        // Battles re-read the save here, not ChampionSpawner.Chosen: that static is wiped on every
+        // Play (domain reload off) and a missed restore used to leave the scene's pig in place.
         ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
         if (spawner != null)
         {
-            PlayerCharacter spawned = spawner.Spawn(Tutorial ? ChampionSpawner.MrHyde : ChampionSpawner.Chosen);
+            int champion = Tutorial ? ChampionSpawner.MrHyde : SavedChampion();
+            ChampionSpawner.Chosen = champion;
+            if (!Tutorial)
+            {
+                // Same champion's record, so wallet and skills survive the scene change. A missing
+                // or wrong record (after a domain-reload-off restart) is rebuilt from the save.
+                System.Type want = ChampionSpawner.RecordType(champion);
+                if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
+                    CrossLevelStatus.StartFresh(want);
+            }
+            PlayerCharacter spawned = spawner.Spawn(champion);
             if (spawned != null) player = spawned;
         }
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
@@ -221,7 +263,8 @@ public class LevelLoader : MonoBehaviour
         record.setSpeed(level.Param("pig_speed", record.getSpeed()) * gameSpeed);
         record.setDigestTime(level.Param("digest_time", 0f));
         record.setDigestPerValue(level.Param("digest_per_value", 0f));
-        record.setCanBlock(level.Param("block", 0f) > 0.5f);
+        // Keep the record's block (Mr. Hyde's default, or what the store set) unless the level says so
+        if (level.Has("block")) record.setCanBlock(level.Param("block", 0f) > 0.5f);
         record.setBlockDuration(level.Param("block_duration", record.getBlockDuration()));
         record.setBlockCooldown(level.Param("block_cooldown", record.getBlockCooldown()));
         record.onLevelStarted();
@@ -298,6 +341,16 @@ public class LevelLoader : MonoBehaviour
         miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed) * gameSpeed;
     }
 
+    // A level file's starting_lives wins when it is set above 0; 0 keeps the loader's livesPerLevel
+    // (the old files used 0 to mean "don't override").
+    int BaseLives(GameManager gm)
+    {
+        int fromFile = Mathf.RoundToInt(level.Param("starting_lives", 0f));
+        if (fromFile > 0) return fromFile;
+        if (livesPerLevel > 0) return livesPerLevel;
+        return gm.startingLives;
+    }
+
     void SetUpRound()
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
@@ -305,16 +358,12 @@ public class LevelLoader : MonoBehaviour
         gm.roundTime = level.Param("round_time", gm.roundTime);
         if (Tutorial)
         {
-            gm.startingLives = livesPerLevel > 0
-                ? livesPerLevel
-                : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+            gm.startingLives = BaseLives(gm);
             gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
             return;
         }
         CrossLevelStatus player = CrossLevelStatus.Ensure();
-        int levelLives = livesPerLevel > 0
-            ? livesPerLevel
-            : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+        int levelLives = BaseLives(gm);
         player.setLives(levelLives + player.getExtraLives());
         player.setInvincibleTime(level.Param("invincible_time", player.getInvincibleTime()));
         gm.startingLives = player.getLives();
@@ -338,6 +387,7 @@ public class LevelLoader : MonoBehaviour
     {
         stage = index;
         LevelData.Stage s = level.stages[stage];
+        stageTime = Time.time;
         stageStart = GoalCount(s.goal);
 
         // Blocking: the miners shoot at the pig as usual. Stealing: they stop shooting and
@@ -357,6 +407,9 @@ public class LevelLoader : MonoBehaviour
 
     int GoalCount(string goal)
     {
+        // "survive" counts whole seconds the player has lasted in this stage (dodge tutorial), so it
+        // needs no counter on the character/hook/miner scripts.
+        if (goal == "survive") return Mathf.FloorToInt(Mathf.Max(0f, Time.time - stageTime));
         if (player == null) return 0;
         return goal == "steal" ? player.TreasureStolen : goal == "block" ? player.HooksBlocked : 0;
     }
@@ -474,8 +527,9 @@ public class LevelLoader : MonoBehaviour
         if (stage >= 0)
         {
             LevelData.Stage s = level.stages[stage];
-            string done = s.goal == "steal" ? "Stolen" : "Blocked";
-            text = s.guide + "\n" + done + " " + StageProgress + " / " + s.count;
+            string done = s.goal == "steal" ? "Stolen" : s.goal == "survive" ? "Survived" : "Blocked";
+            string unit = s.goal == "survive" ? "s" : "";
+            text = s.guide + "\n" + done + " " + StageProgress + unit + " / " + s.count + unit;
         }
         else
         {

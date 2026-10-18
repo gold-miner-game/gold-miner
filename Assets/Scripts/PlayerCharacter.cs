@@ -22,6 +22,9 @@ public abstract class PlayerCharacter : MonoBehaviour
     public float digestTime = 0f;       // after eating, it can't eat for digestTime + digestPerValue * value
     public float digestPerValue = 0f;
     public Color digestTint = new Color(0.65f, 0.9f, 0.55f);
+    [Tooltip("A \"Digesting\" label floats this high (world units) above the character while it can't eat.")]
+    public float digestLabelHeight = 0.95f;
+    public Color digestLabelColor = new Color(0.25f, 0.8f, 0.3f);
 
     [Header("Look")]
     [Tooltip("The sprite the cooldown colors are drawn on. Empty: this object's own SpriteRenderer")]
@@ -79,6 +82,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     private SpriteMask cooldownMask;
     private SpriteRenderer shieldBubble;
     private Bounds bodyBounds;   // the body sprite, in the character's local space
+    private GUIStyle digestLabelStyle;
 
     protected virtual void Awake()
     {
@@ -234,6 +238,34 @@ public abstract class PlayerCharacter : MonoBehaviour
         if (body != null) body.color = BodyColor;
         UpdateCooldownTint();
         if (shieldBubble != null) shieldBubble.enabled = Record != null && Record.isShielded();
+    }
+
+    // A "Digesting" label over the character's head while it can't eat. The green tint shows the
+    // cooldown draining; this spells out why eating is blocked, so the digest rule actually reads.
+    // Tutorial only: it is a teaching aid, so once the player knows the rule we drop it in battles.
+    void OnGUI()
+    {
+        if (!LevelLoader.Tutorial || !UsesDigest || CanEat) return;
+
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Vector3 screen = cam.WorldToScreenPoint(transform.position + Vector3.up * digestLabelHeight);
+        if (screen.z <= 0f) return;   // behind the camera
+
+        if (digestLabelStyle == null)
+        {
+            digestLabelStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 16,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+            };
+        }
+        digestLabelStyle.normal.textColor = digestLabelColor;
+
+        // GUI y grows downward, the opposite of screen-space y
+        Rect rect = new Rect(screen.x - 70f, Screen.height - screen.y - 24f, 140f, 22f);
+        GUI.Label(rect, "Digesting\u2026", digestLabelStyle);
     }
 
     void ReadInput()

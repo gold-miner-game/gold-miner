@@ -5,9 +5,21 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Assets/Scenes/SampleScene.unity
-    guid: 8c9cfa26abfee488c85f1582747f6a02
+  - enabled: 1
+    path: Assets/Scenes/Boot.unity
+    guid: 2730bd838d7200748beb782a54048401
+  - enabled: 1
+    path: Assets/Scenes/Map.unity
+    guid: ec7286bfbc1f1b54bb2fd93f6d5ddfbe
+  - enabled: 1
+    path: Assets/Scenes/RolePick.unity
+    guid: bbe4881df25cee94db13a955577ae19b
+  - enabled: 1
+    path: Assets/Scenes/Store.unity
+    guid: c1f5227a6015a6f41abe153bba3695ae
+  - enabled: 1
+    path: Assets/Scenes/Survival.unity
+    guid: e7b3c9d14a2f4e6b8d0c5a7f3e1b2948
   - enabled: 1
     path: Assets/Scenes/Game.unity
     guid: 918cf6b2d2d2c4a7dafcb15e5725b488

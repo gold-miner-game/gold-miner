@@ -7,7 +7,7 @@
       "pig_speed": 0.0
     },
     {
-      "guide": "SKILL 2: STEAL\nThe hook caught gold!\nPress SPACE as it passes you to knock it loose, then eat it.",
+      "guide": "SKILL 2: STEAL\nBlocking doesn't just stop empty hooks.\nWhen a hook drags gold back home, block it as it passes - the gold drops loose. Then eat it!",
       "goal": "steal",
       "count": 2,
       "items": [
