@@ -46,6 +46,7 @@ public class LevelLoader : MonoBehaviour
     public int randomSeed = 0;
     [Tooltip("Lives the pig starts every level with (0 = the level file's starting_lives)")]
     public int livesPerLevel = 3;
+    [Tooltip("Level label, guide and retry text. The bottom dev line ([N]/[P]/[R]) shows in the editor only: in a build it covered the arena")]
     public bool showLevelLabel = true;
 
     [Header("Tutorial")]
@@ -504,7 +505,8 @@ public class LevelLoader : MonoBehaviour
     void OnGUI()
     {
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;
-        GUI.Label(new Rect(10, Screen.height - 30, 700, 24), label + "   [N] next  [P] previous  [R] restart");
+        if (Application.isEditor)
+            GUI.Label(new Rect(10, Screen.height - 30, 700, 24), label + "   [N] next  [P] previous  [R] restart");
 
         GameManager gm = GameManager.Instance;
         if (gm != null && gm.IsPlaying) DrawGuide();

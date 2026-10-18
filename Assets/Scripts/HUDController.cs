@@ -33,20 +33,12 @@ public class HUDController : MonoBehaviour
     public Color lifeLostColor = Color.red;
     public Color lifeGainedColor = Color.green;
 
-    [Header("Money bar (top centre; cooldowns are drawn on the pig)")]
-    public Vector2 barSize = new Vector2(480f, 22f);
-    public float moneyBarTop = 20f;       // pixels from the top of the screen
-    public Color barBack = new Color(0f, 0f, 0f, 0.55f);
-    public Color playerMoneyBar = new Color(1f, 0.55f, 0.75f);    // pink
-    public Color minerMoneyBar = new Color(0.6f, 0.6f, 0.6f);     // gray
-
     private Label playerMoney;
     private Label minerMoney;
     private Label lives;
     private Color timerBaseColor;
     private Vector3 timerBaseScale;
     private bool roundHasLives;
-    private GUIStyle barStyle;
 
     // Last values seen, to detect changes (not set until the first Update)
     private bool hasLast;
@@ -171,45 +163,6 @@ public class HUDController : MonoBehaviour
         // GameManager counts a tie as a loss; say so, or it looks like a bug
         if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) detail += "\nTie - the miner wins ties";
         detailText.text = detail + "\nPress R to restart";
-    }
-
-    void OnGUI()
-    {
-        GameManager gm = GameManager.Instance;
-        if (gm == null || !gm.IsPlaying) return;
-
-        DrawMoneyBar(gm);
-    }
-
-    // One bar split by the money so far: pink for the pig from the left, gray for the miner from
-    // the right, each as wide as its share of what both have. Before anyone scores it's empty
-    void DrawMoneyBar(GameManager gm)
-    {
-        Rect bar = new Rect((Screen.width - barSize.x) / 2f, moneyBarTop, barSize.x, barSize.y);
-        float total = gm.PlayerMoney + gm.MinerMoney;
-        float playerShare = total > 0f ? gm.PlayerMoney / total : 0f;
-        float minerShare = total > 0f ? 1f - playerShare : 0f;
-
-        Color old = GUI.color;
-        GUI.color = barBack;
-        GUI.DrawTexture(bar, Texture2D.whiteTexture);
-        GUI.color = playerMoneyBar;
-        GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * playerShare, bar.height), Texture2D.whiteTexture);
-        GUI.color = minerMoneyBar;
-        float minerWidth = bar.width * minerShare;
-        GUI.DrawTexture(new Rect(bar.xMax - minerWidth, bar.y, minerWidth, bar.height), Texture2D.whiteTexture);
-        GUI.color = old;
-
-        if (barStyle == null)
-        {
-            barStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, padding = new RectOffset(8, 8, 0, 0) };
-        }
-        // Dark text on the pink and gray, light on the empty bar
-        barStyle.normal.textColor = total > 0f ? Color.black : Color.white;
-        barStyle.alignment = TextAnchor.MiddleLeft;
-        GUI.Label(bar, "You $" + gm.PlayerMoney.ToString("N0"), barStyle);
-        barStyle.alignment = TextAnchor.MiddleRight;
-        GUI.Label(bar, "Miner $" + gm.MinerMoney.ToString("N0"), barStyle);
     }
 
     // "+$600" next to a money label: a copy of the label, so it shares its font and size
