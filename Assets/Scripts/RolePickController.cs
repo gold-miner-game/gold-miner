@@ -11,10 +11,10 @@ public class RolePickController : MonoBehaviour
 
     static readonly Champion[] Champions =
     {
-        new Champion { index = 0, name = "Mr. Hyde",    desc = "The pig.",      skill = "[Space] Block: bounce a hook back, or knock gold off a passing hook." },
-        new Champion { index = 1, name = "JK. Rolling", desc = "The cat.",      skill = "[Space] Roll: dash through hooks unharmed for a moment." },
-        new Champion { index = 2, name = "Scrat",       desc = "The squirrel.", skill = "[Space] Tail sweep: sweep up nearby treasure." },
-        new Champion { index = 3, name = "Rero Rero",   desc = "The frog.",     skill = "[Space] Tongue: grab gold from a distance." },
+        new Champion { index = 0, name = "Mr. Hyde",    desc = "The pig.",      skill = "What reaches for him comes back lighter." },
+        new Champion { index = 1, name = "JK. Rolling", desc = "The cat.",      skill = "She is already through the moment that meant to catch her." },
+        new Champion { index = 2, name = "Scrat",       desc = "The squirrel.", skill = "Nothing near his feet stays where he found it." },
+        new Champion { index = 3, name = "Rero Rero",   desc = "The frog.",     skill = "Some treasures only look far away." },
     };
 
     GUIStyle title;
@@ -31,7 +31,7 @@ public class RolePickController : MonoBehaviour
         const int cols = 2;
         int rows = Mathf.CeilToInt(Champions.Length / (float)cols);
         float cardW = 320f;
-        float cardH = 158f;
+        float cardH = 172f;
         float gap = 20f;
         float totalW = cols * cardW + (cols - 1) * gap;
         float totalH = rows * cardH + (rows - 1) * gap;
