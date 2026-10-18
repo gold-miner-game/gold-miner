@@ -62,7 +62,8 @@ public class HUDController : MonoBehaviour
     private LevelLoader levelLoader;
     private PlayerCharacter player;
     private readonly List<TMP_Text> itemRows = new List<TMP_Text>();
-    private GameFlow flow;   // found, not GameFlow.Instance: that would create one in Dev scenes
+    private GameFlow flow;
+    private string endDetail;   // the result lines, set once when the round ends   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
     private bool hasLast;
@@ -335,19 +336,32 @@ public class HUDController : MonoBehaviour
 
     void UpdateEndPanel(GameManager gm)
     {
-        if (gm.IsPlaying || endPanel == null || endPanel.activeSelf) return;
+        if (gm.IsPlaying || endPanel == null) return;
 
-        endPanel.SetActive(true);
-        if (resultText != null) resultText.text = gm.PlayerWon ? "YOU WIN" : "YOU LOSE";
-        if (detailText == null) return;
+        if (!endPanel.activeSelf)
+        {
+            endPanel.SetActive(true);
+            if (resultText != null) resultText.text = gm.PlayerWon ? "YOU WIN" : "YOU LOSE";
 
-        string detail = gm.EndReason;
-        // Levels without money (the block tutorial) skip the score line
-        if (gm.PlayerMoney + gm.MinerMoney > 0)
-            detail += "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
-        // GameManager counts a tie as a loss; say so, or it looks like a bug
-        if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) detail += "\nTie - the miner wins ties";
-        detailText.text = detail + "\nPress R to restart";
+            endDetail = gm.EndReason;
+            // Levels without money (the block tutorial) skip the score line
+            if (gm.PlayerMoney + gm.MinerMoney > 0)
+                endDetail += "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
+            // GameManager counts a tie as a loss; say so, or it looks like a bug
+            if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) endDetail += "\nTie - the miner wins ties";
+        }
+
+        // Every frame: the next-level countdown ticks
+        if (detailText != null) detailText.text = endDetail + "\n" + NextStep(gm);
+    }
+
+    // The one place that says what happens next (LevelLoader no longer draws it under the arena)
+    string NextStep(GameManager gm)
+    {
+        if (!gm.PlayerWon) return "Press R to retry";
+        if (flow != null && flow.CurrentNode != null) return "Back to the map...";
+        string hint = levelLoader != null ? levelLoader.NextStepHint : "";
+        return hint != "" ? hint : "Press R to restart";
     }
 
     // "+$600" next to a money label: a copy of the label, so it shares its font and size

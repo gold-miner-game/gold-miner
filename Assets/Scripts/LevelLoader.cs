@@ -50,6 +50,8 @@ public class LevelLoader : MonoBehaviour
     public bool showLevelLabel = true;
 
     [Header("Tutorial")]
+    [Tooltip("Seconds a new guide shows in full before it shrinks to its first line and the progress")]
+    public float guideFullTime = 8f;
     [Tooltip("Steal stage: seconds the hook rests on its treasure before pulling it back")]
     public float stealHold = 1.5f;
     [Tooltip("Steal stage: seconds between one pull ending and the next starting")]
@@ -80,6 +82,9 @@ public class LevelLoader : MonoBehaviour
     private float stageTime;         // survive stage: Time.time when the stage began
     private float nextPullAt;        // steal stage: when the hooks get their next treasure
     private GUIStyle guideStyle;
+    private string shownGuide;       // the guide on screen, to notice a new level or stage
+    private float guideSince;        // Time.time when it appeared
+    private bool hasHud;             // the HUD's end panel shows what comes next; else OnGUI does
     private int lastTutorial = -1;   // index of the last tutorial level; -1 = no tutorial
     private float levelSpeed;        // the level's pig_speed, before game speed and the character's speedScale
 
@@ -503,6 +508,27 @@ public class LevelLoader : MonoBehaviour
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
     }
 
+    void Start()
+    {
+        hasHud = FindFirstObjectByType<HUDController>() != null;
+    }
+
+    // What happens next once the round is over, for the end panel. Empty while playing, or when a
+    // listener (GameFlow, back to the map) handles the win
+    public string NextStepHint
+    {
+        get
+        {
+            GameManager gm = GameManager.Instance;
+            if (gm == null || gm.IsPlaying) return "";
+            if (!gm.PlayerWon) return "Press R to retry this level";
+            if (WaitToAdvance) return "";   // before IsLastLevel: a map node's list has one level
+            if (IsLastLevel) return "All " + list.Length + " levels cleared!";
+            if (advanceAt >= 0f) return "Level " + (current + 2) + " in " + Mathf.CeilToInt(advanceAt - Time.time) + "...";
+            return "";
+        }
+    }
+
     void OnGUI()
     {
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;
@@ -511,50 +537,66 @@ public class LevelLoader : MonoBehaviour
 
         GameManager gm = GameManager.Instance;
         if (gm != null && gm.IsPlaying) DrawGuide();
-        if (gm == null || gm.IsPlaying) return;
-        string status;
-        if (!gm.PlayerWon) status = "Press R to retry this level";
-        else if (IsLastLevel) status = "All " + list.Length + " levels cleared!";
-        else if (WaitToAdvance) return;
-        else if (advanceAt >= 0f)
-            status = "Level " + (current + 2) + " in " + Mathf.CeilToInt(advanceAt - Time.time) + "...";
-        else return;
-        GUI.Label(new Rect(10, Screen.height - 54, 700, 24), status);
+        if (hasHud) return;
+        string hint = NextStepHint;
+        if (hint != "") GUI.Label(new Rect(10, Screen.height - 54, 700, 24), hint);
     }
 
-    // The guide text (the stage's, else the level's) in a box under the HUD's money bar, with progress
+    // The guide text (the stage's, else the level's) at the top of the arena, with progress. A new
+    // guide shows in full for guideFullTime, then shrinks to its first line (the title) so it stops
+    // covering the arena once it has been read
     void DrawGuide()
     {
         if (level == null) return;
-        string text;
+        string guide;
+        string progress = "";
         if (stage >= 0)
         {
             LevelData.Stage s = level.stages[stage];
             string done = s.goal == "steal" ? "Stolen" : s.goal == "survive" ? "Survived" : "Blocked";
             string unit = s.goal == "survive" ? "s" : "";
-            text = s.guide + "\n" + done + " " + StageProgress + unit + " / " + s.count + unit;
+            guide = s.guide;
+            progress = done + " " + StageProgress + unit + " / " + s.count + unit;
         }
         else
         {
             if (string.IsNullOrEmpty(level.guide)) return;
-            text = level.guide;
+            guide = level.guide;
             if (level.items.Count > 0)
-                text += "\nLeft: " + (Treasure.Active.Count + Treasure.OnHooks.Count);
+                progress = "Left: " + (Treasure.Active.Count + Treasure.OnHooks.Count);
         }
+
+        if (guide != shownGuide)
+        {
+            shownGuide = guide;
+            guideSince = Time.time;
+        }
+        int firstLine = guide.IndexOf('\n');
+        if (Time.time - guideSince >= guideFullTime && firstLine >= 0) guide = guide.Substring(0, firstLine);
+        string text = progress == "" ? guide : guide + "\n" + progress;
 
         if (guideStyle == null)
         {
+            // The HUD's panel color, a little see-through so the arena shows behind it
+            Texture2D back = new Texture2D(1, 1);
+            back.SetPixel(0, 0, new Color(0.118f, 0.165f, 0.247f, 0.85f));
+            back.Apply();
             guideStyle = new GUIStyle(GUI.skin.box)
             {
                 fontSize = 18,
                 alignment = TextAnchor.MiddleCenter,
                 wordWrap = true,
                 padding = new RectOffset(16, 16, 12, 12),
+                border = new RectOffset(0, 0, 0, 0),
             };
+            guideStyle.normal.background = back;
             guideStyle.normal.textColor = Color.white;
         }
-        float width = Mathf.Min(760f, Screen.width - 40f);
+        // Centered over the arena (HUDLayout): under the top bar and clear of the sidebar
+        float arenaWidth = Screen.width * (1f - HUDLayout.SidebarWidth);
+        float width = Mathf.Min(760f, arenaWidth - 40f);
         float height = guideStyle.CalcHeight(new GUIContent(text), width);
-        GUI.Box(new Rect((Screen.width - width) / 2f, 54f, width, height), text, guideStyle);
+        float top = Screen.height * HUDLayout.TopBarHeight + 12f;
+        GUI.Box(new Rect((arenaWidth - width) / 2f, top, width, height), text, guideStyle);
     }
 }
