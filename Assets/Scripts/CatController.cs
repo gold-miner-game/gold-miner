@@ -30,6 +30,11 @@ public class CatController : PlayerCharacter
     [Tooltip("Spin is counterclockwise; clockwise when rolling left (including left diagonals)")]
     public bool reverseSpinWhenRollingLeft = true;
 
+    // After the tutorial her record decides (the store can change them); before, these Inspector values
+    public float RollMultiplier => Record is CatStatus s ? s.getRollSpeedMultiplier() : speedMultiplier;
+    public float RollDuration => Record is CatStatus s ? s.getRollDuration() : dashDuration;
+    public float RollCooldown => Record is CatStatus s ? s.getRollCooldown() : cooldown;
+
     public bool IsRolling => Time.time < rollUntil;
     // Hooks pass through a rolling cat without hurting it
     public override bool IsInvulnerable => IsRolling;
@@ -47,6 +52,7 @@ public class CatController : PlayerCharacter
     private float spinDirection = 1f;
     private bool lookingTired;
     private bool wasRolling;
+    private float spinLength;   // this roll's duration
     private int rollEaten;   // value eaten during this roll, digested when it ends
 
     protected override void Awake()
@@ -87,6 +93,12 @@ public class CatController : PlayerCharacter
         foreach (Transform child in children) child.SetParent(visualRoot, true);
     }
 
+    // A fresh record (just picked) starts from this prefab's numbers
+    void Start()
+    {
+        if (Record is CatStatus s) s.seed(speedMultiplier, dashDuration, cooldown);
+    }
+
     protected override void Update()
     {
         base.Update();
@@ -125,8 +137,9 @@ public class CatController : PlayerCharacter
         if (Time.time < nextRollTime) return;
         if (MoveInput.sqrMagnitude > 0f) lastDirection = MoveInput.normalized;
 
-        rollUntil = Time.time + dashDuration;
-        nextRollTime = rollUntil + cooldown;
+        spinLength = RollDuration;
+        rollUntil = Time.time + spinLength;
+        nextRollTime = rollUntil + RollCooldown;
         spinDirection = reverseSpinWhenRollingLeft && lastDirection.x < -.01f ? -1f : 1f;
         spinStart = Time.time;
         spinning = true;
@@ -136,7 +149,7 @@ public class CatController : PlayerCharacter
     protected override Vector2 Velocity(Vector2 input)
     {
         if (!IsRolling) return base.Velocity(input);
-        return lastDirection * Mathf.Max(0f, moveSpeed) * Mathf.Max(0f, speedMultiplier);
+        return lastDirection * CurrentSpeed * Mathf.Max(0f, RollMultiplier);
     }
 
     protected override void OnStopped()
@@ -150,7 +163,7 @@ public class CatController : PlayerCharacter
     void LateUpdate()
     {
         if (!spinning || visualRoot == null) return;
-        float t = Mathf.Clamp01((Time.time - spinStart) / Mathf.Max(.001f, dashDuration));
+        float t = Mathf.Clamp01((Time.time - spinStart) / Mathf.Max(.001f, spinLength));
         // Make up for a mirrored cat so the spin goes the right way on screen
         Vector3 parentScale = visualRoot.parent != null ? visualRoot.parent.lossyScale : Vector3.one;
         float mirrorSign = parentScale.x * parentScale.y < 0f ? -1f : 1f;

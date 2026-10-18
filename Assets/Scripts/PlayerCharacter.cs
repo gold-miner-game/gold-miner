@@ -2,10 +2,13 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
 
-// Shared by every character the player can be: Mr. Hyde, the cat (JK. Rolling) and the squirrel (Scrat).
-// Hook, Treasure, LifePickup and LevelLoader only talk to this class, so any character works in any level.
-// It moves with WASD, eats treasure (with the level's digest time), blinks while invincible and
-// calls UseSkill when Space is pressed. Each character adds its own skill.
+// Shared by every character the player can be: Mr. Hyde, the cat (JK. Rolling), the squirrel (Scrat) and
+// the frog (Rero Rero). Hook, Treasure, LifePickup and LevelLoader only talk to this class, so any character
+// works in any level. It moves with WASD, eats treasure (with the level's digest time), blinks while
+// invincible and calls UseSkill when Space is pressed. Each character adds its own skill.
+// After the tutorial, the cross-level record (CrossLevelStatus, Zhan Li's) is the player: its speed
+// multiplier (swift water), no-digest (ration) and shield work for every character, and each champion's
+// own record (PigStatus, CatStatus, SquirrelStatus, FrogStatus) holds its skill numbers for the store.
 [RequireComponent(typeof(Rigidbody2D))]
 public abstract class PlayerCharacter : MonoBehaviour
 {
@@ -53,6 +56,12 @@ public abstract class PlayerCharacter : MonoBehaviour
     // No GameManager in the scene = always playing (handy in Dev scenes)
     public static bool IsPlaying => GameManager.Instance == null || GameManager.Instance.IsPlaying;
 
+    // The cross-level record, or null in the tutorial (which never touches it) or a Dev scene without one
+    public static CrossLevelStatus Record => LevelLoader.Tutorial ? null : CrossLevelStatus.Active;
+
+    // Speed right now: moveSpeed times the record's multiplier (swift water doubles it for a level)
+    public float CurrentSpeed => Mathf.Max(0f, moveSpeed) * (Record != null ? Record.getSpeedMultiplier() : 1f);
+
     protected Rigidbody2D Body { get; private set; }
     protected Color BaseColor { get; private set; }
 
@@ -68,6 +77,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     // down to the bottom as the cooldown runs out, so the normal color comes back top first
     private SpriteRenderer cooldownTint;
     private SpriteMask cooldownMask;
+    private SpriteRenderer shieldBubble;
     private Bounds bodyBounds;   // the body sprite, in the character's local space
 
     protected virtual void Awake()
@@ -88,6 +98,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         {
             BaseColor = body.color;
             CreateCooldownTint();
+            CreateShieldBubble();
         }
 
         parts = GetComponentsInChildren<SpriteRenderer>(true);
@@ -139,6 +150,24 @@ public abstract class PlayerCharacter : MonoBehaviour
         mask.transform.localPosition = new Vector3(bodyBounds.center.x, bodyBounds.min.y, 0f);
     }
 
+    // A larger, see-through copy of the body, drawn over everything while the record's shield is up
+    void CreateShieldBubble()
+    {
+        int top = body.sortingOrder;
+        foreach (SpriteRenderer part in GetComponentsInChildren<SpriteRenderer>(true))
+            top = Mathf.Max(top, part.sortingOrder);
+        var bubble = new GameObject("ShieldBubble");
+        bubble.transform.SetParent(body.transform, false);
+        bubble.transform.localScale = Vector3.one * 1.45f;
+        shieldBubble = bubble.AddComponent<SpriteRenderer>();
+        shieldBubble.sprite = body.sprite;
+        shieldBubble.sharedMaterial = body.sharedMaterial;
+        shieldBubble.sortingLayerID = body.sortingLayerID;
+        shieldBubble.sortingOrder = top + 1;
+        shieldBubble.color = new Color(0.45f, 0.85f, 1f, 0.4f);
+        shieldBubble.enabled = false;
+    }
+
     // A sprite's box in another transform's local space, from the sprite and the transforms only.
     // Renderer.bounds can still be stale in Awake right after Instantiate (a spawned character)
     public static Bounds LocalBounds(Transform space, SpriteRenderer renderer)
@@ -185,9 +214,15 @@ public abstract class PlayerCharacter : MonoBehaviour
         StartDigest(value);
     }
 
-    // Start digesting `value` worth of treasure now
+    // Start digesting `value` worth of treasure now. The record's ration skill means no digest at all
     protected void StartDigest(int value)
     {
+        if (Record != null && Record.hasNoDigest())
+        {
+            DigestLength = 0f;
+            digestUntil = Time.time;
+            return;
+        }
         DigestLength = digestTime + digestPerValue * value;
         digestUntil = Time.time + DigestLength;
     }
@@ -198,6 +233,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         UpdateBlink();
         if (body != null) body.color = BodyColor;
         UpdateCooldownTint();
+        if (shieldBubble != null) shieldBubble.enabled = Record != null && Record.isShielded();
     }
 
     void ReadInput()
@@ -263,7 +299,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     // The velocity for this physics step. Normalize so diagonals are not faster; physics stops us at colliders
     protected virtual Vector2 Velocity(Vector2 input)
     {
-        return moveSpeed * input.normalized;
+        return CurrentSpeed * input.normalized;
     }
 
     // Space was pressed during a round

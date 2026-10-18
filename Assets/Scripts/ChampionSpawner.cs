@@ -14,6 +14,15 @@ public class ChampionSpawner : MonoBehaviour
     // Set by ChampionSelect. Static, so it survives scene loads (and level reloads). -1 = not picked yet
     public static int Chosen = -1;
 
+    // Each champion's cross-level record, in the same order. Mr. Hyde keeps Zhan Li's PigStatus
+    static readonly System.Type[] recordTypes =
+        { typeof(PigStatus), typeof(CatStatus), typeof(SquirrelStatus), typeof(FrogStatus) };
+
+    public static System.Type RecordType(int index)
+    {
+        return index >= 0 && index < recordTypes.Length ? recordTypes[index] : typeof(PigStatus);
+    }
+
     // Reset statics when entering Play Mode (in case domain reload is turned off)
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()

@@ -12,7 +12,12 @@ public class MrHydeController : PlayerCharacter
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
 
     public override bool IsBlocking => Time.time < blockUntil;
-    public override string SkillHint => canBlock ? "[Space] block" : "";
+    public override string SkillHint => CanBlock ? "[Space] block" : "";
+
+    // After the tutorial the record decides (the store can change it); in the tutorial, the level does
+    public bool CanBlock => Record != null ? Record.getCanBlock() : canBlock;
+    public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
+    public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
 
     // Time left in the current block, and until the next one
     public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
@@ -24,10 +29,10 @@ public class MrHydeController : PlayerCharacter
     // Start a block if the skill is on and off cooldown
     protected override void UseSkill()
     {
-        if (!canBlock || Time.time < blockReadyAt) return;
+        if (!CanBlock || Time.time < blockReadyAt) return;
 
-        blockUntil = Time.time + blockDuration;
-        blockReadyAt = blockUntil + blockCooldown;
+        blockUntil = Time.time + BlockDuration;
+        blockReadyAt = blockUntil + BlockCooldown;
     }
 
     // While blocking the whole body is blue
@@ -37,7 +42,7 @@ public class MrHydeController : PlayerCharacter
     protected override bool SkillCooldown(out float left, out Color tint)
     {
         tint = blockTint;
-        left = !IsBlocking && BlockReadyIn > 0f && blockCooldown > 0f ? BlockReadyIn / blockCooldown : 0f;
+        left = !IsBlocking && BlockReadyIn > 0f && BlockCooldown > 0f ? BlockReadyIn / BlockCooldown : 0f;
         return left > 0f;
     }
 }

@@ -15,6 +15,9 @@ public class SquirrelController : PlayerCharacter
     public override string SkillHint => tail != null ? "[hold Space] firm tail" : "";
     public bool TailFirm => tail != null && tail.IsCollecting;
 
+    // After the tutorial his record decides (the store can change it); before, the Inspector value
+    public float FirmSpeedMultiplier => Record is SquirrelStatus s ? s.getFirmSpeedMultiplier() : firmSpeedMultiplier;
+
     protected override bool FlipsWhenTurning => false;
 
     private SquirrelTailCollector tail;
@@ -23,6 +26,12 @@ public class SquirrelController : PlayerCharacter
     {
         base.Awake();
         tail = GetComponent<SquirrelTailCollector>();
+    }
+
+    // A fresh record (just picked) starts from this prefab's numbers
+    void Start()
+    {
+        if (Record is SquirrelStatus s) s.seed(firmSpeedMultiplier, tail != null ? tail.hookStall : 1f);
     }
 
     protected override void Update()
@@ -35,6 +44,6 @@ public class SquirrelController : PlayerCharacter
     // Half speed while the tail is firm
     protected override Vector2 Velocity(Vector2 input)
     {
-        return base.Velocity(input) * (TailFirm ? firmSpeedMultiplier : 1f);
+        return base.Velocity(input) * (TailFirm ? FirmSpeedMultiplier : 1f);
     }
 }

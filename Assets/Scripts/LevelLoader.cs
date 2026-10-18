@@ -83,8 +83,11 @@ public class LevelLoader : MonoBehaviour
 
     public static int CurrentLevel => current + 1;
 
-    // Tutorial levels are played as Mr. Hyde, whatever was picked
-    public bool InTutorial => current <= lastTutorial;
+    // The tutorial: every level up to the last one with a guide or stages (level_01b_block), so the
+    // normal level between the two tutorials counts too. It is always played as Mr. Hyde, and the
+    // cross-level record (speed, digest, shield, wallet) is left untouched; the record starts when a
+    // champion is picked on the select screen
+    public static bool Tutorial { get; private set; }
 
     void Awake()
     {
@@ -97,6 +100,7 @@ public class LevelLoader : MonoBehaviour
         if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
 
         lastTutorial = FindLastTutorial();
+        Tutorial = current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
         if (seed != 0) Random.InitState(seed);
@@ -128,7 +132,7 @@ public class LevelLoader : MonoBehaviour
         ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
         if (spawner != null)
         {
-            PlayerCharacter spawned = spawner.Spawn(InTutorial ? ChampionSpawner.MrHyde : ChampionSpawner.Chosen);
+            PlayerCharacter spawned = spawner.Spawn(Tutorial ? ChampionSpawner.MrHyde : ChampionSpawner.Chosen);
             if (spawned != null) player = spawned;
         }
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
@@ -194,18 +198,42 @@ public class LevelLoader : MonoBehaviour
         var body = player.GetComponent<Rigidbody2D>();
         if (body != null) body.position = level.pigStart;
 
-        // Every character gets the level's speed (times its own speedScale) and digest
         levelSpeed = level.Param("pig_speed", player.moveSpeed);
-        player.moveSpeed = levelSpeed * gameSpeed * player.speedScale;
-        player.digestTime = level.Param("digest_time", 0f);
-        player.digestPerValue = level.Param("digest_per_value", 0f);
-
-        // Only Mr. Hyde blocks
-        if (player is MrHydeController hyde)
+        if (Tutorial)
         {
-            hyde.canBlock = level.Param("block", 0f) > 0.5f;
-            hyde.blockDuration = level.Param("block_duration", hyde.blockDuration);
-            hyde.blockCooldown = level.Param("block_cooldown", hyde.blockCooldown);
+            // Every character gets the level's speed (times its own speedScale) and digest
+            player.moveSpeed = levelSpeed * gameSpeed * player.speedScale;
+            player.digestTime = level.Param("digest_time", 0f);
+            player.digestPerValue = level.Param("digest_per_value", 0f);
+
+            // Only Mr. Hyde blocks
+            if (player is MrHydeController hyde)
+            {
+                hyde.canBlock = level.Param("block", 0f) > 0.5f;
+                hyde.blockDuration = level.Param("block_duration", hyde.blockDuration);
+                hyde.blockCooldown = level.Param("block_cooldown", hyde.blockCooldown);
+            }
+            return;
+        }
+
+        // Level rules go into the player record. The character in the scene only copies them out
+        CrossLevelStatus record = CrossLevelStatus.Ensure();
+        record.setSpeed(level.Param("pig_speed", record.getSpeed()) * gameSpeed);
+        record.setDigestTime(level.Param("digest_time", 0f));
+        record.setDigestPerValue(level.Param("digest_per_value", 0f));
+        record.setCanBlock(level.Param("block", 0f) > 0.5f);
+        record.setBlockDuration(level.Param("block_duration", record.getBlockDuration()));
+        record.setBlockCooldown(level.Param("block_cooldown", record.getBlockCooldown()));
+        record.onLevelStarted();
+
+        player.moveSpeed = record.getSpeed() * player.speedScale;
+        player.digestTime = record.getDigestTime();
+        player.digestPerValue = record.getDigestPerValue();
+        if (player is MrHydeController blocker)
+        {
+            blocker.canBlock = record.getCanBlock();
+            blocker.blockDuration = record.getBlockDuration();
+            blocker.blockCooldown = record.getBlockCooldown();
         }
     }
 
@@ -275,10 +303,22 @@ public class LevelLoader : MonoBehaviour
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
         gm.roundTime = level.Param("round_time", gm.roundTime);
-        gm.startingLives = livesPerLevel > 0
+        if (Tutorial)
+        {
+            gm.startingLives = livesPerLevel > 0
+                ? livesPerLevel
+                : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+            gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
+            return;
+        }
+        CrossLevelStatus player = CrossLevelStatus.Ensure();
+        int levelLives = livesPerLevel > 0
             ? livesPerLevel
             : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
-        gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
+        player.setLives(levelLives + player.getExtraLives());
+        player.setInvincibleTime(level.Param("invincible_time", player.getInvincibleTime()));
+        gm.startingLives = player.getLives();
+        gm.invincibleTime = player.getInvincibleTime();
     }
 
     void Update()
@@ -358,15 +398,35 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
+    // Fired once when a won level's money is stored. Listeners must not be required for the next level to load.
+    public static event System.Action LevelWon;
+
+    // A listener can hold the countdown. It loads the next level itself by setting AdvanceNow.
+    public static bool WaitToAdvance { get; set; }
+    public static bool AdvanceNow { get; set; }
+
     // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
     // the next level. A loss stays put so R can retry. The last level doesn't wrap around.
     void UpdateAdvance()
     {
         GameManager gm = GameManager.Instance;
-        if (!autoAdvance || gm == null || gm.IsPlaying || !gm.PlayerWon || IsLastLevel) return;
+        if (gm == null || gm.IsPlaying || !gm.PlayerWon) return;
 
-        if (advanceAt < 0f) advanceAt = Time.time + advanceDelay;
-        else if (Time.time >= advanceAt) Load(current + 1);
+        if (advanceAt < 0f)
+        {
+            advanceAt = Time.time + advanceDelay;
+            if (!Tutorial)
+            {
+                CrossLevelStatus.Ensure().bank(CurrentLevel, gm.PlayerMoney);
+                if (LevelWon != null) LevelWon();
+            }
+        }
+        if (!autoAdvance || IsLastLevel || WaitToAdvance) return;
+        if (AdvanceNow || Time.time >= advanceAt)
+        {
+            AdvanceNow = false;
+            Load(current + 1);
+        }
     }
 
     bool IsLastLevel => current >= list.Length - 1;
@@ -375,9 +435,9 @@ public class LevelLoader : MonoBehaviour
     // level opens the select scene first; it loads this scene again with the picked character
     public void Load(int index)
     {
-        bool leavingTutorial = InTutorial;
+        bool leavingTutorial = current <= lastTutorial;
         current = (index % list.Length + list.Length) % list.Length;
-        if (leavingTutorial && !InTutorial && !string.IsNullOrEmpty(selectScene)
+        if (leavingTutorial && current > lastTutorial && !string.IsNullOrEmpty(selectScene)
             && Application.CanStreamedLevelBeLoaded(selectScene))
         {
             SceneManager.LoadScene(selectScene);
@@ -399,6 +459,7 @@ public class LevelLoader : MonoBehaviour
         string status;
         if (!gm.PlayerWon) status = "Press R to retry this level";
         else if (IsLastLevel) status = "All " + list.Length + " levels cleared!";
+        else if (WaitToAdvance) return;
         else if (advanceAt >= 0f)
             status = "Level " + (current + 2) + " in " + Mathf.CeilToInt(advanceAt - Time.time) + "...";
         else return;

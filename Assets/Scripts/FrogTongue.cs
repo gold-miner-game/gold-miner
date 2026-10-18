@@ -34,6 +34,12 @@ public class FrogTongue : MonoBehaviour
     [Tooltip("How much the mouth opens while the tongue is out")]
     [Min(1f)] public float mouthOpenMultiplier = 1.4f;
 
+    // After the tutorial the frog's record decides (the store can change them); before, these Inspector values
+    public float Reach => PlayerCharacter.Record is FrogStatus s ? s.getTongueReach() : maximumLengthMultiplier;
+    public float ShootSpeed => PlayerCharacter.Record is FrogStatus s ? s.getTongueSpeed() : extensionSpeed;
+    public float ReturnSpeed => PlayerCharacter.Record is FrogStatus s ? s.getTongueReturnSpeed() : retractSpeed;
+    public float SnapMultiplier => PlayerCharacter.Record is FrogStatus s ? s.getTongueSnapMultiplier() : snapSpeedMultiplier;
+
     public Phase State { get; private set; }
     public bool IsUsingSkill => State != Phase.Ready;
     public bool CanFire => isActiveAndEnabled && State == Phase.Ready && PlayerCharacter.IsPlaying;
@@ -55,6 +61,13 @@ public class FrogTongue : MonoBehaviour
         if (tongue != null) tongue.enabled = false;
     }
 
+    // A fresh record (just picked) starts from this prefab's numbers
+    void Start()
+    {
+        if (PlayerCharacter.Record is FrogStatus s)
+            s.seed(maximumLengthMultiplier, extensionSpeed, retractSpeed, snapSpeedMultiplier);
+    }
+
     // Called by FrogController when Space is pressed during a round. Returns true if the tongue shot
     public bool Fire()
     {
@@ -67,7 +80,7 @@ public class FrogTongue : MonoBehaviour
         ShotWidth = WorldSize(mouth, Vector3.right, mouth.sprite.bounds.size.x);
         float diameter = Mathf.Max(WorldSize(frogBodyArtwork, Vector3.right, frogBodyArtwork.sprite.bounds.size.x),
             WorldSize(frogBodyArtwork, Vector3.up, frogBodyArtwork.sprite.bounds.size.y));
-        ShotMaximumLength = Mathf.Max(0f, diameter) * Mathf.Max(0f, maximumLengthMultiplier);
+        ShotMaximumLength = Mathf.Max(0f, diameter) * Mathf.Max(0f, Reach);
         if (ShotWidth <= .00001f || ShotMaximumLength <= .00001f) return false;
         direction = ((Vector2)mouth.transform.TransformVector(Vector3.up)).normalized;
         if (direction.sqrMagnitude < .000001f) return false;
@@ -89,7 +102,7 @@ public class FrogTongue : MonoBehaviour
         if (!PlayerCharacter.IsPlaying) { CancelSkill(); return; }
         FollowMouth();
 
-        float shoot = Mathf.Max(.01f, extensionSpeed);
+        float shoot = Mathf.Max(.01f, ShootSpeed);
         if (State == Phase.Extending)
         {
             length = Mathf.Min(ShotMaximumLength, length + shoot * Time.fixedDeltaTime);
@@ -99,7 +112,7 @@ public class FrogTongue : MonoBehaviour
         else if (State == Phase.Snapping)
         {
             // The part beyond the treasure pulls in fast, then the tongue comes back as usual
-            length = Mathf.MoveTowards(length, grabDistance, shoot * Mathf.Max(1f, snapSpeedMultiplier) * Time.fixedDeltaTime);
+            length = Mathf.MoveTowards(length, grabDistance, shoot * Mathf.Max(1f, SnapMultiplier) * Time.fixedDeltaTime);
             if (length <= grabDistance + .0001f) { length = grabDistance; State = Phase.Retracting; }
         }
         else
@@ -107,7 +120,7 @@ public class FrogTongue : MonoBehaviour
             if (carried == null) TryGrab();   // an empty tongue still grabs what it swings into
             if (State == Phase.Retracting)
             {
-                length = Mathf.Max(0f, length - Mathf.Max(.01f, retractSpeed) * Time.fixedDeltaTime);
+                length = Mathf.Max(0f, length - Mathf.Max(.01f, ReturnSpeed) * Time.fixedDeltaTime);
                 grabDistance = Mathf.Min(grabDistance, length);
                 if (length <= 0f) { CompleteReturn(); return; }
             }

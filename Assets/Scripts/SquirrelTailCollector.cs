@@ -24,6 +24,9 @@ public class SquirrelTailCollector : MonoBehaviour
     // Firm: solid, collecting and stopping hooks
     public bool IsCollecting { get; private set; }
 
+    // After the tutorial the squirrel's record decides (the store can change it); before, hookStall
+    public float HookHold => PlayerCharacter.Record is SquirrelStatus s ? s.getHookHold() : hookStall;
+
     [Header("Collection")]
     [Tooltip("The tail's sprites. Empty: every sprite under SquirrelTailHeading's Tail Pivot")]
     public SpriteRenderer[] tailShapes;
@@ -198,7 +201,7 @@ public class SquirrelTailCollector : MonoBehaviour
             {
                 Vector2 point = Vector2.Lerp(from, now, (float)s / samples);
                 if (!Touches(poses, point, hook.hitRadius)) continue;
-                hook.Hold(hookStall);   // every frame they touch
+                hook.Hold(HookHold);   // every frame they touch
                 break;
             }
         }
