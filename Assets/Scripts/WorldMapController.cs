@@ -15,7 +15,7 @@ public class WorldMapController : MonoBehaviour
 {
     [Tooltip("Left-to-right tree. Off = top-to-bottom.")]
     public bool horizontal = true;
-    public Vector2 maxNodeSize = new Vector2(176f, 60f);
+    public Vector2 maxNodeSize = new Vector2(200f, 78f);
     public bool showResetButton = true;   // dev helper
 
     // Palette ------------------------------------------------------------------------------------
@@ -32,14 +32,12 @@ public class WorldMapController : MonoBehaviour
     static readonly Color TextDim    = new Color(0.52f, 0.55f, 0.63f, 1f);
     static readonly Color Shadow     = new Color(0f, 0f, 0f, 0.33f);
 
-    const float MarginSide = 26f;
-    const float MarginTop = 74f;    // keeps the title clear
-    const float MarginBottom = 52f; // keeps the legend clear
-    const int Radius = 11;
+    const float MarginSide = 36f;
+    const float MarginTop = 64f;     // title only
+    const float MarginBottom = 28f;
+    const int Radius = 12;
 
     GUIStyle title;
-    GUIStyle subtitle;
-    GUIStyle legend;
     GUIStyle nodeText;
     GUIStyle roundBox;   // 9-sliced rounded background, tinted by GUI.backgroundColor
 
@@ -48,6 +46,7 @@ public class WorldMapController : MonoBehaviour
 
     Rect area;
     Vector2 nodeSize;
+    float depthMin, depthMax, spreadMin, spreadMax;
     bool built;
 
     void OnGUI()
@@ -65,15 +64,12 @@ public class WorldMapController : MonoBehaviour
 
         Layout(map);
 
-        GUI.Label(new Rect(0, 20, Screen.width, 34), "WORLD MAP", title);
-        DrawRoundRect(new Rect(Screen.width * 0.5f - 70f, 54f, 140f, 3f), AccAvail);
-        GUI.Label(new Rect(0, 54, Screen.width, 20), "clear a node to open the ones it points to", subtitle);
+        GUI.Label(new Rect(0, 16, Screen.width, 36), "WORLD MAP", title);
 
         DrawEdges(map);                 // behind the cards
         for (int i = 0; i < map.nodes.Count; i++) DrawNode(map, i);
 
-        DrawLegend();
-        if (showResetButton && GUI.Button(new Rect(Screen.width - 150, Screen.height - 46, 134, 30), "Reset progress"))
+        if (showResetButton && GUI.Button(new Rect(Screen.width - 150, Screen.height - 40, 134, 28), "Reset progress"))
             ProgressStore.ResetAll();
     }
 
@@ -161,13 +157,21 @@ public class WorldMapController : MonoBehaviour
             spreads.Add(n.mapPosition.x);
         }
 
+        // Stretch whatever range the nodes actually use across the whole area, so a tree that only
+        // occupies the middle of 0..1 still gets real gaps instead of sitting in a tight cluster.
+        depthMin = Min(depths); depthMax = Max(depths);
+        spreadMin = Min(spreads); spreadMax = Max(spreads);
+
         float spanW = Mathf.Max(1f, Screen.width - 2f * MarginSide);
         float spanH = Mathf.Max(1f, Screen.height - MarginTop - MarginBottom);
-        float gapX = horizontal ? MinGap(depths) : MinGap(spreads);
-        float gapY = horizontal ? MinGap(spreads) : MinGap(depths);
+        float depthSpan = Mathf.Max(0.0001f, depthMax - depthMin);
+        float spreadSpan = Mathf.Max(0.0001f, spreadMax - spreadMin);
+        float gapX = (horizontal ? MinGap(depths) / depthSpan : MinGap(spreads) / spreadSpan);
+        float gapY = (horizontal ? MinGap(spreads) / spreadSpan : MinGap(depths) / depthSpan);
 
-        float w = Mathf.Clamp(gapX * spanW * 0.9f, 60f, maxNodeSize.x);
-        float h = Mathf.Clamp(gapY * spanH * 0.78f, 30f, maxNodeSize.y);
+        // Stay under the full gap so neighbouring cards don't touch once they get bigger.
+        float w = Mathf.Clamp(gapX * spanW * 0.78f, 110f, maxNodeSize.x);
+        float h = Mathf.Clamp(gapY * spanH * 0.58f, 56f, maxNodeSize.y);
         nodeSize = new Vector2(w, h);
         area = Rect.MinMaxRect(MarginSide + w * 0.5f, MarginTop + h * 0.5f,
                                Screen.width - MarginSide - w * 0.5f, Screen.height - MarginBottom - h * 0.5f);
@@ -175,7 +179,10 @@ public class WorldMapController : MonoBehaviour
 
     Vector2 Center(MapNode node)
     {
-        float depth = node.mapPosition.y, spread = node.mapPosition.x;
+        float depth = Mathf.InverseLerp(depthMin, depthMax, node.mapPosition.y);
+        // Pull the branches in slightly so the outer rows clear the title and the bottom edge,
+        // while still sitting much further apart than the raw 0..1 coordinates.
+        float spread = Mathf.Lerp(0.06f, 0.94f, Mathf.InverseLerp(spreadMin, spreadMax, node.mapPosition.x));
         float u = horizontal ? depth : spread;
         float v = horizontal ? spread : depth;
         return new Vector2(Mathf.Lerp(area.xMin, area.xMax, u), Mathf.Lerp(area.yMin, area.yMax, v));
@@ -201,21 +208,18 @@ public class WorldMapController : MonoBehaviour
 
     // --- helpers --------------------------------------------------------------------------------
 
-    void DrawLegend()
+    static float Min(List<float> values)
     {
-        float y = Screen.height - 42f;
-        float x = 20f;
-        x = Swatch(x, y, AccDone, "Cleared");
-        x = Swatch(x, y, AccAvail, "Available");
-        Swatch(x, y, AccLock, "Locked");
+        float m = values.Count > 0 ? values[0] : 0f;
+        for (int i = 1; i < values.Count; i++) if (values[i] < m) m = values[i];
+        return m;
     }
 
-    float Swatch(float x, float y, Color c, string text)
+    static float Max(List<float> values)
     {
-        DrawRoundRect(new Rect(x, y + 3f, 13f, 13f), c);
-        var style = legend;
-        GUI.Label(new Rect(x + 19f, y, 120f, 20f), text, style);
-        return x + 24f + style.CalcSize(new GUIContent(text)).x;
+        float m = values.Count > 0 ? values[0] : 1f;
+        for (int i = 1; i < values.Count; i++) if (values[i] > m) m = values[i];
+        return m;
     }
 
     static Rect Expand(Rect r, float p) => new Rect(r.x - p, r.y - p, r.width + 2f * p, r.height + 2f * p);
@@ -279,14 +283,10 @@ public class WorldMapController : MonoBehaviour
 
         title = new GUIStyle(GUI.skin.label) { fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         title.normal.textColor = TextBright;
-        subtitle = new GUIStyle(GUI.skin.label) { fontSize = 12, alignment = TextAnchor.MiddleCenter };
-        subtitle.normal.textColor = TextDim;
-        legend = new GUIStyle(GUI.skin.label) { fontSize = 13 };
-        legend.normal.textColor = new Color(1f, 1f, 1f, 0.78f);
         nodeText = new GUIStyle(GUI.skin.label)
         {
-            fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = true,
-            padding = new RectOffset(8, 8, 4, 4),
+            fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter, wordWrap = true,
+            padding = new RectOffset(10, 10, 6, 6),
         };
     }
 

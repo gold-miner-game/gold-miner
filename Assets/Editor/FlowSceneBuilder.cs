@@ -19,24 +19,26 @@ public static class FlowSceneBuilder
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
     // The map is a tree. The trunk is the tutorial + role pick; the Store hangs off role pick as its
     // own side spur (reachable as soon as you have a character, not gated behind a battle). Level 1
-    // then splits into a left and a right path that merge back at Level 8. Add a level = add a row
+    // then splits into a left and a right path that merge back at Level 8, with Survive Mode after it
+    // (a placeholder scene; Butian replaces it). Add a level = add a row
     // here (and drop a level JSON); point its prereqs at whatever should unlock it.
     // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
-        ("tut_basics", NodeType.Tutorial, "level_00_eat",    "Tutorial: Eat",   0.50f, 0.080f, new string[0]),
-        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge", 0.50f, 0.185f, new[]{ "tut_basics" }),
-        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block", 0.50f, 0.290f, new[]{ "tut_dodge" }),
-        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.395f, new[]{ "tut_block" }),
-        ("store_1",    NodeType.Store,    null,              "Store",           0.17f, 0.490f, new[]{ "role_pick" }),
-        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.490f, new[]{ "role_pick" }),
-        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.32f, 0.600f, new[]{ "battle_01" }),
-        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.68f, 0.600f, new[]{ "battle_01" }),
-        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.32f, 0.700f, new[]{ "battle_02" }),
-        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.68f, 0.700f, new[]{ "battle_03" }),
-        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.32f, 0.800f, new[]{ "battle_04" }),
-        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.68f, 0.800f, new[]{ "battle_05" }),
-        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.900f, new[]{ "battle_06", "battle_07" }),
+        ("tut_basics", NodeType.Tutorial, "level_00_eat",    "Tutorial: Eat",   0.50f, 0.000f, new string[0]),
+        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge", 0.50f, 0.111f, new[]{ "tut_basics" }),
+        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block", 0.50f, 0.222f, new[]{ "tut_dodge" }),
+        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.333f, new[]{ "tut_block" }),
+        ("store_1",    NodeType.Store,    null,              "Store",           0.18f, 0.444f, new[]{ "role_pick" }),
+        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.444f, new[]{ "role_pick" }),
+        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.18f, 0.555f, new[]{ "battle_01" }),
+        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.82f, 0.555f, new[]{ "battle_01" }),
+        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.18f, 0.666f, new[]{ "battle_02" }),
+        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.82f, 0.666f, new[]{ "battle_03" }),
+        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.18f, 0.777f, new[]{ "battle_04" }),
+        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.82f, 0.777f, new[]{ "battle_05" }),
+        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.888f, new[]{ "battle_06", "battle_07" }),
+        ("survival",   NodeType.Survival, null,              "Survive Mode",    0.50f, 1.000f, new[]{ "battle_08" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]
@@ -54,6 +56,7 @@ public static class FlowSceneBuilder
         BuildScene("Map", typeof(WorldMapController));
         BuildScene("RolePick", typeof(RolePickController));
         BuildScene("Store", typeof(StorePlaceholder));
+        BuildScene("Survival", typeof(SurvivalPlaceholder));
 
         RegisterBuildScenes();
 
@@ -131,6 +134,7 @@ public static class FlowSceneBuilder
             SceneDir + "/Map.unity",
             SceneDir + "/RolePick.unity",
             SceneDir + "/Store.unity",
+            SceneDir + "/Survival.unity",
             SceneDir + "/Game.unity",
         };
 

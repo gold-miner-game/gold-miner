@@ -173,11 +173,16 @@ A placeholder `Store` scene with a Leave button ships first; Zhan Li replaces it
 
 ## 7. Survival mode hook / 生存模式接入 (Butian)
 
-Survival is just a new node `type` plus its own scene/rules. Add `Survival` to the enum,
-handle it in `GameFlow.EnterNode`, and build a `Survival` scene. Nothing else changes.
+Survival is a node after Level 8 (`id: survival`, `prerequisites: [battle_08]`). The map
+already opens `Survival.unity`. That scene is a placeholder (`SurvivalPlaceholder`); replace
+its contents with the real mode. On leave, call `GameFlow.Instance.ReturnToMap()`, or
+`CompleteCurrentNode()` once a run can actually be won. The picked champion's record is
+already active when the scene loads.
 
-生存模式就是一个新的节点 `type` + 自己的场景/规则。给枚举加 `Survival`，在
-`GameFlow.EnterNode` 里处理，再做一个 `Survival` 场景即可，其余不动。
+生存模式是 Level 8 后面的一个节点（`id: survival`，`prerequisites: [battle_08]`）。地图已经会打开
+`Survival.unity`。这个场景现在是占位（`SurvivalPlaceholder`），把内容换成真正的模式即可。离开时调
+`GameFlow.Instance.ReturnToMap()`；等一局真的能赢了再改调 `CompleteCurrentNode()`。进场景时，
+选中角色的记录已经在了。
 
 ---
 

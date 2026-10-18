@@ -101,6 +101,7 @@ public class GameFlow : MonoBehaviour
                 break;
 
             case NodeType.Survival:
+                ApplyChosenCharacter();             // the real mode plays as whoever was picked
                 flow = Flow.Survival;
                 SceneManager.LoadScene(SurvivalScene);
                 break;
