@@ -1,12 +1,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 
 // Builds the arena from a level file made by tools/sim/gold_miner_heuristic.py (levels command).
 // Put it in the Game scene: before anything else starts it removes the scene's treasure, spawns the
-// level's items from the item prefabs, moves the pig, makes one miner + hook + telegraph per hook
-// origin (copies of the scene's own, so they keep their look), and applies the level's speeds and
-// timings. N / P load the next / previous level; winning a round moves on to the next one by itself.
+// level's items from the item prefabs, puts in the player's character (ChampionSpawner) and moves it,
+// makes one miner + hook + telegraph per hook origin (copies of the scene's own, so they keep their
+// look), and applies the level's speeds and timings. N / P load the next / previous level; winning a
+// round moves on to the next one by itself.
+// The tutorial (every level up to the last one with a guide or stages) is always played as Mr. Hyde.
+// Leaving it opens the select scene, where the player picks the character for the rest of the levels.
 [DefaultExecutionOrder(-1000)]
 public class LevelLoader : MonoBehaviour
 {
@@ -21,7 +26,8 @@ public class LevelLoader : MonoBehaviour
 
     [Header("Scene")]
     public MinerAI minerTemplate;          // empty: the first MinerAI in the scene
-    public PigController pig;              // empty: the first PigController in the scene
+    [FormerlySerializedAs("pig")]
+    public PlayerCharacter player;         // empty: the first character in the scene
     public bool clearSceneItems = true;    // remove treasure, rocks and lives already placed in the scene
 
     [Header("Rules")]
@@ -48,6 +54,11 @@ public class LevelLoader : MonoBehaviour
     [Tooltip("Steal stage: seconds between one pull ending and the next starting")]
     public float stealPause = 1f;
 
+    [Header("Character select")]
+    [Tooltip("Scene opened when the tutorial is over (must be in Build Profiles > Scene List). " +
+             "Empty: no select screen, keep Mr. Hyde")]
+    public string selectScene = "Select";
+
     [Header("Progression")]
     [Tooltip("After a win, load the next level by itself")]
     public bool autoAdvance = true;
@@ -68,14 +79,20 @@ public class LevelLoader : MonoBehaviour
     private float stageTime;         // survive stage: Time.time when the stage began
     private float nextPullAt;        // steal stage: when the hooks get their next treasure
     private GUIStyle guideStyle;
+    private int lastTutorial = -1;   // index of the last tutorial level; -1 = no tutorial
+    private float levelSpeed;        // the level's pig_speed, before game speed and the character's speedScale
 
     public static int CurrentLevel => current + 1;
 
-    // Eat and block/steal tutorials. Cross-level speed, digest, shield, and wallet stay untouched.
+    // The tutorial: every level up to the last one with a guide or stages (level_01b_block), so the
+    // normal level between the two tutorials counts too. It is always played as Mr. Hyde, and the
+    // cross-level record (speed, digest, shield, wallet) is left untouched; the record starts when a
+    // champion is picked on the select screen
     public static bool Tutorial { get; private set; }
 
-    // Set by GameFlow before loading the Game scene: build exactly this level instead of walking
-    // the index list. Left null in the editor so N / P dev testing keeps working.
+    // Set by GameFlow before loading the Game scene: build exactly this level instead of walking the
+    // index list. Left null in the editor so N / P dev testing keeps working. With a single-level
+    // list, the tutorial check below reads this one level's guide/stages, so it is correct per level.
     public static TextAsset Requested;
 
     void Awake()
@@ -96,10 +113,24 @@ public class LevelLoader : MonoBehaviour
             return;
         }
 
+        lastTutorial = FindLastTutorial();
+        Tutorial = current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
         if (seed != 0) Random.InitState(seed);
         Build();
+    }
+
+    // The tutorial is everything up to the last level with a guide or stages (level_01b_block)
+    int FindLastTutorial()
+    {
+        int last = -1;
+        for (int i = 0; i < list.Length; i++)
+        {
+            LevelData data = LevelData.Parse(list[i].text);
+            if (!string.IsNullOrEmpty(data.guide) || data.stages.Count > 0) last = i;
+        }
+        return last;
     }
 
     static TextAsset[] LoadFromResources()
@@ -111,22 +142,27 @@ public class LevelLoader : MonoBehaviour
 
     void Build()
     {
-        if (pig == null) pig = FindFirstObjectByType<PigController>();
+        // Swap in the picked character before anything looks for it (Mr. Hyde in the tutorial)
+        ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
+        if (spawner != null)
+        {
+            PlayerCharacter spawned = spawner.Spawn(Tutorial ? ChampionSpawner.MrHyde : ChampionSpawner.Chosen);
+            if (spawned != null) player = spawned;
+        }
+        if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
         if (minerTemplate == null) minerTemplate = FindFirstObjectByType<MinerAI>();
-
-        Tutorial = level.stages.Count > 0 || !string.IsNullOrEmpty(level.guide);
 
         if (clearSceneItems) ClearItems();
         SpawnItems();
-        SetUpPig();
+        SetUpPlayer();
         SetUpMiners();
         SetUpRound();
         if (level.stages.Count > 0) StartStage(0);
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
-        if (pig != null && pig.canBlock) label += "  [Space] block";
+        if (player != null && player.SkillHint != "") label += "  " + player.SkillHint;
         if (level.info.TryGetValue("target_win", out object target) && target is double t)
-            label += $"  (balanced for pig win {t:P0})";
+            label += $"  (balanced for Mr. Hyde win {t:P0})";
         Debug.Log("LevelLoader: " + label + " from " + list[current].name);
     }
 
@@ -168,40 +204,52 @@ public class LevelLoader : MonoBehaviour
         return treasure;
     }
 
-    void SetUpPig()
+    // The level files still call the player "pig" (pig_start, pig_speed): they are shared with tools/sim
+    void SetUpPlayer()
     {
-        if (pig == null) return;
-        pig.transform.position = level.pigStart;
-        var body = pig.GetComponent<Rigidbody2D>();
+        if (player == null) return;
+        player.transform.position = level.pigStart;
+        var body = player.GetComponent<Rigidbody2D>();
         if (body != null) body.position = level.pigStart;
 
+        levelSpeed = level.Param("pig_speed", player.moveSpeed);
         if (Tutorial)
         {
-            pig.moveSpeed = level.Param("pig_speed", pig.moveSpeed) * gameSpeed;
-            pig.digestTime = level.Param("digest_time", 0f);
-            pig.digestPerValue = level.Param("digest_per_value", 0f);
-            pig.canBlock = level.Param("block", 0f) > 0.5f;
-            pig.blockDuration = level.Param("block_duration", pig.blockDuration);
-            pig.blockCooldown = level.Param("block_cooldown", pig.blockCooldown);
+            // Every character gets the level's speed (times its own speedScale) and digest
+            player.moveSpeed = levelSpeed * gameSpeed * player.speedScale;
+            player.digestTime = level.Param("digest_time", 0f);
+            player.digestPerValue = level.Param("digest_per_value", 0f);
+
+            // Only Mr. Hyde blocks
+            if (player is MrHydeController hyde)
+            {
+                hyde.canBlock = level.Param("block", 0f) > 0.5f;
+                hyde.blockDuration = level.Param("block_duration", hyde.blockDuration);
+                hyde.blockCooldown = level.Param("block_cooldown", hyde.blockCooldown);
+            }
             return;
         }
 
-        // Level rules go into the player record. The skin in the scene only copies them out.
-        CrossLevelStatus player = CrossLevelStatus.Ensure();
-        player.setSpeed(level.Param("pig_speed", player.getSpeed()) * gameSpeed);
-        player.setDigestTime(level.Param("digest_time", 0f));
-        player.setDigestPerValue(level.Param("digest_per_value", 0f));
-        player.setCanBlock(level.Param("block", 0f) > 0.5f);
-        player.setBlockDuration(level.Param("block_duration", player.getBlockDuration()));
-        player.setBlockCooldown(level.Param("block_cooldown", player.getBlockCooldown()));
-        player.onLevelStarted();
+        // Level rules go into the player record. The character in the scene only copies them out
+        CrossLevelStatus record = CrossLevelStatus.Ensure();
+        record.setSpeed(level.Param("pig_speed", record.getSpeed()) * gameSpeed);
+        record.setDigestTime(level.Param("digest_time", 0f));
+        record.setDigestPerValue(level.Param("digest_per_value", 0f));
+        // Keep the record's block (Mr. Hyde's default, or what the store set) unless the level says so
+        if (level.Has("block")) record.setCanBlock(level.Param("block", 0f) > 0.5f);
+        record.setBlockDuration(level.Param("block_duration", record.getBlockDuration()));
+        record.setBlockCooldown(level.Param("block_cooldown", record.getBlockCooldown()));
+        record.onLevelStarted();
 
-        pig.moveSpeed = player.getSpeed();
-        pig.digestTime = player.getDigestTime();
-        pig.digestPerValue = player.getDigestPerValue();
-        pig.canBlock = player.getCanBlock();
-        pig.blockDuration = player.getBlockDuration();
-        pig.blockCooldown = player.getBlockCooldown();
+        player.moveSpeed = record.getSpeed() * player.speedScale;
+        player.digestTime = record.getDigestTime();
+        player.digestPerValue = record.getDigestPerValue();
+        if (player is MrHydeController blocker)
+        {
+            blocker.canBlock = record.getCanBlock();
+            blocker.blockDuration = record.getBlockDuration();
+            blocker.blockCooldown = record.getBlockCooldown();
+        }
     }
 
     void SetUpMiners()
@@ -239,7 +287,7 @@ public class LevelLoader : MonoBehaviour
             miner.transform.position = origin + bodyOffset;
             miner.hookOrigin.position = origin;   // child of the miner, so set after moving the body
             miner.hook.transform.position = origin;
-            miner.pig = pig != null ? pig.transform : minerTemplate.pig;
+            miner.pig = player != null ? player.transform : minerTemplate.pig;
             Configure(miner);
             miners.Add(miner);
         }
@@ -317,21 +365,19 @@ public class LevelLoader : MonoBehaviour
             miner.shootsPlayer = !steal;
             miner.hook.hitsPig = !steal;
         }
-        if (pig != null)
-        {
-            pig.moveSpeed = (s.pigSpeed >= 0f ? s.pigSpeed : level.Param("pig_speed", pig.moveSpeed)) * gameSpeed;
-        }
+        if (player != null)
+            player.moveSpeed = (s.pigSpeed >= 0f ? s.pigSpeed : levelSpeed) * gameSpeed * player.speedScale;
         nextPullAt = Time.time + stealPause;
         if (!steal) Spawn(s.items);
     }
 
     int GoalCount(string goal)
     {
-        // "survive" counts whole seconds the pig has lasted in this stage (dodge tutorial), so it
-        // needs no counter on the pig/hook/miner scripts.
+        // "survive" counts whole seconds the player has lasted in this stage (dodge tutorial), so it
+        // needs no counter on the character/hook/miner scripts.
         if (goal == "survive") return Mathf.FloorToInt(Mathf.Max(0f, Time.time - stageTime));
-        if (pig == null) return 0;
-        return goal == "steal" ? pig.TreasureStolen : goal == "block" ? pig.HooksBlocked : 0;
+        if (player == null) return 0;
+        return goal == "steal" ? player.TreasureStolen : goal == "block" ? player.HooksBlocked : 0;
     }
 
     int StageProgress => Mathf.Min(GoalCount(level.stages[stage].goal) - stageStart, level.stages[stage].count);
@@ -404,10 +450,18 @@ public class LevelLoader : MonoBehaviour
 
     bool IsLastLevel => current >= list.Length - 1;
 
-    // Switch level by reloading the scene (the index is static)
+    // Switch level by reloading the scene (the index is static). Going from the tutorial to a normal
+    // level opens the select scene first; it loads this scene again with the picked character
     public void Load(int index)
     {
+        bool leavingTutorial = current <= lastTutorial;
         current = (index % list.Length + list.Length) % list.Length;
+        if (leavingTutorial && current > lastTutorial && !string.IsNullOrEmpty(selectScene)
+            && Application.CanStreamedLevelBeLoaded(selectScene))
+        {
+            SceneManager.LoadScene(selectScene);
+            return;
+        }
         if (GameManager.Instance != null) GameManager.Instance.Restart();
         else UnityEngine.SceneManagement.SceneManager.LoadScene(
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);

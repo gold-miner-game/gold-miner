@@ -794,7 +794,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 5925258680730926926, guid: 52a6ed9b3da9c4a269d718c6441dd744, type: 3}
       propertyPath: m_Name
-      value: Pig
+      value: Mr. Hyde
       objectReference: {fileID: 0}
     - target: {fileID: 7194953043688024020, guid: 52a6ed9b3da9c4a269d718c6441dd744, type: 3}
       propertyPath: m_LocalPosition.x

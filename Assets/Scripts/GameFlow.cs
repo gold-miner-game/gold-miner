@@ -49,9 +49,6 @@ public class GameFlow : MonoBehaviour
 
         if (Map == null) Map = Resources.Load<WorldMap>("WorldMap");
         if (Map == null) Debug.LogWarning("GameFlow: no WorldMap in Resources. Run Tools > Gold Miner > Build Flow Scenes.");
-
-        // Make the saved character the live record so battles use it from the start.
-        CharacterRegistry.ActivateSaved();
     }
 
     // Called by the Boot scene (or anyone) to show the map.
