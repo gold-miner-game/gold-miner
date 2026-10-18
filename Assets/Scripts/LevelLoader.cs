@@ -95,6 +95,11 @@ public class LevelLoader : MonoBehaviour
     // list, the tutorial check below reads this one level's guide/stages, so it is correct per level.
     public static TextAsset Requested;
 
+    // Set by GameFlow for map nodes. True = this visit is a tutorial (always Mr. Hyde). False = a
+    // battle, so the character saved at role pick is who plays, even if the level file mentions a
+    // skill. Null = no map (editor N/P), fall back to the guide/stages heuristic.
+    public static bool? ScriptedTutorial;
+
     void Awake()
     {
         if (Requested != null)
@@ -114,11 +119,22 @@ public class LevelLoader : MonoBehaviour
         }
 
         lastTutorial = FindLastTutorial();
-        Tutorial = current <= lastTutorial;
+        // The map says whether this visit is a tutorial. The guide/stages scan is only for editor
+        // play (N/P through the level list), where no map node made the call.
+        Tutorial = ScriptedTutorial ?? current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
         if (seed != 0) Random.InitState(seed);
         Build();
+    }
+
+    // The character chosen on the role-pick screen, else whatever ChampionSpawner still remembers.
+    static int SavedChampion()
+    {
+        if (ProgressStore.HasPickedCharacter
+            && int.TryParse(ProgressStore.SelectedCharacter, out int picked) && picked >= 0)
+            return picked;
+        return ChampionSpawner.Chosen >= 0 ? ChampionSpawner.Chosen : ChampionSpawner.MrHyde;
     }
 
     // The tutorial is everything up to the last level with a guide or stages (level_01b_block)
@@ -142,11 +158,23 @@ public class LevelLoader : MonoBehaviour
 
     void Build()
     {
-        // Swap in the picked character before anything looks for it (Mr. Hyde in the tutorial)
+        // Swap in the picked character before anything looks for it (Mr. Hyde in the tutorial).
+        // Battles re-read the save here, not ChampionSpawner.Chosen: that static is wiped on every
+        // Play (domain reload off) and a missed restore used to leave the scene's pig in place.
         ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
         if (spawner != null)
         {
-            PlayerCharacter spawned = spawner.Spawn(Tutorial ? ChampionSpawner.MrHyde : ChampionSpawner.Chosen);
+            int champion = Tutorial ? ChampionSpawner.MrHyde : SavedChampion();
+            ChampionSpawner.Chosen = champion;
+            if (!Tutorial)
+            {
+                // Same champion's record, so wallet and skills survive the scene change. A missing
+                // or wrong record (after a domain-reload-off restart) is rebuilt from the save.
+                System.Type want = ChampionSpawner.RecordType(champion);
+                if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
+                    CrossLevelStatus.StartFresh(want);
+            }
+            PlayerCharacter spawned = spawner.Spawn(champion);
             if (spawned != null) player = spawned;
         }
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
@@ -313,6 +341,16 @@ public class LevelLoader : MonoBehaviour
         miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed) * gameSpeed;
     }
 
+    // A level file's starting_lives wins when it is set above 0; 0 keeps the loader's livesPerLevel
+    // (the old files used 0 to mean "don't override").
+    int BaseLives(GameManager gm)
+    {
+        int fromFile = Mathf.RoundToInt(level.Param("starting_lives", 0f));
+        if (fromFile > 0) return fromFile;
+        if (livesPerLevel > 0) return livesPerLevel;
+        return gm.startingLives;
+    }
+
     void SetUpRound()
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
@@ -320,16 +358,12 @@ public class LevelLoader : MonoBehaviour
         gm.roundTime = level.Param("round_time", gm.roundTime);
         if (Tutorial)
         {
-            gm.startingLives = livesPerLevel > 0
-                ? livesPerLevel
-                : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+            gm.startingLives = BaseLives(gm);
             gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
             return;
         }
         CrossLevelStatus player = CrossLevelStatus.Ensure();
-        int levelLives = livesPerLevel > 0
-            ? livesPerLevel
-            : Mathf.RoundToInt(level.Param("starting_lives", gm.startingLives));
+        int levelLives = BaseLives(gm);
         player.setLives(levelLives + player.getExtraLives());
         player.setInvincibleTime(level.Param("invincible_time", player.getInvincibleTime()));
         gm.startingLives = player.getLives();

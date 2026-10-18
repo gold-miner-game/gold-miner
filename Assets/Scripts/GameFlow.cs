@@ -71,9 +71,19 @@ public class GameFlow : MonoBehaviour
         switch (node.type)
         {
             case NodeType.Tutorial:
-            case NodeType.Battle:
+                LevelLoader.ScriptedTutorial = true;   // tutorials are always Mr. Hyde
                 LevelLoader.Requested = node.levelAsset;
                 LevelLoader.WaitToAdvance = true;   // GameFlow handles the transition, not LevelLoader
+                LevelLoader.AdvanceNow = false;
+                flow = Flow.Game;
+                SceneManager.LoadScene(GameScene);
+                break;
+
+            case NodeType.Battle:
+                ApplyChosenCharacter();             // keep the picked champion across levels / restarts
+                LevelLoader.ScriptedTutorial = false;  // battles play as whoever was picked
+                LevelLoader.Requested = node.levelAsset;
+                LevelLoader.WaitToAdvance = true;
                 LevelLoader.AdvanceNow = false;
                 flow = Flow.Game;
                 SceneManager.LoadScene(GameScene);
@@ -85,6 +95,7 @@ public class GameFlow : MonoBehaviour
                 break;
 
             case NodeType.Store:
+                ApplyChosenCharacter();             // the store reads the run record (wallet/skills)
                 flow = Flow.Store;
                 SceneManager.LoadScene(StoreScene);
                 break;
@@ -110,9 +121,27 @@ public class GameFlow : MonoBehaviour
         OpenMap();
     }
 
+    // Make the saved character choice stick. ChampionSpawner.Chosen is a static that is wiped every
+    // time Play starts, while the pick lives in ProgressStore (PlayerPrefs). So before any battle we
+    // re-seed Chosen from the save, and (re)create the run record if it is missing or the wrong kind
+    // (e.g. after a restart). An existing record of the right type is kept so wallet/skills carry on.
+    void ApplyChosenCharacter()
+    {
+        int index = ChampionSpawner.MrHyde;   // 0 = the pig, the default
+        if (ProgressStore.HasPickedCharacter && int.TryParse(ProgressStore.SelectedCharacter, out int picked))
+            index = picked;
+
+        ChampionSpawner.Chosen = index;
+
+        System.Type want = ChampionSpawner.RecordType(index);
+        if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
+            CrossLevelStatus.StartFresh(want);
+    }
+
     void ClearGameHooks()
     {
         LevelLoader.Requested = null;
+        LevelLoader.ScriptedTutorial = null;
         LevelLoader.WaitToAdvance = false;
         LevelLoader.AdvanceNow = false;
     }
