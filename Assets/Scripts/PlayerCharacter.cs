@@ -242,9 +242,10 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     // A "Digesting" label over the character's head while it can't eat. The green tint shows the
     // cooldown draining; this spells out why eating is blocked, so the digest rule actually reads.
+    // Tutorial only: it is a teaching aid, so once the player knows the rule we drop it in battles.
     void OnGUI()
     {
-        if (!UsesDigest || CanEat) return;
+        if (!LevelLoader.Tutorial || !UsesDigest || CanEat) return;
 
         Camera cam = Camera.main;
         if (cam == null) return;
