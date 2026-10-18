@@ -13,6 +13,9 @@ public class MrHydeController : PlayerCharacter
 
     public override bool IsBlocking => Time.time < blockUntil;
     public override string SkillHint => CanBlock ? "[Space] block" : "";
+    public override bool SkillActive => IsBlocking;
+    public override float SkillReadyIn => BlockReadyIn;
+    public override float SkillWait => BlockDuration + BlockCooldown;
 
     // After the tutorial the record decides (the store can change it); in the tutorial, the level does
     public bool CanBlock => Record != null ? Record.getCanBlock() : canBlock;

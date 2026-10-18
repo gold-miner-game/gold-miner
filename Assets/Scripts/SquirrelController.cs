@@ -14,6 +14,7 @@ public class SquirrelController : PlayerCharacter
 
     public override string SkillHint => tail != null ? "[hold Space] firm tail" : "";
     public bool TailFirm => tail != null && tail.IsCollecting;
+    public override bool SkillActive => TailFirm;
 
     // After the tutorial his record decides (the store can change it); before, the Inspector value
     public float FirmSpeedMultiplier => Record is SquirrelStatus s ? s.getFirmSpeedMultiplier() : firmSpeedMultiplier;

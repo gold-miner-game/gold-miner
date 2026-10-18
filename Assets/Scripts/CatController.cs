@@ -42,6 +42,9 @@ public class CatController : PlayerCharacter
     // After a roll, until Space works again
     public bool IsTired => !IsRolling && CooldownRemaining > 0f;
     public override string SkillHint => "[Space] roll";
+    public override bool SkillActive => IsRolling;
+    public override float SkillReadyIn => CooldownRemaining;
+    public override float SkillWait => RollDuration + RollCooldown;
 
     private Vector2 lastDirection = Vector2.right;
     private float rollUntil = float.NegativeInfinity;
