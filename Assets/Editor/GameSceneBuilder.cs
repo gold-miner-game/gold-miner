@@ -22,7 +22,7 @@ public static class GameSceneBuilder
         Sprite triangle;
         try
         {
-            pigPrefab = LoadRequired<GameObject>("Assets/Prefabs/Pig.prefab");
+            pigPrefab = LoadRequired<GameObject>("Assets/Prefabs/MrHyde.prefab");
             dotPrefab = LoadRequired<GameObject>("Assets/Prefabs/TelegraphDot.prefab");
             smallPrefab = LoadRequired<GameObject>("Assets/Prefabs/Gold_Small.prefab");
             mediumPrefab = LoadRequired<GameObject>("Assets/Prefabs/Gold_Medium.prefab");

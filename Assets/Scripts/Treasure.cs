@@ -20,27 +20,28 @@ public class Treasure : MonoBehaviour
     void OnDisable() { Active.Remove(this); }
     void OnDestroy() { OnHooks.Remove(this); }
 
-    // The pig touches the treasure. While it is digesting it can't eat; Stay retries every
-    // physics step, so it eats as soon as the digest ends if it is still touching
-    void OnTriggerEnter2D(Collider2D other) { TryEat(other); }
-    void OnTriggerStay2D(Collider2D other)  { TryEat(other); }
+    // The player's character touches the treasure. While it is digesting it can't eat; Stay retries
+    // every physics step, so it eats as soon as the digest ends if it is still touching
+    void OnTriggerEnter2D(Collider2D other) { TryEat(other.GetComponent<PlayerCharacter>()); }
+    void OnTriggerStay2D(Collider2D other)  { TryEat(other.GetComponent<PlayerCharacter>()); }
 
-    void TryEat(Collider2D other)
+    // Also called by the squirrel's tail. Returns true if the character ate it
+    public bool TryEat(PlayerCharacter player)
     {
-        if (IsTaken) return;
-        PigController pig = other.GetComponent<PigController>();
-        if (pig == null || !pig.CanEat) return;
-        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
+        if (IsTaken) return false;
+        if (player == null || !player.CanEat) return false;
+        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return false;
 
         IsTaken = true;
         Active.Remove(this);
-        pig.Digest(value);
+        player.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
         Destroy(gameObject);
+        return true;
     }
 
     // The hook reaches the treasure: the sprite rides the hook back. The miner is paid only when
-    // it arrives (DeliverToMiner), so a blocking pig can still knock it loose on the way
+    // it arrives (DeliverToMiner), so a blocking Mr. Hyde can still knock it loose on the way
     public void GrabByHook(Transform hook)
     {
         if (IsTaken) return;
@@ -53,6 +54,15 @@ public class Treasure : MonoBehaviour
         transform.position = hook.position;
     }
 
+    // The frog's tongue brought it into the mouth: the player eats it (money and digest)
+    public void DeliverToPlayer(PlayerCharacter player)
+    {
+        OnHooks.Remove(this);
+        if (player != null) player.Digest(value);
+        if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
+        Destroy(gameObject);
+    }
+
     // The hook is home: pay the miner and remove the treasure
     public void DeliverToMiner()
     {
@@ -61,7 +71,7 @@ public class Treasure : MonoBehaviour
         Destroy(gameObject);
     }
 
-    // Knocked off the hook (pig blocked it): back in the arena where it is now, free to take again
+    // Knocked off the hook (Mr. Hyde blocked it): back in the arena where it is now, free to take again
     public void DropFromHook()
     {
         OnHooks.Remove(this);
