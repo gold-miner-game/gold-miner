@@ -13,6 +13,9 @@ public class PigController : MonoBehaviour
     public float digestTime = 0f;       // after eating, the pig can't eat for digestTime + digestPerValue * value
     public float digestPerValue = 0f;
     public Color digestTint = new Color(0.65f, 0.9f, 0.55f);
+    [Tooltip("A \"Digesting\" label floats this high (world units) above the pig while it can't eat.")]
+    public float digestLabelHeight = 0.95f;
+    public Color digestLabelColor = new Color(0.25f, 0.8f, 0.3f);
 
     [Header("Block (Space)")]
     public bool canBlock = false;       // turned on per level by LevelLoader
@@ -55,6 +58,7 @@ public class PigController : MonoBehaviour
     private SpriteMask cooldownMask;
     private SpriteRenderer shieldBubble;
     private Bounds bodyBounds;   // the body sprite, in the pig's local space
+    private GUIStyle digestLabelStyle;
 
     void Awake()
     {
@@ -175,6 +179,33 @@ public class PigController : MonoBehaviour
         UpdateCooldownTint();
         if (shieldBubble != null)
             shieldBubble.enabled = !LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded();
+    }
+
+    // A "Digesting" label over the pig's head while it can't eat. The green tint shows the cooldown
+    // draining; this spells out why eating is blocked, so the digest rule actually reads.
+    void OnGUI()
+    {
+        if (!UsesDigest || CanEat) return;
+
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Vector3 screen = cam.WorldToScreenPoint(transform.position + Vector3.up * digestLabelHeight);
+        if (screen.z <= 0f) return;   // behind the camera
+
+        if (digestLabelStyle == null)
+        {
+            digestLabelStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 16,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+            };
+        }
+        digestLabelStyle.normal.textColor = digestLabelColor;
+
+        // GUI y grows downward, the opposite of screen-space y
+        Rect rect = new Rect(screen.x - 70f, Screen.height - screen.y - 24f, 140f, 22f);
+        GUI.Label(rect, "Digesting\u2026", digestLabelStyle);
     }
 
     void ReadInput()
