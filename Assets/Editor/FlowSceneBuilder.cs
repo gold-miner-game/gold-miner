@@ -16,22 +16,25 @@ public static class FlowSceneBuilder
     const string MapAssetPath = "Assets/Resources/WorldMap.asset";
     const string LevelDir = "Assets/Resources/Levels/";
 
-    // id, type, level file (null for non-level nodes), display name. Order = play order.
-    static readonly (string id, NodeType type, string level, string name)[] Nodes =
+    // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
+    // The map is a top-down tree: the trunk is the tutorial + role pick, then Level 1 branches into
+    // a left path (store route) and a right path, which merge back at Level 7. Add a level = add a
+    // row here (and drop a level JSON); point its prereqs at whatever should unlock it.
+    static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
-        ("tut_basics", NodeType.Tutorial, "level_00_eat",    "Tutorial: Eat"),
-        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge"),
-        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block"),
-        ("role_pick",  NodeType.RolePick, null,              "Pick Character"),
-        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1"),
-        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2"),
-        ("store_1",    NodeType.Store,    null,              "Store"),
-        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3"),
-        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4"),
-        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5"),
-        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6"),
-        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7"),
-        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8"),
+        ("tut_basics", NodeType.Tutorial, "level_00_eat",    "Tutorial: Eat",   0.50f, 0.080f, new string[0]),
+        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge", 0.50f, 0.175f, new[]{ "tut_basics" }),
+        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block", 0.50f, 0.270f, new[]{ "tut_dodge" }),
+        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.365f, new[]{ "tut_block" }),
+        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.460f, new[]{ "role_pick" }),
+        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.28f, 0.555f, new[]{ "battle_01" }),
+        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.72f, 0.555f, new[]{ "battle_01" }),
+        ("store_1",    NodeType.Store,    null,              "Store",           0.28f, 0.650f, new[]{ "battle_02" }),
+        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.72f, 0.650f, new[]{ "battle_03" }),
+        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.28f, 0.745f, new[]{ "store_1" }),
+        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.72f, 0.745f, new[]{ "battle_04" }),
+        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.50f, 0.840f, new[]{ "battle_05", "battle_06" }),
+        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.930f, new[]{ "battle_07" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]
@@ -71,8 +74,6 @@ public static class FlowSceneBuilder
         }
 
         WorldMap map = ScriptableObject.CreateInstance<WorldMap>();
-        const int cols = 4;
-        int rows = Mathf.CeilToInt(Nodes.Length / (float)cols);
 
         for (int i = 0; i < Nodes.Length; i++)
         {
@@ -82,7 +83,8 @@ public static class FlowSceneBuilder
                 id = def.id,
                 type = def.type,
                 displayName = def.name,
-                mapPosition = SnakePosition(i, cols, rows),
+                mapPosition = new Vector2(def.x, def.y),
+                prerequisites = def.prereqs,
             };
             if (def.level != null)
             {
@@ -95,17 +97,6 @@ public static class FlowSceneBuilder
 
         AssetDatabase.CreateAsset(map, MapAssetPath);
         Debug.Log("FlowSceneBuilder: created " + MapAssetPath + " with " + map.nodes.Count + " nodes.");
-    }
-
-    // A readable serpentine: left-to-right, then right-to-left on the next row, top to bottom.
-    static Vector2 SnakePosition(int index, int cols, int rows)
-    {
-        int row = index / cols;
-        int col = index % cols;
-        if (row % 2 == 1) col = cols - 1 - col;
-        float x = cols <= 1 ? 0.5f : Mathf.Lerp(0.12f, 0.88f, col / (float)(cols - 1));
-        float y = rows <= 1 ? 0.5f : Mathf.Lerp(0.20f, 0.80f, row / (float)(rows - 1));
-        return new Vector2(x, y);
     }
 
     static void BuildScene(string name, Type controller)

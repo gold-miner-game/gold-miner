@@ -73,13 +73,20 @@ MapNode:
   type          Tutorial | RolePick | Battle | Store | (future Survival/Boss)
   levelAsset    TextAsset, for Tutorial/Battle only / 仅教程、战斗用
   displayName   label on the map / 地图上的名字
-  mapPosition   icon position on the map / 图标坐标
+  mapPosition   icon position on the map (normalised) / 图标坐标（归一化）
+  prerequisites parent node ids / 父节点 id（解锁前置）
 ```
 
-Unlocking is **linear** for Alpha: node N unlocks when node N-1 is complete. Add explicit
-`prerequisites` later for branching.
+Unlocking is a **tree**: a node is open when it has no parents (a start node), is already
+cleared, or **any** of its `prerequisites` is cleared. "Any" is what lets one node branch into
+two children (both list the same parent) and two paths merge back into one (one node lists two
+parents). The map is drawn top-down, one row per depth, with edges from each parent's bottom to
+each child's top so a line never crosses a label.
 
-Alpha 解锁是**线性**的：节点 N 在 N-1 通关后解锁。以后要分叉再加 `prerequisites`。
+解锁是**树形**的：一个节点在「没有父节点（起点）」「自己已通关」或「**任意**一个 `prerequisites`
+已通关」时开放。正因为是「任意」，所以一个节点可以**分叉**成两个子节点（两个子节点填同一个父
+id），两条路也能**合流**回一个节点（一个节点填两个父 id）。地图自上而下绘制，一层一行，连线从
+父节点底边连到子节点顶边，所以线不会穿过标签。
 
 ### 3.3 `ProgressStore` — PlayerPrefs wrapper / 存档
 
@@ -104,39 +111,39 @@ Keep them separate or the roguelike + store logic gets tangled.
 
 | Layer / 层 | Lifetime / 生命周期 | Holds / 内容 | Who / 谁用 |
 |---|---|---|---|
-| `CrossLevelStatus` (PR #11) | one run, in memory / 一次 run，内存 | wallet, speed, digest, block, lives, skills | `GameManager`, `PigController`, `LevelLoader`, Store |
+| `CrossLevelStatus` (PR #11) | one run, in memory / 一次 run，内存 | wallet, speed, digest, block, lives, skills | `GameManager`, `PlayerCharacter`, `LevelLoader`, Store |
 | `ProgressStore` (new) | across app restarts / 跨重启 | completed nodes, character id | `GameFlow`, Map, RolePick |
 
 ---
 
 ## 5. Role pick contract / 选角色契约 (Yukun)
 
-A character is a `CrossLevelStatus` subclass that **self-registers**, exactly as PR #11
-describes. Adding a character is a new file only — zero conflicts.
+PR #12 landed the character system in `main`, so `RolePick` now rides on it instead of a
+separate registry. Each character is a `PlayerCharacter` subclass (`MrHydeController`,
+`CatController`, `SquirrelController`, `FrogController`) with its own `CrossLevelStatus`
+subclass (`PigStatus`, `CatStatus`, …). `ChampionSpawner` holds the ordered list and swaps the
+chosen prefab into the Game scene. Adding a character = a new controller + status + prefab, wired
+into `ChampionSpawner` — no changes to the map code.
 
-角色 = 一个**自注册**的 `CrossLevelStatus` 子类，正如 PR #11 所述。加角色只新建文件，零冲突。
+PR #12 已经把角色系统合进 `main`，所以 `RolePick` 直接复用它，而不再单独做注册表。每个角色是
+`PlayerCharacter` 的子类（`MrHydeController`、`CatController`、`SquirrelController`、
+`FrogController`），各自带一个 `CrossLevelStatus` 子类（`PigStatus`、`CatStatus`…）。
+`ChampionSpawner` 持有有序列表，并把选中的 prefab 换进 Game 场景。加角色 = 新建控制器 + 状态 +
+prefab，接到 `ChampionSpawner`，**不碰地图代码**。
 
 ```csharp
-public class FrogStatus : CrossLevelStatus
-{
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void Register() => CharacterRegistry.Add(
-        new CharacterInfo("frog", "Frog", "Long tongue, high jump", () => Prefer<FrogStatus>()));
-
-    protected override void onReady()
-    {
-        base.onReady();
-        setSpeed(4.5f);
-        addSkill("tongue").power = 4f;
-    }
-}
+// RolePickController.Pick(index) — same order as ChampionSpawner
+ChampionSpawner.Chosen = index;
+CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(index)); // fresh run record
+ProgressStore.SelectedCharacter = index.ToString();
+GameFlow.Instance.CompleteCurrentNode();
 ```
 
-`RolePick` lists everything in `CharacterRegistry`. Picking one stores its id in
-`ProgressStore` and calls its `Prefer()` action. Default is `PigStatus`.
+`RolePick` lists the champions from `ChampionSpawner` (default index 0 = Mr. Hyde, the pig).
+Picking one starts a fresh run record and stores the index in `ProgressStore`.
 
-`RolePick` 列出 `CharacterRegistry` 里的全部角色；选中就把 id 存进 `ProgressStore` 并调用它的
-`Prefer()`。默认 `PigStatus`。
+`RolePick` 从 `ChampionSpawner` 列出角色（默认 index 0 = Mr. Hyde 猪）。选中后开一个全新的 run
+记录，并把 index 存进 `ProgressStore`。
 
 Role pick happens **once**, right after the tutorial.
 
@@ -239,10 +246,10 @@ Boot → Map
 
 ## 11. Division of labour / 分工
 
-- **Penny**: `Boot`/`Map`/`RolePick` scenes, `GameFlow`, `WorldMap` SO, `ProgressStore`,
-  `CharacterRegistry`, tutorial JSON, `survive` goal, Digesting label, `LevelLoader` entry.
+- **Penny**: `Boot`/`Map`/`RolePick` scenes, `GameFlow`, tree `WorldMap` SO + `WorldMapController`,
+  `ProgressStore`, tutorial JSON, `survive` goal, Digesting label, `LevelLoader` entry.
 - **Zhan Li**: `CrossLevelStatus` (done), `Store` scene (section 6 contract).
-- **Yukun**: character subclasses, self-registered (section 5).
+- **Yukun**: character subclasses via `ChampionSpawner` (section 5).
 - **Butian**: survival mode as a new node type (section 7).
 
 `GameFlow` and the `WorldMap` asset are the only shared surface, maintained by Penny.

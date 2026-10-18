@@ -25,6 +25,9 @@ public class MapNode
     public string displayName = "Level";
     [Tooltip("Icon position in normalised screen space: (0,0) top-left, (1,1) bottom-right.")]
     public Vector2 mapPosition = new Vector2(0.5f, 0.5f);
+    [Tooltip("Ids of the nodes that unlock this one (its parents in the tree). Empty = a start node. " +
+             "Completing ANY one unlocks it, so a node can branch into two and two can merge back.")]
+    public string[] prerequisites = new string[0];
 }
 
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]
@@ -41,13 +44,20 @@ public class WorldMap : ScriptableObject
 
     public int IndexOf(MapNode node) => nodes.IndexOf(node);
 
-    // A node is reachable if it's the first one, already cleared, or the one right after a cleared
-    // node. Cleared nodes stay clickable so the player can replay or revisit the store.
+    // A node is reachable if it has no parents (a start node), is already cleared (so it can be
+    // replayed / the store revisited), or ANY of its parents is cleared. "Any" is what lets the
+    // tree branch (one parent -> two children) and merge (two parents -> one child).
     public bool IsUnlocked(int index)
     {
-        if (index <= 0) return true;
-        if (index >= nodes.Count) return false;
-        if (ProgressStore.IsCompleted(nodes[index].id)) return true;
-        return ProgressStore.IsCompleted(nodes[index - 1].id);
+        if (index < 0 || index >= nodes.Count) return false;
+        MapNode node = nodes[index];
+        if (node == null) return false;
+        if (ProgressStore.IsCompleted(node.id)) return true;
+        if (node.prerequisites == null || node.prerequisites.Length == 0) return true;
+        for (int i = 0; i < node.prerequisites.Length; i++)
+            if (ProgressStore.IsCompleted(node.prerequisites[i])) return true;
+        return false;
     }
+
+    public bool IsUnlocked(MapNode node) => IsUnlocked(IndexOf(node));
 }
