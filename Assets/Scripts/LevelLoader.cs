@@ -65,6 +65,7 @@ public class LevelLoader : MonoBehaviour
     private readonly List<MinerAI> miners = new List<MinerAI>();
     private int stage = -1;          // index in level.stages; -1 = the level has none
     private int stageStart;          // the goal counter when the stage began
+    private float stageTime;         // survive stage: Time.time when the stage began
     private float nextPullAt;        // steal stage: when the hooks get their next treasure
     private GUIStyle guideStyle;
 
@@ -73,15 +74,27 @@ public class LevelLoader : MonoBehaviour
     // Eat and block/steal tutorials. Cross-level speed, digest, shield, and wallet stay untouched.
     public static bool Tutorial { get; private set; }
 
+    // Set by GameFlow before loading the Game scene: build exactly this level instead of walking
+    // the index list. Left null in the editor so N / P dev testing keeps working.
+    public static TextAsset Requested;
+
     void Awake()
     {
-        list = levels != null && levels.Length > 0 ? levels : LoadFromResources();
+        if (Requested != null)
+        {
+            list = new[] { Requested };
+            current = 0;
+        }
+        else
+        {
+            list = levels != null && levels.Length > 0 ? levels : LoadFromResources();
+            if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
+        }
         if (list.Length == 0)
         {
             Debug.LogWarning("LevelLoader: no level files (assign them, or put them in Resources/Levels)");
             return;
         }
-        if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
 
         level = LevelData.Parse(list[current].text);
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
@@ -292,6 +305,7 @@ public class LevelLoader : MonoBehaviour
     {
         stage = index;
         LevelData.Stage s = level.stages[stage];
+        stageTime = Time.time;
         stageStart = GoalCount(s.goal);
 
         // Blocking: the miners shoot at the pig as usual. Stealing: they stop shooting and
@@ -313,6 +327,9 @@ public class LevelLoader : MonoBehaviour
 
     int GoalCount(string goal)
     {
+        // "survive" counts whole seconds the pig has lasted in this stage (dodge tutorial), so it
+        // needs no counter on the pig/hook/miner scripts.
+        if (goal == "survive") return Mathf.FloorToInt(Mathf.Max(0f, Time.time - stageTime));
         if (pig == null) return 0;
         return goal == "steal" ? pig.TreasureStolen : goal == "block" ? pig.HooksBlocked : 0;
     }
@@ -422,8 +439,9 @@ public class LevelLoader : MonoBehaviour
         if (stage >= 0)
         {
             LevelData.Stage s = level.stages[stage];
-            string done = s.goal == "steal" ? "Stolen" : "Blocked";
-            text = s.guide + "\n" + done + " " + StageProgress + " / " + s.count;
+            string done = s.goal == "steal" ? "Stolen" : s.goal == "survive" ? "Survived" : "Blocked";
+            string unit = s.goal == "survive" ? "s" : "";
+            text = s.guide + "\n" + done + " " + StageProgress + unit + " / " + s.count + unit;
         }
         else
         {

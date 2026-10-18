@@ -1,0 +1,145 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+// Owner: Penny (Level map & tutorial)
+// The one persistent object that moves the player between scenes. Scenes never reference each
+// other; they all talk to GameFlow. It holds the WorldMap and drives:
+//   Map -> (node) -> Game / RolePick / Store -> back to Map.
+// See docs/level-map-tutorial-design.md.
+public class GameFlow : MonoBehaviour
+{
+    public const string BootScene = "Boot";
+    public const string MapScene = "Map";
+    public const string GameScene = "Game";
+    public const string RolePickScene = "RolePick";
+    public const string StoreScene = "Store";
+    public const string SurvivalScene = "Survival";
+
+    [Tooltip("Seconds the win result stays on screen before returning to the map.")]
+    public float returnDelay = 2.5f;
+
+    enum Flow { None, Map, Game, RolePick, Store, Survival }
+
+    static GameFlow instance;
+    public static GameFlow Instance
+    {
+        get
+        {
+            if (instance == null)
+            {
+                var go = new GameObject("GameFlow");
+                instance = go.AddComponent<GameFlow>();
+            }
+            return instance;
+        }
+    }
+
+    public WorldMap Map { get; private set; }
+    public MapNode CurrentNode { get; private set; }
+
+    Flow flow = Flow.None;
+    bool winHandled;
+    float winAt;
+
+    void Awake()
+    {
+        if (instance != null && instance != this) { Destroy(gameObject); return; }
+        instance = this;
+        DontDestroyOnLoad(gameObject);
+
+        if (Map == null) Map = Resources.Load<WorldMap>("WorldMap");
+        if (Map == null) Debug.LogWarning("GameFlow: no WorldMap in Resources. Run Tools > Gold Miner > Build Flow Scenes.");
+
+        // Make the saved character the live record so battles use it from the start.
+        CharacterRegistry.ActivateSaved();
+    }
+
+    // Called by the Boot scene (or anyone) to show the map.
+    public void OpenMap()
+    {
+        ClearGameHooks();
+        CurrentNode = null;
+        flow = Flow.Map;
+        SceneManager.LoadScene(MapScene);
+    }
+
+    // Called by the map when the player clicks an unlocked node.
+    public void EnterNode(MapNode node)
+    {
+        if (node == null) return;
+        CurrentNode = node;
+        winHandled = false;
+        winAt = 0f;
+
+        switch (node.type)
+        {
+            case NodeType.Tutorial:
+            case NodeType.Battle:
+                LevelLoader.Requested = node.levelAsset;
+                LevelLoader.WaitToAdvance = true;   // GameFlow handles the transition, not LevelLoader
+                LevelLoader.AdvanceNow = false;
+                flow = Flow.Game;
+                SceneManager.LoadScene(GameScene);
+                break;
+
+            case NodeType.RolePick:
+                flow = Flow.RolePick;
+                SceneManager.LoadScene(RolePickScene);
+                break;
+
+            case NodeType.Store:
+                flow = Flow.Store;
+                SceneManager.LoadScene(StoreScene);
+                break;
+
+            case NodeType.Survival:
+                flow = Flow.Survival;
+                SceneManager.LoadScene(SurvivalScene);
+                break;
+        }
+    }
+
+    // Mark the current node cleared and go back to the map. Store / RolePick call this on "leave";
+    // Game levels reach it by themselves once the win result has shown.
+    public void CompleteCurrentNode()
+    {
+        if (CurrentNode != null) ProgressStore.MarkCompleted(CurrentNode.id);
+        OpenMap();
+    }
+
+    // Leave a node without clearing it (e.g. a store the player decides not to buy from).
+    public void ReturnToMap()
+    {
+        OpenMap();
+    }
+
+    void ClearGameHooks()
+    {
+        LevelLoader.Requested = null;
+        LevelLoader.WaitToAdvance = false;
+        LevelLoader.AdvanceNow = false;
+    }
+
+    void Update()
+    {
+        if (flow != Flow.Game || CurrentNode == null) return;
+
+        GameManager gm = GameManager.Instance;
+        if (gm == null) return;
+
+        if (gm.IsPlaying)
+        {
+            // Still playing, or the player pressed R to retry: reset the win timer.
+            winHandled = false;
+            return;
+        }
+        if (!gm.PlayerWon) return;   // a loss stays put; R retries the same level
+
+        if (!winHandled)
+        {
+            winHandled = true;
+            winAt = Time.unscaledTime + returnDelay;
+        }
+        if (Time.unscaledTime >= winAt) CompleteCurrentNode();
+    }
+}
