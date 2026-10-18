@@ -84,6 +84,7 @@ public class LevelLoader : MonoBehaviour
     private float levelSpeed;        // the level's pig_speed, before game speed and the character's speedScale
 
     public static int CurrentLevel => current + 1;
+    public int LevelCount => list != null ? list.Length : 0;   // 1 when a map node requested the level
 
     // The tutorial: every level up to the last one with a guide or stages (level_01b_block), so the
     // normal level between the two tutorials counts too. It is always played as Mr. Hyde, and the

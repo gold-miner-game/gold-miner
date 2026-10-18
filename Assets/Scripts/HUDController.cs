@@ -10,6 +10,19 @@ public class HUDController : MonoBehaviour
     public TMP_Text timerText;
     public TMP_Text livesText;      // optional
 
+    [Header("Top bar and sidebar (HUDBuilder wires these; all optional)")]
+    public TMP_Text levelText;
+    public GameObject lifeSection;   // hidden with the Life count when the round has no Lives
+    public GameObject walletSection;
+    public TMP_Text walletText;
+    public GameObject skillSection;
+    public TMP_Text skillText;
+    public RectTransform skillBarFill;
+    public TMP_Text digestText;
+    public GameObject itemsSection;
+    public TMP_Text itemRowTemplate;
+    public TMP_Text itemKeyText;
+
     public GameObject endPanel;
     public TMP_Text resultText;
     public TMP_Text detailText;
@@ -39,6 +52,8 @@ public class HUDController : MonoBehaviour
     private Color timerBaseColor;
     private Vector3 timerBaseScale;
     private bool roundHasLives;
+    private LevelLoader levelLoader;
+    private GameFlow flow;   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
     private bool hasLast;
@@ -60,6 +75,9 @@ public class HUDController : MonoBehaviour
             timerBaseScale = timerText.transform.localScale;
         }
 
+        levelLoader = FindFirstObjectByType<LevelLoader>();
+        flow = FindFirstObjectByType<GameFlow>();
+
         playerMoney = new Label(playerMoneyText);
         minerMoney = new Label(minerMoneyText);
         lives = new Label(livesText);
@@ -79,6 +97,7 @@ public class HUDController : MonoBehaviour
         UpdateMoney(gm);
         UpdateTimer(gm);
         UpdateLives(gm);
+        UpdateLevel();
         UpdatePopups();
         UpdateEndPanel(gm);
     }
@@ -118,8 +137,8 @@ public class HUDController : MonoBehaviour
         playerMoney.alpha = gm.PlayerMoney < gm.MinerMoney ? trailingAlpha : 1f;
         minerMoney.alpha = gm.MinerMoney < gm.PlayerMoney ? trailingAlpha : 1f;
 
-        if (playerMoneyText != null) playerMoneyText.text = "Player: $" + gm.PlayerMoney.ToString("N0");
-        if (minerMoneyText != null) minerMoneyText.text = "Miner: $" + gm.MinerMoney.ToString("N0");
+        if (playerMoneyText != null) playerMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
+        if (minerMoneyText != null) minerMoneyText.text = "$" + gm.MinerMoney.ToString("N0");
 
         playerMoney.Apply(moneyFlashScale);
         minerMoney.Apply(moneyFlashScale);
@@ -146,9 +165,27 @@ public class HUDController : MonoBehaviour
         if (livesText == null) return;
 
         if (gm.Lives > 0) roundHasLives = true;   // e.g. a Life spawned at runtime
-        livesText.gameObject.SetActive(roundHasLives);
-        livesText.text = "Life: " + gm.Lives;
+        // The whole section when there is one (the sidebar), else just the label (an older HUD)
+        GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
+        shown.SetActive(roundHasLives);
+        livesText.text = lifeSection != null ? "x" + gm.Lives : "Life: " + gm.Lives;
         lives.Apply(moneyFlashScale);
+    }
+
+    // The map node's name ("LEVEL 4") when the map sent us here, else "LV 4/10" for editor N/P play;
+    // hidden in scenes without a level loader (Dev scenes)
+    void UpdateLevel()
+    {
+        if (levelText == null) return;
+
+        MapNode node = flow != null ? flow.CurrentNode : null;
+        string text = "";
+        if (node != null) text = node.displayName.ToUpperInvariant();
+        else if (levelLoader != null && levelLoader.LevelCount > 0)
+            text = "LV " + LevelLoader.CurrentLevel + "/" + levelLoader.LevelCount;
+
+        levelText.gameObject.SetActive(text != "");
+        levelText.text = text;
     }
 
     void UpdateEndPanel(GameManager gm)
