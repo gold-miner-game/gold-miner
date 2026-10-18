@@ -47,6 +47,12 @@ public abstract class PlayerCharacter : MonoBehaviour
     // Shown in the level label, e.g. "[Space] block". Empty: no skill on this level
     public virtual string SkillHint => "";
 
+    // For the HUD's skill row: the skill is running right now (a block, a roll, the tongue out),
+    // seconds until Space works again (0 = ready), and the whole wait after a use (0 = no cooldown)
+    public virtual bool SkillActive => false;
+    public virtual float SkillReadyIn => 0f;
+    public virtual float SkillWait => 0f;
+
     // Hooks bounced off a block, and treasure knocked off a hook, this round (the tutorial's goals)
     public int HooksBlocked { get; private set; }
     public int TreasureStolen { get; private set; }

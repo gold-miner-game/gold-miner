@@ -17,6 +17,7 @@ public class FrogController : PlayerCharacter
     public bool IsTurning => heading.sqrMagnitude > 0f && Time.time < moveAllowedAt;
     public override string SkillHint => tongue != null ? "[Space] tongue" : "";
     public bool TongueOut => tongue != null && tongue.IsUsingSkill;
+    public override bool SkillActive => TongueOut;   // no cooldown: ready as soon as it is back
 
     protected override bool FlipsWhenTurning => false;
 

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 
@@ -22,6 +23,12 @@ public class HUDController : MonoBehaviour
     public GameObject itemsSection;
     public TMP_Text itemRowTemplate;
     public TMP_Text itemKeyText;
+
+    [Header("Sidebar colors")]
+    public Color readyColor = new Color(0.55f, 0.9f, 0.6f);    // green
+    public Color activeColor = new Color(0.45f, 0.65f, 1f);    // blue, like the block tint
+    public Color waitColor = Color.white;
+    public Color noneColor = new Color(0.68f, 0.74f, 0.85f);   // the section titles' gray
 
     public GameObject endPanel;
     public TMP_Text resultText;
@@ -53,6 +60,8 @@ public class HUDController : MonoBehaviour
     private Vector3 timerBaseScale;
     private bool roundHasLives;
     private LevelLoader levelLoader;
+    private PlayerCharacter player;
+    private readonly List<TMP_Text> itemRows = new List<TMP_Text>();
     private GameFlow flow;   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
@@ -98,6 +107,7 @@ public class HUDController : MonoBehaviour
         UpdateTimer(gm);
         UpdateLives(gm);
         UpdateLevel();
+        UpdateSidebar();
         UpdatePopups();
         UpdateEndPanel(gm);
     }
@@ -186,6 +196,141 @@ public class HUDController : MonoBehaviour
 
         levelText.gameObject.SetActive(text != "");
         levelText.text = text;
+    }
+
+    // Wallet, skill, digest and items. Rows with nothing to show hide: the tutorial has no record
+    // (no wallet, no items), and a level without a skill or digest hides those rows
+    void UpdateSidebar()
+    {
+        // Champions are spawned at level start, so keep looking until one is there
+        if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
+        CrossLevelStatus record = PlayerCharacter.Record;
+
+        UpdateWallet(record);
+        bool hasSkill = UpdateSkill();
+        bool hasDigest = UpdateDigest();
+        if (skillSection != null) skillSection.SetActive(hasSkill || hasDigest);
+        UpdateItems(record);
+        UpdateDividers();
+    }
+
+    void UpdateWallet(CrossLevelStatus record)
+    {
+        if (walletSection == null) return;
+        walletSection.SetActive(record != null);
+        if (record != null && walletText != null) walletText.text = "$" + record.getWallet().ToString("N0");
+    }
+
+    // "Active" while the skill runs, then the seconds until Space works again with the bar filling
+    // back up, then "Ready". Returns whether the row is shown
+    bool UpdateSkill()
+    {
+        if (skillText == null) return false;
+        bool shown = player != null && player.SkillHint != "";
+        SetRow(skillText, shown);
+        if (skillBarFill != null) skillBarFill.parent.gameObject.SetActive(shown);
+        if (!shown) return false;
+
+        float readyIn = player.SkillReadyIn;
+        if (player.SkillActive) SetValue(skillText, "Active", activeColor);
+        else if (readyIn > 0f) SetValue(skillText, Seconds(readyIn), waitColor);
+        else SetValue(skillText, "Ready", readyColor);
+
+        float fill = readyIn > 0f && player.SkillWait > 0f ? 1f - readyIn / player.SkillWait : 1f;
+        if (skillBarFill != null) skillBarFill.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
+        return true;
+    }
+
+    // Seconds left in the digest (in the digest's green tint), else "Ready". Returns whether shown
+    bool UpdateDigest()
+    {
+        if (digestText == null) return false;
+        bool shown = player != null && player.UsesDigest;
+        SetRow(digestText, shown);
+        if (!shown) return false;
+
+        if (player.CanEat) SetValue(digestText, "Ready", readyColor);
+        else SetValue(digestText, Seconds(player.DigestLeft), player.digestTint);
+        return true;
+    }
+
+    // One row per store item the player owns ("Shield x2"), or "None"
+    void UpdateItems(CrossLevelStatus record)
+    {
+        if (itemsSection == null || itemRowTemplate == null) return;
+        itemsSection.SetActive(record != null);
+        if (record == null) return;
+
+        int count = 0;
+        foreach (PlayerSkill skill in record.getSkills())
+        {
+            if (skill.stock <= 0) continue;
+            SetValue(ItemRow(count++), ItemName(skill.id) + " x" + skill.stock, waitColor);
+        }
+        if (count == 0) SetValue(ItemRow(count++), "None", noneColor);
+        for (int i = count; i < itemRows.Count; i++) itemRows[i].gameObject.SetActive(false);
+    }
+
+    // Rows are copies of the template, made once and reused
+    TMP_Text ItemRow(int index)
+    {
+        while (itemRows.Count <= index)
+        {
+            TMP_Text row = Instantiate(itemRowTemplate, itemRowTemplate.transform.parent);
+            row.name = "Item" + itemRows.Count;
+            itemRows.Add(row);
+        }
+        itemRows[index].gameObject.SetActive(true);
+        return itemRows[index];
+    }
+
+    // A divider shows only between two visible sections, so a hidden one never leaves two in a row
+    void UpdateDividers()
+    {
+        if (lifeSection == null) return;
+        Transform sidebar = lifeSection.transform.parent;
+        GameObject pending = null;   // a divider under a visible section, waiting for one below it
+        bool above = false;
+        for (int i = 0; i < sidebar.childCount; i++)
+        {
+            GameObject child = sidebar.GetChild(i).gameObject;
+            if (child.name == "Divider")
+            {
+                child.SetActive(false);
+                if (above && pending == null) pending = child;
+                continue;
+            }
+            if (!child.activeSelf) continue;
+            if (pending != null) pending.SetActive(true);
+            pending = null;
+            above = true;
+        }
+    }
+
+    // A sidebar value and its title, which HUDBuilder puts right above it
+    static void SetRow(TMP_Text value, bool shown)
+    {
+        value.gameObject.SetActive(shown);
+        int index = value.transform.GetSiblingIndex();
+        if (index > 0) value.transform.parent.GetChild(index - 1).gameObject.SetActive(shown);
+    }
+
+    static void SetValue(TMP_Text text, string value, Color color)
+    {
+        text.text = value;
+        text.color = color;
+    }
+
+    // "0.8s" under ten seconds, "12s" above
+    static string Seconds(float seconds)
+    {
+        return seconds < 10f ? seconds.ToString("0.0", CultureInfo.InvariantCulture) + "s" : Mathf.CeilToInt(seconds) + "s";
+    }
+
+    // "shield" -> "Shield"
+    static string ItemName(string id)
+    {
+        return string.IsNullOrEmpty(id) ? "?" : char.ToUpperInvariant(id[0]) + id.Substring(1);
     }
 
     void UpdateEndPanel(GameManager gm)
