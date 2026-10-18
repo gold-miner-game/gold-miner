@@ -1,0 +1,80 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a1c7e2f4b9d04e3a8c15f06d27b3e8a1, type: 3}
+  m_Name: WorldMap
+  m_EditorClassIdentifier: Assembly-CSharp::WorldMap
+  nodes:
+  - id: tut_basics
+    type: 0
+    levelAsset: {fileID: 4900000, guid: 32442185507e4fd695f455198580e2ef, type: 3}
+    displayName: 'Tutorial: Eat'
+    mapPosition: {x: 0.12, y: 0.2}
+  - id: tut_dodge
+    type: 0
+    levelAsset: {fileID: 4900000, guid: c9e5a0b1d6f74e82c3a4b5061728d9e5, type: 3}
+    displayName: 'Tutorial: Dodge'
+    mapPosition: {x: 0.37333333, y: 0.2}
+  - id: tut_block
+    type: 0
+    levelAsset: {fileID: 4900000, guid: 9e4c3b69cee44ef288e786c12a02f2c6, type: 3}
+    displayName: 'Tutorial: Block'
+    mapPosition: {x: 0.62666667, y: 0.2}
+  - id: role_pick
+    type: 2
+    levelAsset: {fileID: 0}
+    displayName: Pick Character
+    mapPosition: {x: 0.88, y: 0.2}
+  - id: battle_01
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 7643b720c7ae4e54b271617b8a336b02, type: 3}
+    displayName: Level 1
+    mapPosition: {x: 0.88, y: 0.4}
+  - id: battle_02
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 24ffbf985836433d9473ac61508a2cb7, type: 3}
+    displayName: Level 2
+    mapPosition: {x: 0.62666667, y: 0.4}
+  - id: store_1
+    type: 3
+    levelAsset: {fileID: 0}
+    displayName: Store
+    mapPosition: {x: 0.37333333, y: 0.4}
+  - id: battle_03
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 7fd8de94e9f3497395be132314b8c778, type: 3}
+    displayName: Level 3
+    mapPosition: {x: 0.12, y: 0.4}
+  - id: battle_04
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 92542b7d19ed43da97932670b3ee1abb, type: 3}
+    displayName: Level 4
+    mapPosition: {x: 0.12, y: 0.6}
+  - id: battle_05
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 981777666ae340d78c1d56b1cc54bc0f, type: 3}
+    displayName: Level 5
+    mapPosition: {x: 0.37333333, y: 0.6}
+  - id: battle_06
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 369a132cec1f40b8aa275c26e8b6f615, type: 3}
+    displayName: Level 6
+    mapPosition: {x: 0.62666667, y: 0.6}
+  - id: battle_07
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 462eebf065f04e42abc6906d20780115, type: 3}
+    displayName: Level 7
+    mapPosition: {x: 0.88, y: 0.6}
+  - id: battle_08
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 893a8ae59bf541a2a072c654cbf4bd60, type: 3}
+    displayName: Level 8
+    mapPosition: {x: 0.88, y: 0.8}
