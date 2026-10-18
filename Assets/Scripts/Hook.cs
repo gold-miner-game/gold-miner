@@ -36,6 +36,15 @@ public class Hook : MonoBehaviour
 
     public bool IsBusy => state != State.Idle;
 
+    // Held in place (by the squirrel's firm tail): nothing moves, then the shot carries on
+    public bool IsStalled => Time.time < stallUntil;
+
+    // Counts shots. A new shot jumps the hook to its start, which isn't movement along a path
+    public int ShotCount { get; private set; }
+
+    // The treasure this hook is pulling home, if any
+    public Treasure Carried => carried;
+
     private enum State { Idle, Extending, Retracting }
     private State state = State.Idle;
 
@@ -45,6 +54,7 @@ public class Hook : MonoBehaviour
     private float traveled;
     private Treasure carried;
     private float holdUntil;   // PullBack: the hook waits on its treasure until then
+    private float stallUntil;  // Hold: the hook is stopped until then
 
     private Stroke rope;
     private Stroke clawLeft;
@@ -109,6 +119,8 @@ public class Hook : MonoBehaviour
         traveled = 0f;
         carried = null;
         touched.Clear();
+        stallUntil = 0f;
+        ShotCount++;
 
         transform.position = origin;
         // The sprite points up by default; turn it along the trajectory
@@ -139,6 +151,15 @@ public class Hook : MonoBehaviour
         state = State.Retracting;
     }
 
+    // Keep the hook where it is. Called every frame while something holds it (the squirrel's firm tail
+    // touching it): it can't get past for as long as that lasts, and carries on with its shot
+    // `afterSeconds` after the last call
+    public void Hold(float afterSeconds)
+    {
+        if (!IsBusy) return;
+        stallUntil = Mathf.Max(stallUntil, Time.time + afterSeconds);
+    }
+
     void Update()
     {
         if (Application.isPlaying)
@@ -146,7 +167,11 @@ public class Hook : MonoBehaviour
             // When the round ends mid-shot, the hook still comes home but stops reacting
             bool roundOver = GameManager.Instance != null && !GameManager.Instance.IsPlaying;
 
-            if (state == State.Extending)
+            if (IsStalled && !roundOver)
+            {
+                // Held in place: only redraw
+            }
+            else if (state == State.Extending)
             {
                 if (roundOver) state = State.Retracting;
                 else Extend();
@@ -196,11 +221,11 @@ public class Hook : MonoBehaviour
             {
                 if (carried != null)
                 {
-                    PigController pig = hit.collider.GetComponent<PigController>();
-                    if (pig != null && pig.IsBlocking)
+                    PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
+                    if (player != null && player.IsBlocking)
                     {
                         DropCarried();
-                        pig.OnTreasureKnocked();
+                        player.OnTreasureKnocked();
                     }
                     continue;
                 }
@@ -243,8 +268,8 @@ public class Hook : MonoBehaviour
     {
         // The pig is checked before the touched set, so a hook that passed through it can still be
         // bounced by a block later in the same shot
-        PigController pig = col.GetComponent<PigController>();
-        if (pig != null) return HandlePig(pig, col);
+        PlayerCharacter player = col.GetComponent<PlayerCharacter>();
+        if (player != null) return HandlePlayer(player, col);
 
         if (!touched.Add(col)) return false;
 
@@ -267,15 +292,17 @@ public class Hook : MonoBehaviour
         return false; // walls, Life items: the hook passes through
     }
 
-    bool HandlePig(PigController pig, Collider2D col)
+    bool HandlePlayer(PlayerCharacter player, Collider2D col)
     {
         // Blocking: the hook bounces off and goes home empty, even in no-kill levels
-        if (pig.IsBlocking)
+        if (player.IsBlocking)
         {
             if (!touched.Add(col)) return false;
-            pig.OnHookBlocked();
+            player.OnHookBlocked();
             return true;
         }
+        // A rolling cat can't be hit: the hook passes through (it can still hit once the roll ends)
+        if (player.IsInvulnerable) return false;
         if (!hitsPig) return false;
         if (!touched.Add(col)) return false;
 
@@ -302,6 +329,15 @@ public class Hook : MonoBehaviour
             case TreasureType.Diamond:    return diamondSpeed;
             default:                      return 1f;
         }
+    }
+
+    // Let go of the treasure this hook carries (the frog's tongue takes it): it is free again where it
+    // is, and the hook carries on home empty. Returns false if this hook doesn't hold it
+    public bool Release(Treasure treasure)
+    {
+        if (treasure == null || carried != treasure) return false;
+        DropCarried();
+        return true;
     }
 
     // Put the treasure in front of the claw so the closed tips grip its near edge

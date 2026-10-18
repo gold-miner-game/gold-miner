@@ -69,7 +69,7 @@ The arena is the camera view: x from −8.89 to +8.89, y from −5 to +5 (orthog
 | Rock | – | 0.47 | – | Pig: blocked (solid). Hook: stops, rock shatters |
 | Life | – | 0.20 | – | Pig: +1 life. Hook: passes through |
 
-### The pig (`PigController.cs`)
+### The pig, Mr. Hyde (`MrHydeController.cs`)
 
 - Moves at **5 units/s** in any direction (diagonals are not faster). Radius 0.4.
 - Collects treasure and Life pickups by touching them.
@@ -274,7 +274,7 @@ All game numbers are constants at the top of `gold_miner_sim.py`:
 | `HOOK_EXTEND`, `HOOK_RETRACT`, `HOOK_HIT_RADIUS`, pull-back factors in `ITEM_TYPES` | `Assets/Scripts/Hook.cs` |
 | `START_DELAY`, `TELEGRAPH_MIN/MAX`, `COOLDOWN`, `OVERSHOOT`, `MIN/MAX_TREASURE_SHOTS` | `Assets/Scripts/MinerAI.cs` (and its values in `Game.unity`) |
 | `ROUND_TIME`, `STARTING_LIVES`, `INVINCIBLE_TIME` | `Assets/Scripts/GameManager.cs` |
-| `PIG_SPEED`, `PIG_RADIUS`, `PIG_START` | `Assets/Scripts/PigController.cs`, `Assets/Prefabs/Pig.prefab`, `Game.unity` |
+| `PIG_SPEED`, `PIG_RADIUS`, `PIG_START` | `Assets/Scripts/MrHydeController.cs`, `Assets/Prefabs/MrHyde.prefab`, `Game.unity` |
 | values and radii in `ITEM_TYPES` | `Assets/Prefabs/Gold_*.prefab`, `Diamond.prefab`, `Rock.prefab`, `Life.prefab` |
 | `HOOK_ORIGIN`, `ARENA_X/Y` | Miner position and camera in `Game.unity` |
 
