@@ -5,14 +5,6 @@
   ],
   "hooks": [
     [
-      2.212819216874694,
-      -4.279000196443988
-    ],
-    [
-      5.578956955543026,
-      -3.0287637334699484
-    ],
-    [
       -7.963543462432863,
       -4.451707025023084
     ],
@@ -54,21 +46,22 @@
     }
   ],
   "params": {
-    "pig_speed": 5.0,
-    "digest_time": 0.9787444819617122,
-    "digest_per_value": 0.005413373955918766,
-    "hook_extend": 19.648233948609,
-    "hook_retract": 8.053209521871354,
-    "overshoot": 0.6,
-    "start_delay": 1.5,
-    "telegraph_min": 1.0,
-    "telegraph_max": 2.0,
-    "cooldown": 0.8,
+    "pig_speed": 6.5,
+    "digest_time": 0.35,
+    "digest_per_value": 0.003,
+    "hook_extend": 8.5,
+    "hook_retract": 8.0,
+    "overshoot": 0.45,
+    "start_delay": 2.0,
+    "telegraph_min": 2.0,
+    "telegraph_max": 3.2,
+    "cooldown": 1.6,
+    "pig_shot_chance": 0.06,
     "min_treasure_shots": 2,
-    "max_treasure_shots": 3,
-    "round_time": 90.0,
-    "starting_lives": 0,
-    "invincible_time": 1.5,
+    "max_treasure_shots": 4,
+    "round_time": 110.0,
+    "starting_lives": 4,
+    "invincible_time": 2.0,
     "hook_kills": true
   },
   "skills": {

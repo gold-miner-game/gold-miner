@@ -96,6 +96,23 @@ public class CrossLevelStatus : MonoBehaviour
         return go.AddComponent<T>();
     }
 
+    // A new run: throw the current record away (if any) and start a fresh one of this type.
+    // The select screen calls it when a champion is picked, after the tutorial, so nothing carries
+    // over from an earlier run. Unlike Install, nothing is copied.
+    public static CrossLevelStatus StartFresh(Type type)
+    {
+        if (type == null || !typeof(CrossLevelStatus).IsAssignableFrom(type)) type = typeof(PigStatus);
+        if (Active != null)
+        {
+            CrossLevelStatus old = Active;
+            Active = null;
+            Destroy(old.gameObject);
+        }
+        preferred.Clear();
+        preferred.Add(type);
+        return Create(type);
+    }
+
     static Type ChooseType()
     {
         Type best = typeof(PigStatus);

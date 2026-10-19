@@ -8,7 +8,7 @@ The rules and default numbers mirror the Unity scripts in Assets/Scripts:
                  2-3 treasure shots then one shot at the pig
   GameManager.cs 90 s round, 0 starting lives, 1.5 s invincibility,
                  ends on time-out / all treasure gone / pig killed; player wins if alive and richer
-  PigController  speed 5, collects treasure and Life pickups by touching them, blocked by rocks
+  MrHydeController speed 5, collects treasure and Life pickups by touching them, blocked by rocks
 
 Every gameplay number lives in GameParams, so the tuner can change agent speeds, waiting
 periods and so on, not only the map. GameParams also adds two things Unity does not have yet:

@@ -26,13 +26,13 @@ public static class PrefabBuilder
 
         int made = 0;
 
-        // Pig
-        made += Save("Pig", circle, new Color(1f, 0.6f, 0.75f), 0.8f, 0, go =>
+        // Mr. Hyde (the pig)
+        made += Save("MrHyde", circle, new Color(1f, 0.6f, 0.75f), 0.8f, 0, go =>
         {
             Rigidbody2D rb = AddBody(go, 1f, 0f);
             rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
             AddCircle(go, circle, false);
-            go.AddComponent<PigController>().moveSpeed = 5f;
+            go.AddComponent<MrHydeController>().moveSpeed = 5f;
         });
 
         // Rock

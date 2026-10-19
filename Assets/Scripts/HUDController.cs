@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
 
@@ -9,6 +10,25 @@ public class HUDController : MonoBehaviour
     public TMP_Text minerMoneyText;
     public TMP_Text timerText;
     public TMP_Text livesText;      // optional
+
+    [Header("Top bar and sidebar (HUDBuilder wires these; all optional)")]
+    public TMP_Text levelText;
+    public GameObject lifeSection;   // hidden with the Life count when the round has no Lives
+    public GameObject walletSection;
+    public TMP_Text walletText;
+    public GameObject skillSection;
+    public TMP_Text skillText;
+    public RectTransform skillBarFill;
+    public TMP_Text digestText;
+    public GameObject itemsSection;
+    public TMP_Text itemRowTemplate;
+    public TMP_Text itemKeyText;
+
+    [Header("Sidebar colors")]
+    public Color readyColor = new Color(0.55f, 0.9f, 0.6f);    // green
+    public Color activeColor = new Color(0.45f, 0.65f, 1f);    // blue, like the block tint
+    public Color waitColor = Color.white;
+    public Color noneColor = new Color(0.68f, 0.74f, 0.85f);   // the section titles' gray
 
     public GameObject endPanel;
     public TMP_Text resultText;
@@ -33,20 +53,17 @@ public class HUDController : MonoBehaviour
     public Color lifeLostColor = Color.red;
     public Color lifeGainedColor = Color.green;
 
-    [Header("Money bar (top centre; cooldowns are drawn on the pig)")]
-    public Vector2 barSize = new Vector2(480f, 22f);
-    public float moneyBarTop = 20f;       // pixels from the top of the screen
-    public Color barBack = new Color(0f, 0f, 0f, 0.55f);
-    public Color playerMoneyBar = new Color(1f, 0.55f, 0.75f);    // pink
-    public Color minerMoneyBar = new Color(0.6f, 0.6f, 0.6f);     // gray
-
     private Label playerMoney;
     private Label minerMoney;
     private Label lives;
     private Color timerBaseColor;
     private Vector3 timerBaseScale;
     private bool roundHasLives;
-    private GUIStyle barStyle;
+    private LevelLoader levelLoader;
+    private PlayerCharacter player;
+    private readonly List<TMP_Text> itemRows = new List<TMP_Text>();
+    private GameFlow flow;
+    private string endDetail;   // the result lines, set once when the round ends   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
     private bool hasLast;
@@ -58,12 +75,18 @@ public class HUDController : MonoBehaviour
 
     void Start()
     {
+        // The arena goes in the space the top bar and sidebar leave (HUDLayout)
+        GameplayCamera.Ensure(Camera.main);
+
         if (endPanel != null) endPanel.SetActive(false);
         if (timerText != null)
         {
             timerBaseColor = timerText.color;
             timerBaseScale = timerText.transform.localScale;
         }
+
+        levelLoader = FindFirstObjectByType<LevelLoader>();
+        flow = FindFirstObjectByType<GameFlow>();
 
         playerMoney = new Label(playerMoneyText);
         minerMoney = new Label(minerMoneyText);
@@ -84,6 +107,8 @@ public class HUDController : MonoBehaviour
         UpdateMoney(gm);
         UpdateTimer(gm);
         UpdateLives(gm);
+        UpdateLevel();
+        UpdateSidebar();
         UpdatePopups();
         UpdateEndPanel(gm);
     }
@@ -123,8 +148,8 @@ public class HUDController : MonoBehaviour
         playerMoney.alpha = gm.PlayerMoney < gm.MinerMoney ? trailingAlpha : 1f;
         minerMoney.alpha = gm.MinerMoney < gm.PlayerMoney ? trailingAlpha : 1f;
 
-        if (playerMoneyText != null) playerMoneyText.text = "Player: $" + gm.PlayerMoney.ToString("N0");
-        if (minerMoneyText != null) minerMoneyText.text = "Miner: $" + gm.MinerMoney.ToString("N0");
+        if (playerMoneyText != null) playerMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
+        if (minerMoneyText != null) minerMoneyText.text = "$" + gm.MinerMoney.ToString("N0");
 
         playerMoney.Apply(moneyFlashScale);
         minerMoney.Apply(moneyFlashScale);
@@ -151,65 +176,192 @@ public class HUDController : MonoBehaviour
         if (livesText == null) return;
 
         if (gm.Lives > 0) roundHasLives = true;   // e.g. a Life spawned at runtime
-        livesText.gameObject.SetActive(roundHasLives);
-        livesText.text = "Life: " + gm.Lives;
+        // The whole section when there is one (the sidebar), else just the label (an older HUD)
+        GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
+        shown.SetActive(roundHasLives);
+        livesText.text = lifeSection != null ? "x" + gm.Lives : "Life: " + gm.Lives;
         lives.Apply(moneyFlashScale);
+    }
+
+    // The map node's name ("LEVEL 4") when the map sent us here, else "LV 4/10" for editor N/P play;
+    // hidden in scenes without a level loader (Dev scenes)
+    void UpdateLevel()
+    {
+        if (levelText == null) return;
+
+        MapNode node = flow != null ? flow.CurrentNode : null;
+        string text = "";
+        if (node != null) text = node.displayName.ToUpperInvariant();
+        else if (levelLoader != null && levelLoader.LevelCount > 0)
+            text = "LV " + LevelLoader.CurrentLevel + "/" + levelLoader.LevelCount;
+
+        levelText.gameObject.SetActive(text != "");
+        levelText.text = text;
+    }
+
+    // Wallet, skill, digest and items. Rows with nothing to show hide: the tutorial has no record
+    // (no wallet, no items), and a level without a skill or digest hides those rows
+    void UpdateSidebar()
+    {
+        // Champions are spawned at level start, so keep looking until one is there
+        if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
+        CrossLevelStatus record = PlayerCharacter.Record;
+
+        UpdateWallet(record);
+        bool hasSkill = UpdateSkill();
+        bool hasDigest = UpdateDigest();
+        if (skillSection != null) skillSection.SetActive(hasSkill || hasDigest);
+        UpdateItems(record);
+        UpdateDividers();
+    }
+
+    void UpdateWallet(CrossLevelStatus record)
+    {
+        if (walletSection == null) return;
+        walletSection.SetActive(record != null);
+        if (record != null && walletText != null) walletText.text = "$" + record.getWallet().ToString("N0");
+    }
+
+    // "Active" while the skill runs, then the seconds until Space works again with the bar filling
+    // back up, then "Ready". Returns whether the row is shown
+    bool UpdateSkill()
+    {
+        if (skillText == null) return false;
+        bool shown = player != null && player.SkillHint != "";
+        SetRow(skillText, shown);
+        if (skillBarFill != null) skillBarFill.parent.gameObject.SetActive(shown);
+        if (!shown) return false;
+
+        float readyIn = player.SkillReadyIn;
+        if (player.SkillActive) SetValue(skillText, "Active", activeColor);
+        else if (readyIn > 0f) SetValue(skillText, Seconds(readyIn), waitColor);
+        else SetValue(skillText, "Ready", readyColor);
+
+        float fill = readyIn > 0f && player.SkillWait > 0f ? 1f - readyIn / player.SkillWait : 1f;
+        if (skillBarFill != null) skillBarFill.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
+        return true;
+    }
+
+    // Seconds left in the digest (in the digest's green tint), else "Ready". Returns whether shown
+    bool UpdateDigest()
+    {
+        if (digestText == null) return false;
+        bool shown = player != null && player.UsesDigest;
+        SetRow(digestText, shown);
+        if (!shown) return false;
+
+        if (player.CanEat) SetValue(digestText, "Ready", readyColor);
+        else SetValue(digestText, Seconds(player.DigestLeft), player.digestTint);
+        return true;
+    }
+
+    // One row per store item the player owns ("Shield x2"), or "None"
+    void UpdateItems(CrossLevelStatus record)
+    {
+        if (itemsSection == null || itemRowTemplate == null) return;
+        itemsSection.SetActive(record != null);
+        if (record == null) return;
+
+        int count = 0;
+        foreach (PlayerSkill skill in record.getSkills())
+        {
+            if (skill.stock <= 0) continue;
+            SetValue(ItemRow(count++), ItemName(skill.id) + " x" + skill.stock, waitColor);
+        }
+        if (count == 0) SetValue(ItemRow(count++), "None", noneColor);
+        for (int i = count; i < itemRows.Count; i++) itemRows[i].gameObject.SetActive(false);
+    }
+
+    // Rows are copies of the template, made once and reused
+    TMP_Text ItemRow(int index)
+    {
+        while (itemRows.Count <= index)
+        {
+            TMP_Text row = Instantiate(itemRowTemplate, itemRowTemplate.transform.parent);
+            row.name = "Item" + itemRows.Count;
+            itemRows.Add(row);
+        }
+        itemRows[index].gameObject.SetActive(true);
+        return itemRows[index];
+    }
+
+    // A divider shows only between two visible sections, so a hidden one never leaves two in a row
+    void UpdateDividers()
+    {
+        if (lifeSection == null) return;
+        Transform sidebar = lifeSection.transform.parent;
+        GameObject pending = null;   // a divider under a visible section, waiting for one below it
+        bool above = false;
+        for (int i = 0; i < sidebar.childCount; i++)
+        {
+            GameObject child = sidebar.GetChild(i).gameObject;
+            if (child.name == "Divider")
+            {
+                child.SetActive(false);
+                if (above && pending == null) pending = child;
+                continue;
+            }
+            if (!child.activeSelf) continue;
+            if (pending != null) pending.SetActive(true);
+            pending = null;
+            above = true;
+        }
+    }
+
+    // A sidebar value and its title, which HUDBuilder puts right above it
+    static void SetRow(TMP_Text value, bool shown)
+    {
+        value.gameObject.SetActive(shown);
+        int index = value.transform.GetSiblingIndex();
+        if (index > 0) value.transform.parent.GetChild(index - 1).gameObject.SetActive(shown);
+    }
+
+    static void SetValue(TMP_Text text, string value, Color color)
+    {
+        text.text = value;
+        text.color = color;
+    }
+
+    // "0.8s" under ten seconds, "12s" above
+    static string Seconds(float seconds)
+    {
+        return seconds < 10f ? seconds.ToString("0.0", CultureInfo.InvariantCulture) + "s" : Mathf.CeilToInt(seconds) + "s";
+    }
+
+    // "shield" -> "Shield"
+    static string ItemName(string id)
+    {
+        return string.IsNullOrEmpty(id) ? "?" : char.ToUpperInvariant(id[0]) + id.Substring(1);
     }
 
     void UpdateEndPanel(GameManager gm)
     {
-        if (gm.IsPlaying || endPanel == null || endPanel.activeSelf) return;
+        if (gm.IsPlaying || endPanel == null) return;
 
-        endPanel.SetActive(true);
-        if (resultText != null) resultText.text = gm.PlayerWon ? "YOU WIN" : "YOU LOSE";
-        if (detailText == null) return;
-
-        string detail = gm.EndReason;
-        // Levels without money (the block tutorial) skip the score line
-        if (gm.PlayerMoney + gm.MinerMoney > 0)
-            detail += "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
-        // GameManager counts a tie as a loss; say so, or it looks like a bug
-        if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) detail += "\nTie - the miner wins ties";
-        detailText.text = detail + "\nPress R to restart";
-    }
-
-    void OnGUI()
-    {
-        GameManager gm = GameManager.Instance;
-        if (gm == null || !gm.IsPlaying) return;
-
-        DrawMoneyBar(gm);
-    }
-
-    // One bar split by the money so far: pink for the pig from the left, gray for the miner from
-    // the right, each as wide as its share of what both have. Before anyone scores it's empty
-    void DrawMoneyBar(GameManager gm)
-    {
-        Rect bar = new Rect((Screen.width - barSize.x) / 2f, moneyBarTop, barSize.x, barSize.y);
-        float total = gm.PlayerMoney + gm.MinerMoney;
-        float playerShare = total > 0f ? gm.PlayerMoney / total : 0f;
-        float minerShare = total > 0f ? 1f - playerShare : 0f;
-
-        Color old = GUI.color;
-        GUI.color = barBack;
-        GUI.DrawTexture(bar, Texture2D.whiteTexture);
-        GUI.color = playerMoneyBar;
-        GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * playerShare, bar.height), Texture2D.whiteTexture);
-        GUI.color = minerMoneyBar;
-        float minerWidth = bar.width * minerShare;
-        GUI.DrawTexture(new Rect(bar.xMax - minerWidth, bar.y, minerWidth, bar.height), Texture2D.whiteTexture);
-        GUI.color = old;
-
-        if (barStyle == null)
+        if (!endPanel.activeSelf)
         {
-            barStyle = new GUIStyle(GUI.skin.label) { fontStyle = FontStyle.Bold, padding = new RectOffset(8, 8, 0, 0) };
+            endPanel.SetActive(true);
+            if (resultText != null) resultText.text = gm.PlayerWon ? "YOU WIN" : "YOU LOSE";
+
+            endDetail = gm.EndReason;
+            // Levels without money (the block tutorial) skip the score line
+            if (gm.PlayerMoney + gm.MinerMoney > 0)
+                endDetail += "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
+            // GameManager counts a tie as a loss; say so, or it looks like a bug
+            if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) endDetail += "\nTie - the miner wins ties";
         }
-        // Dark text on the pink and gray, light on the empty bar
-        barStyle.normal.textColor = total > 0f ? Color.black : Color.white;
-        barStyle.alignment = TextAnchor.MiddleLeft;
-        GUI.Label(bar, "You $" + gm.PlayerMoney.ToString("N0"), barStyle);
-        barStyle.alignment = TextAnchor.MiddleRight;
-        GUI.Label(bar, "Miner $" + gm.MinerMoney.ToString("N0"), barStyle);
+
+        // Every frame: the next-level countdown ticks
+        if (detailText != null) detailText.text = endDetail + "\n" + NextStep(gm);
+    }
+
+    // The one place that says what happens next (LevelLoader no longer draws it under the arena)
+    string NextStep(GameManager gm)
+    {
+        if (!gm.PlayerWon) return "Press R to retry";
+        if (flow != null && flow.CurrentNode != null) return "Back to the map...";
+        string hint = levelLoader != null ? levelLoader.NextStepHint : "";
+        return hint != "" ? hint : "Press R to restart";
     }
 
     // "+$600" next to a money label: a copy of the label, so it shares its font and size
