@@ -68,7 +68,7 @@ public class GameManager : MonoBehaviour
     {
         if (!IsPlaying || IsInvincible) return;
 
-        // A shield absorbs the hit for its full minute. The hook still stops.
+        // A shield absorbs the hit for its full 5 seconds. The hook still stops.
         if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
 
         if (Lives > 1)
