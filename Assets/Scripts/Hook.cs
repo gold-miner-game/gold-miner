@@ -19,6 +19,7 @@ public class Hook : MonoBehaviour
     [Header("Collision")]
     public float hitRadius = 0.2f;
     public bool hitsPig = true;      // false: the hook passes through the pig (no-kill levels)
+    public bool grabsTreasure = true;   // false: the hook passes through treasure (survival hunts only the player)
 
     [Header("Look")]
     public Color defaultColor = Color.yellow;
@@ -276,7 +277,7 @@ public class Hook : MonoBehaviour
         Treasure treasure = col.GetComponent<Treasure>();
         if (treasure != null)
         {
-            if (treasure.IsTaken) return false;
+            if (treasure.IsTaken || !grabsTreasure) return false;
             treasure.GrabByHook(transform);
             carried = treasure;
             return true;

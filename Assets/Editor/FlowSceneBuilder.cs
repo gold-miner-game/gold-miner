@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -20,7 +21,7 @@ public static class FlowSceneBuilder
     // The map is a tree. The trunk is the tutorial + role pick; the Store hangs off role pick as its
     // own side spur (reachable as soon as you have a character, not gated behind a battle). Level 1
     // then splits into a left and a right path that merge back at Level 8, with Survive Mode after it
-    // (a placeholder scene; Butian replaces it). Add a level = add a row
+    // (SurvivalLoader). Add a level = add a row
     // here (and drop a level JSON); point its prereqs at whatever should unlock it.
     // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
@@ -56,7 +57,7 @@ public static class FlowSceneBuilder
         BuildScene("Map", typeof(WorldMapController));
         BuildScene("RolePick", typeof(RolePickController));
         BuildScene("Store", typeof(StorePlaceholder));
-        BuildScene("Survival", typeof(SurvivalPlaceholder));
+        BuildScene("Survival", typeof(SurvivalLoader), c => WireSurvival((SurvivalLoader)c));
 
         RegisterBuildScenes();
 
@@ -104,7 +105,23 @@ public static class FlowSceneBuilder
         Debug.Log("FlowSceneBuilder: created " + MapAssetPath + " with " + map.nodes.Count + " nodes.");
     }
 
-    static void BuildScene(string name, Type controller)
+    // Survival builds its arena at runtime; it only needs the prefabs
+    static void WireSurvival(SurvivalLoader loader)
+    {
+        const string dir = "Assets/Prefabs/";
+        loader.champions = new[] { "MrHyde", "Cat", "Squirrel", "Frog" }
+            .Select(n => AssetDatabase.LoadAssetAtPath<GameObject>(dir + n + ".prefab")).ToArray();
+        (string name, float weight)[] items =
+            { ("Gold_Small", 40f), ("Gold_Medium", 28f), ("Gold_Large", 14f), ("Diamond", 10f), ("Life", 3f) };
+        loader.items = items.Select(i => new SurvivalLoader.ItemChance
+        {
+            prefab = AssetDatabase.LoadAssetAtPath<GameObject>(dir + i.name + ".prefab"),
+            weight = i.weight,
+        }).ToArray();
+        loader.telegraphDot = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "TelegraphDot.prefab");
+    }
+
+    static void BuildScene(string name, Type controller, Action<Component> configure = null)
     {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -118,7 +135,8 @@ public static class FlowSceneBuilder
         camera.clearFlags = CameraClearFlags.SolidColor;
 
         var controllerObject = new GameObject(controller.Name);
-        controllerObject.AddComponent(controller);
+        Component added = controllerObject.AddComponent(controller);
+        configure?.Invoke(added);
 
         string path = SceneDir + "/" + name + ".unity";
         if (!EditorSceneManager.SaveScene(scene, path))

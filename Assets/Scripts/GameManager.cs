@@ -10,8 +10,11 @@ public class GameManager : MonoBehaviour
     public float roundTime = 90f;
     public int startingLives = 0;         // the hit that takes the last Life ends the round
     public float invincibleTime = 1.5f;   // after losing a Life
+    [Tooltip("Survival mode: no clock and no running out of treasure; only the last Life ends the round")]
+    public bool endless = false;
 
     public int PlayerMoney { get; private set; }
+    public float TimeSurvived { get; private set; }   // endless rounds: seconds since the start
     public int MinerMoney { get; private set; }
     public int Lives { get; private set; }
     public float TimeLeft { get; private set; }
@@ -41,6 +44,12 @@ public class GameManager : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.R)) { Restart(); return; }
         if (!IsPlaying) return;
+
+        if (endless)
+        {
+            TimeSurvived += Time.deltaTime;
+            return;
+        }
 
         TimeLeft -= Time.deltaTime;
         if (TimeLeft <= 0f)

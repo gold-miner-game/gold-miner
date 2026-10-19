@@ -174,14 +174,16 @@ A placeholder `Store` scene with a Leave button ships first; Zhan Li replaces it
 ## 7. Survival mode hook / 生存模式接入 (Butian)
 
 Survival is a node after Level 8 (`id: survival`, `prerequisites: [battle_08]`). The map
-already opens `Survival.unity`. That scene is a placeholder (`SurvivalPlaceholder`); replace
-its contents with the real mode. On leave, call `GameFlow.Instance.ReturnToMap()`, or
-`CompleteCurrentNode()` once a run can actually be won. The picked champion's record is
-already active when the scene loads.
+already opens `Survival.unity`, run by `SurvivalLoader` (not LevelLoader): an endless map with a
+following camera, hooks that keep growing out of the ground and only hunt the player (they never
+take treasure), and gold / diamonds that keep turning up. 3 Lives; the run ends on the last one.
+The gold eaten goes into the wallet and the best time is kept. Esc or "Back to map" calls
+`GameFlow.Instance.ReturnToMap()`. The picked champion's record is already active when the scene loads.
 
 生存模式是 Level 8 后面的一个节点（`id: survival`，`prerequisites: [battle_08]`）。地图已经会打开
-`Survival.unity`。这个场景现在是占位（`SurvivalPlaceholder`），把内容换成真正的模式即可。离开时调
-`GameFlow.Instance.ReturnToMap()`；等一局真的能赢了再改调 `CompleteCurrentNode()`。进场景时，
+`Survival.unity`，由 `SurvivalLoader`（不是 LevelLoader）驱动：地图无限大，镜头跟随玩家；钩子不断从地里长出来，
+只追杀玩家、不抢金子；金子和钻石不断刷新。3 条命，用完结束；吃到的金子进钱包，并记录最佳时间。按 Esc 或
+"Back to map" 调 `GameFlow.Instance.ReturnToMap()`。进场景时，
 选中角色的记录已经在了。
 
 ---
