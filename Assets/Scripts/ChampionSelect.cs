@@ -1,11 +1,12 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-// Put this on an empty object in the Select ("WHO ARE U") scene. LevelLoader opens that scene when
-// the tutorial is over. Each champion Button calls Choose with its number in On Click ():
+// Put this on an empty object in the Select ("WHO ARE U") scene. Each champion Button calls Choose
+// with its number in On Click ():
 // 0 = Mr. Hyde, 1 = JK. Rolling (cat), 2 = Scrat (squirrel), 3 = Rero Rero (frog)
-// Picking is when the real game starts: the champion gets a brand-new cross-level record (wallet,
-// lives, skills), and nothing from the tutorial or an earlier run carries over.
+// Picking starts a brand-new cross-level record (wallet, lives, skills). From the world map this
+// scene is the RolePick node, so the pick is saved and the map comes back. Opened on its own
+// (or by the old level list), it still loads the Game scene.
 public class ChampionSelect : MonoBehaviour
 {
     [Header("Scene to load after picking (must be in Build Profiles > Scene List)")]
@@ -15,6 +16,15 @@ public class ChampionSelect : MonoBehaviour
     {
         ChampionSpawner.Chosen = champion;
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(champion));
+        ProgressStore.SelectedCharacter = champion.ToString();
+
+        GameFlow flow = FindFirstObjectByType<GameFlow>();
+        if (flow != null && flow.CurrentNode != null && flow.CurrentNode.type == NodeType.RolePick)
+        {
+            flow.CompleteCurrentNode();
+            return;
+        }
+
         SceneManager.LoadScene(gameplayScene);
     }
 }
