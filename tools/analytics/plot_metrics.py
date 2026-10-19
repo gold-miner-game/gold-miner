@@ -69,18 +69,25 @@ def normalize(row):
     }
 
 
+def scored(row):
+    # Tutorials are taught and often ended by the script, so they are not a difficulty result.
+    return row["tutorial"] != "1"
+
+
 def players_on(rows, level):
     found = set()
     for row in rows:
-        if row["level"] == level and row["event"] in ("level_start", "round_end", "first_gold"):
+        if not scored(row) or row["level"] != level:
+            continue
+        if row["event"] in ("level_start", "round_end", "first_gold"):
             found.add(row["player"])
-    return found or {row["player"] for row in rows if row["level"] == level}
+    return found or {row["player"] for row in rows if scored(row) and row["level"] == level}
 
 
 def levels_of(rows):
     seen = []
     for row in rows:
-        if row["level"] in SKIP_LEVELS or row["level"] in seen:
+        if not scored(row) or row["level"] in SKIP_LEVELS or row["level"] in seen:
             continue
         seen.append(row["level"])
     return seen
@@ -89,7 +96,7 @@ def levels_of(rows):
 def mean_first_gold(rows):
     buckets = defaultdict(list)
     for row in rows:
-        if row["event"] == "first_gold":
+        if scored(row) and row["event"] == "first_gold":
             buckets[row["level"]].append(row["value"])
     return [(level, sum(values) / len(values)) for level, values in ((lv, buckets[lv]) for lv in levels_of(rows)) if values]
 
@@ -97,7 +104,7 @@ def mean_first_gold(rows):
 def mean_per_player(rows, event):
     totals = defaultdict(lambda: defaultdict(float))
     for row in rows:
-        if row["event"] == event:
+        if scored(row) and row["event"] == event:
             totals[row["level"]][row["player"]] += row["value"]
     bars = []
     for level in levels_of(rows):
@@ -112,7 +119,7 @@ def mean_per_player(rows, event):
 def mean_margin(rows):
     buckets = defaultdict(list)
     for row in rows:
-        if row["event"] == "round_end":
+        if scored(row) and row["event"] == "round_end":
             buckets[row["level"]].append(row["value"])
     return [(level, sum(values) / len(values)) for level, values in ((lv, buckets[lv]) for lv in levels_of(rows)) if values]
 
@@ -120,7 +127,7 @@ def mean_margin(rows):
 def mean_losses(rows):
     losses = defaultdict(lambda: defaultdict(int))
     for row in rows:
-        if row["event"] == "round_end" and row["won"] != "1":
+        if scored(row) and row["event"] == "round_end" and row["won"] != "1":
             losses[row["level"]][row["player"]] += 1
     bars = []
     for level in levels_of(rows):
@@ -135,7 +142,7 @@ def mean_losses(rows):
 def mean_retries(rows):
     starts = defaultdict(lambda: defaultdict(int))
     for row in rows:
-        if row["event"] == "level_start":
+        if scored(row) and row["event"] == "level_start":
             starts[row["level"]][row["player"]] += 1
     bars = []
     for level in levels_of(rows):
