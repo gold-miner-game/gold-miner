@@ -42,6 +42,7 @@ public static class HUDBuilder
         Undo.RegisterCreatedObjectUndo(root, "Create HUD");
 
         root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
+        root.AddComponent<GraphicRaycaster>();
         CanvasScaler scaler = root.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920f, 1080f);
@@ -70,6 +71,7 @@ public static class HUDBuilder
         minerMoney.rectTransform.pivot = new Vector2(0f, 0.5f);
         minerMoney.color = MinerColor;
         TMP_Text timer = CreateText(topBar, "Timer", "1:30", new Vector2(1f, 0.5f), new Vector2(-24f, 0f), new Vector2(200f, 60f), 36f, TextAlignmentOptions.Right);
+        Button map = HUDController.CreateMapButton(timer);
 
         // Sidebar: sections stacked top to bottom with dividers between them
         GameObject sidebar = CreateImage(canvas, "Sidebar", Panel, new Vector2(side, 0f), new Vector2(1f, top), Margin, true);
@@ -116,6 +118,7 @@ public static class HUDBuilder
         hud.playerMoneyText = playerMoney;
         hud.minerMoneyText = minerMoney;
         hud.timerText = timer;
+        hud.mapButton = map;
         hud.livesText = lives;
         hud.endPanel = endPanel;
         hud.resultText = result;

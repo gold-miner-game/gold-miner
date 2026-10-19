@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 // Owner: D (Hook & UI)
 public class HUDController : MonoBehaviour
@@ -9,6 +11,7 @@ public class HUDController : MonoBehaviour
     public TMP_Text playerMoneyText;
     public TMP_Text minerMoneyText;
     public TMP_Text timerText;
+    public Button mapButton;        // sits just left of the timer; HUDBuilder wires it, or Start makes one
     public TMP_Text livesText;      // optional
 
     [Header("Top bar and sidebar (HUDBuilder wires these; all optional)")]
@@ -91,6 +94,7 @@ public class HUDController : MonoBehaviour
         playerMoney = new Label(playerMoneyText);
         minerMoney = new Label(minerMoneyText);
         lives = new Label(livesText);
+        EnsureMapButton();
 
         // A round "has Lives" if it starts with some or a Life pickup is in the scene
         GameManager gm = GameManager.Instance;
@@ -169,6 +173,106 @@ public class HUDController : MonoBehaviour
         if (gm.IsPlaying && seconds <= timerPulseTime)
             pulse = Mathf.Clamp01(1f - (seconds - gm.TimeLeft) / 0.3f);
         timerText.transform.localScale = timerBaseScale * Mathf.Lerp(1f, timerPulseScale, pulse);
+        PlaceMapButton();
+    }
+
+    // A Map button just left of the clock. Only when this round was opened from the map: editor
+    // N/P play of the Game scene has no node to return to. Leaving mid-round does not clear the
+    // node; leaving after a win does, so the clear is not lost to the auto-return timer.
+    void EnsureMapButton()
+    {
+        if (timerText == null) return;
+
+        Canvas canvas = timerText.canvas;
+        if (canvas != null && canvas.GetComponent<GraphicRaycaster>() == null)
+            canvas.gameObject.AddComponent<GraphicRaycaster>();
+        if (FindFirstObjectByType<EventSystem>() == null)
+        {
+            var events = new GameObject("EventSystem");
+            events.AddComponent<EventSystem>();
+            events.AddComponent<StandaloneInputModule>();
+        }
+
+        if (mapButton == null) mapButton = CreateMapButton(timerText);
+        mapButton.onClick.AddListener(OnMapClicked);
+        PlaceMapButton();
+    }
+
+    public static Button CreateMapButton(TMP_Text timer)
+    {
+        var go = new GameObject("MapButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        RectTransform rect = go.GetComponent<RectTransform>();
+        rect.SetParent(timer.rectTransform.parent, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(1f, 0.5f);
+        rect.pivot = new Vector2(1f, 0.5f);
+        rect.sizeDelta = new Vector2(92f, 42f);
+
+        Image image = go.GetComponent<Image>();
+        image.sprite = FlatSprite();
+        image.color = Color.white;
+
+        Button button = go.GetComponent<Button>();
+        button.targetGraphic = image;
+        ColorBlock colors = button.colors;
+        colors.normalColor = new Color(0.20f, 0.27f, 0.38f, 1f);
+        colors.highlightedColor = new Color(0.30f, 0.38f, 0.52f, 1f);
+        colors.pressedColor = new Color(0.14f, 0.18f, 0.28f, 1f);
+        colors.selectedColor = colors.highlightedColor;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        var labelGo = new GameObject("Label", typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform labelRect = labelGo.GetComponent<RectTransform>();
+        labelRect.SetParent(rect, false);
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+        TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
+        label.font = timer.font;
+        label.text = "Exit";
+        label.fontSize = 22f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color(0.86f, 0.90f, 0.96f, 1f);
+        label.raycastTarget = false;
+        return button;
+    }
+
+    void PlaceMapButton()
+    {
+        if (mapButton == null || timerText == null) return;
+
+        bool show = flow != null && flow.CurrentNode != null;
+        if (mapButton.gameObject.activeSelf != show) mapButton.gameObject.SetActive(show);
+        if (!show) return;
+
+        RectTransform timerRect = timerText.rectTransform;
+        RectTransform rect = mapButton.GetComponent<RectTransform>();
+        float digits = Mathf.Max(72f, timerText.preferredWidth);
+        float scale = Mathf.Max(1f, timerRect.localScale.x);
+        rect.anchoredPosition = new Vector2(timerRect.anchoredPosition.x - digits * scale - 14f, timerRect.anchoredPosition.y);
+    }
+
+    void OnMapClicked()
+    {
+        if (flow == null || flow.CurrentNode == null) return;
+
+        GameManager gm = GameManager.Instance;
+        if (gm != null && !gm.IsPlaying && gm.PlayerWon) flow.CompleteCurrentNode();
+        else flow.ReturnToMap();
+    }
+
+    static Sprite flatSprite;
+
+    static Sprite FlatSprite()
+    {
+        if (flatSprite != null) return flatSprite;
+        var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        tex.SetPixel(0, 0, Color.white);
+        tex.Apply();
+        flatSprite = Sprite.Create(tex, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+        return flatSprite;
     }
 
     void UpdateLives(GameManager gm)
