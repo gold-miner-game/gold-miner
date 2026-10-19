@@ -465,28 +465,51 @@ public class LevelLoader : MonoBehaviour
     public static bool WaitToAdvance { get; set; }
     public static bool AdvanceNow { get; set; }
 
+    bool moneySettled;
+
     // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
     // the next level. A loss stays put so R can retry. The last level doesn't wrap around.
     void UpdateAdvance()
     {
         GameManager gm = GameManager.Instance;
-        if (gm == null || gm.IsPlaying || !gm.PlayerWon) return;
+        if (gm == null || gm.IsPlaying) return;
+
+        if (!moneySettled)
+        {
+            moneySettled = true;
+            SettleWallet(gm);
+        }
+
+        if (!gm.PlayerWon) return;
 
         if (advanceAt < 0f)
-        {
             advanceAt = Time.time + advanceDelay;
-            if (!Tutorial)
-            {
-                CrossLevelStatus.Ensure().bank(CurrentLevel, gm.PlayerMoney);
-                if (LevelWon != null) LevelWon();
-            }
-        }
         if (!autoAdvance || IsLastLevel || WaitToAdvance) return;
         if (AdvanceNow || Time.time >= advanceAt)
         {
             AdvanceNow = false;
             Load(current + 1);
         }
+    }
+
+    // A win pays the margin over the miner. A loss costs 100, and the wallet cannot go below 0.
+    void SettleWallet(GameManager gm)
+    {
+        CrossLevelStatus record = CrossLevelStatus.Ensure();
+        if (gm.PlayerWon)
+        {
+            record.bank(LevelId(), gm.PlayerMoney - gm.MinerMoney);
+            if (!Tutorial && LevelWon != null) LevelWon();
+            return;
+        }
+        record.addWallet(-100);
+    }
+
+    string LevelId()
+    {
+        return list != null && current >= 0 && current < list.Length && list[current] != null
+            ? list[current].name
+            : CurrentLevel.ToString();
     }
 
     bool IsLastLevel => current >= list.Length - 1;

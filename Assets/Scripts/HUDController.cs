@@ -265,8 +265,13 @@ public class HUDController : MonoBehaviour
         int count = 0;
         foreach (PlayerSkill skill in record.getSkills())
         {
-            if (skill.stock <= 0) continue;
-            SetValue(ItemRow(count++), ItemName(skill.id) + " x" + skill.stock, waitColor);
+            int held = skill.stock;
+            if (skill.id == "swift" || skill.id == "ration" || skill.id == "shield" || skill.id == "brace")
+            {
+                if (skill.armed || skill.active || skill.secondsLeft > 0f) held++;
+            }
+            if (held <= 0) continue;
+            SetValue(ItemRow(count++), ItemName(skill.id) + " x" + held, waitColor);
         }
         if (count == 0) SetValue(ItemRow(count++), "None", noneColor);
         for (int i = count; i < itemRows.Count; i++) itemRows[i].gameObject.SetActive(false);
