@@ -498,14 +498,14 @@ public class LevelLoader : MonoBehaviour
         CrossLevelStatus record = CrossLevelStatus.Ensure();
         if (gm.PlayerWon)
         {
-            record.bank(LevelId(), gm.PlayerMoney - gm.MinerMoney);
+            record.bank(LevelName(), gm.PlayerMoney - gm.MinerMoney);
             if (!Tutorial && LevelWon != null) LevelWon();
             return;
         }
         record.addWallet(-100);
     }
 
-    string LevelId()
+    public string LevelName()
     {
         return list != null && current >= 0 && current < list.Length && list[current] != null
             ? list[current].name

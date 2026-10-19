@@ -90,6 +90,7 @@ public class GameManager : MonoBehaviour
         IsPlaying = false;
         EndReason = reason;
         PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
+        RoundMarginLog.Record(this);
     }
 
     // Win now, whatever the money: for levels with another goal (the block tutorial)
@@ -99,6 +100,7 @@ public class GameManager : MonoBehaviour
         IsPlaying = false;
         EndReason = reason;
         PlayerWon = true;
+        RoundMarginLog.Record(this);
     }
 
     public void Restart()
