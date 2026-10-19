@@ -1,7 +1,9 @@
 using UnityEngine;
 
 // Owner: Penny (map flow) · characters by Yukun / Zhan Li (#12)
-// The map's RolePick node. Lists the champions from #12's character-select system and, on pick,
+// The map no longer opens this scene. The RolePick node loads Select ("WHO ARE U") and
+// ChampionSelect handles the pick. This OnGUI list only shows if RolePick.unity is opened directly.
+// Lists the champions from #12's character-select system and, on pick,
 // starts a fresh cross-level record for that champion and tells ChampionSpawner which one the Game
 // scene should swap in. Then it clears this node so the map unlocks the first battle.
 // Champion order must match ChampionSpawner.champions[]: 0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero.
