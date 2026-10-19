@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420">
+<rect width="100%" height="100%" fill="#1c140f"/>
+<text x="64" y="32" fill="#f4efe6" font-family="sans-serif" font-size="18">Lives lost per level (mean per player)</text>
+<line x1="64" y1="348" x2="696" y2="348" stroke="#f4efe6" stroke-width="1"/>
+<rect x="72.0" y="48.0" width="300.0" height="300.0" fill="#59bf66"/>
+<text x="222.0" y="42.0" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="middle">1.0</text>
+<text x="222.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="end" transform="rotate(-40 222.0 392)">level_01</text>
+<rect x="388.0" y="348.0" width="300.0" height="1.0" fill="#59bf66"/>
+<text x="538.0" y="342.0" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="middle">0.0</text>
+<text x="538.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="end" transform="rotate(-40 538.0 392)">level_02</text>
+</svg>

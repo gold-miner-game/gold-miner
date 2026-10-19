@@ -41,6 +41,7 @@ public class ChampionSelect : MonoBehaviour
         ChampionSpawner.Chosen = champion;
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(champion));
         ProgressStore.SelectedCharacter = champion.ToString();
+        PlayAnalytics.CharacterPicked(champion);
 
         GameFlow flow = FindFirstObjectByType<GameFlow>();
         if (flow != null && flow.CurrentNode != null && flow.CurrentNode.type == NodeType.RolePick)

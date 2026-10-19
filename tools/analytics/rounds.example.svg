@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420">
+<rect width="100%" height="100%" fill="#1c140f"/>
+<text x="56" y="32" fill="#f4efe6" font-family="sans-serif" font-size="18">Money margin (player − miner)</text>
+<line x1="56" y1="198.0" x2="696" y2="198.0" stroke="#f4efe6" stroke-width="1"/>
+<rect x="60.0" y="198.0" width="152.0" height="53.6" fill="#d9594d"/>
+<text x="136.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="11" text-anchor="end" transform="rotate(-40 136.0 392)">level_01</text>
+<rect x="220.0" y="133.7" width="152.0" height="64.3" fill="#59bf66"/>
+<text x="296.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="11" text-anchor="end" transform="rotate(-40 296.0 392)">level_02</text>
+<rect x="380.0" y="198.0" width="152.0" height="150.0" fill="#d9594d"/>
+<text x="456.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="11" text-anchor="end" transform="rotate(-40 456.0 392)">level_03</text>
+<rect x="540.0" y="48.0" width="152.0" height="150.0" fill="#59bf66"/>
+<text x="616.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="11" text-anchor="end" transform="rotate(-40 616.0 392)">level_02</text>
+</svg>

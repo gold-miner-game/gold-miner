@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420">
+<rect width="100%" height="100%" fill="#1c140f"/>
+<text x="64" y="32" fill="#f4efe6" font-family="sans-serif" font-size="18">Win rate by character</text>
+<line x1="64" y1="348" x2="696" y2="348" stroke="#f4efe6" stroke-width="1"/>
+<rect x="72.0" y="198.0" width="194.7" height="150.0" fill="#59bf66"/>
+<text x="169.3" y="192.0" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="middle">50.0%</text>
+<text x="169.3" y="392" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="end" transform="rotate(-40 169.3 392)">Mr. Hyde</text>
+<rect x="282.7" y="48.0" width="194.7" height="300.0" fill="#59bf66"/>
+<text x="380.0" y="42.0" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="middle">100.0%</text>
+<text x="380.0" y="392" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="end" transform="rotate(-40 380.0 392)">JK. Rolling</text>
+<rect x="493.3" y="348.0" width="194.7" height="1.0" fill="#59bf66"/>
+<text x="590.7" y="342.0" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="middle">0.0%</text>
+<text x="590.7" y="392" fill="#f4efe6" font-family="sans-serif" font-size="12" text-anchor="end" transform="rotate(-40 590.7 392)">Scrat</text>
+</svg>

@@ -29,6 +29,7 @@ public class GameManager : MonoBehaviour
         TimeLeft = roundTime;
         Lives = startingLives;
         IsPlaying = true;
+        PlayAnalytics.BeginLevel();
     }
 
     void Start()
@@ -71,6 +72,7 @@ public class GameManager : MonoBehaviour
         // A shield absorbs the hit for its full 5 seconds. The hook still stops.
         if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
 
+        PlayAnalytics.Death();
         if (Lives > 1)
         {
             Lives--;
@@ -90,6 +92,7 @@ public class GameManager : MonoBehaviour
         IsPlaying = false;
         EndReason = reason;
         PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
+        RoundMarginLog.Record(this);
     }
 
     // Win now, whatever the money: for levels with another goal (the block tutorial)
@@ -99,6 +102,7 @@ public class GameManager : MonoBehaviour
         IsPlaying = false;
         EndReason = reason;
         PlayerWon = true;
+        RoundMarginLog.Record(this);
     }
 
     public void Restart()

@@ -224,6 +224,7 @@ public class StoreView : MonoBehaviour
         skill.stock++;
         skill.unlocked = true;
         player.useSkill(id);
+        PlayAnalytics.Purchase(id);
         return true;
     }
 

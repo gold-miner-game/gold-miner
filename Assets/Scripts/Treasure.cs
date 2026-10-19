@@ -22,8 +22,19 @@ public class Treasure : MonoBehaviour
 
     // The player's character touches the treasure. While it is digesting it can't eat; Stay retries
     // every physics step, so it eats as soon as the digest ends if it is still touching
-    void OnTriggerEnter2D(Collider2D other) { TryEat(other.GetComponent<PlayerCharacter>()); }
-    void OnTriggerStay2D(Collider2D other)  { TryEat(other.GetComponent<PlayerCharacter>()); }
+    void OnTriggerEnter2D(Collider2D other) { Touch(other); }
+    void OnTriggerStay2D(Collider2D other)  { Touch(other); }
+    void OnTriggerExit2D(Collider2D other)
+    {
+        if (other.GetComponent<PlayerCharacter>() != null) PlayAnalytics.DigestRelease(this);
+    }
+
+    void Touch(Collider2D other)
+    {
+        PlayerCharacter player = other.GetComponent<PlayerCharacter>();
+        if (player != null && !IsTaken) PlayAnalytics.DigestContact(this, player);
+        TryEat(player);
+    }
 
     // Also called by the squirrel's tail. Returns true if the character ate it
     public bool TryEat(PlayerCharacter player)
@@ -36,6 +47,7 @@ public class Treasure : MonoBehaviour
         Active.Remove(this);
         player.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
+        PlayAnalytics.FirstGold(type);
         Destroy(gameObject);
         return true;
     }
@@ -60,6 +72,7 @@ public class Treasure : MonoBehaviour
         OnHooks.Remove(this);
         if (player != null) player.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
+        PlayAnalytics.FirstGold(type);
         Destroy(gameObject);
     }
 
