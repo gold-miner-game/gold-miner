@@ -146,7 +146,7 @@ public class CrossLevelStatus : MonoBehaviour
 
         Active = this;
         DontDestroyOnLoad(gameObject);
-        wallet = Mathf.Max(0, PlayerPrefs.GetInt(WalletKey, 0));
+        wallet = PlayerPrefs.GetInt(WalletKey, 0);
         onReady();
     }
 
@@ -170,11 +170,18 @@ public class CrossLevelStatus : MonoBehaviour
 
     public virtual int getWallet() { return wallet; }
 
+    // Negative is kept. A loss can cost more than the wallet holds.
     public virtual void setWallet(int value)
     {
-        wallet = Mathf.Max(0, value);
+        wallet = value;
         PlayerPrefs.SetInt(WalletKey, wallet);
         PlayerPrefs.Save();
+    }
+
+    public string WalletLabel()
+    {
+        int value = getWallet();
+        return value < 0 ? "-$" + (-value).ToString("N0") : "$" + value.ToString("N0");
     }
 
     public virtual void addWallet(int amount) { setWallet(wallet + amount); }
