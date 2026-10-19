@@ -200,7 +200,7 @@ public class StoreView : MonoBehaviour
             new ShopOffer
             {
                 id = "shield", title = "Shield", price = 350,
-                description = "No life lost for 60s.",
+                description = "No life lost for 5s.",
                 icon = "shield", color = new Color(0.45f, 0.78f, 0.95f)
             },
             new ShopOffer
@@ -213,7 +213,7 @@ public class StoreView : MonoBehaviour
     }
 
     // Pays for one and uses it. Between levels that arms the effect for the next
-    // level: swift doubles speed, ration skips digest, shield runs 60s, brace
+    // level: swift doubles speed, ration skips digest, shield runs 5s, brace
     // blocks the whole level. A second buy while it is already armed stays as spare stock.
     static bool Buy(string id, int price)
     {

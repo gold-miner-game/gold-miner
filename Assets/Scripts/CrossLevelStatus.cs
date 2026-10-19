@@ -35,7 +35,7 @@ using UnityEngine;
 public class CrossLevelStatus : MonoBehaviour
 {
     public const float SwiftBoost = 2f;
-    public const float ShieldDuration = 60f;
+    public const float ShieldDuration = 5f;
 
     public static CrossLevelStatus Active { get; private set; }
 
