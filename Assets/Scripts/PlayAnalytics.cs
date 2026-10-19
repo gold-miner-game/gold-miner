@@ -45,10 +45,6 @@ public class PlayAnalytics : MonoBehaviour
     string sessionId = "";
     float levelStart;
     bool sawGold;
-    bool show;
-    string json = "";
-    Vector2 scroll;
-    GUIStyle label;
 
     [Serializable]
     public class EventRow
@@ -262,8 +258,7 @@ public class PlayAnalytics : MonoBehaviour
 
     void Save()
     {
-        json = JsonUtility.ToJson(new Saved { events = events.ToArray() });
-        PlayerPrefs.SetString(PrefsKey, json);
+        PlayerPrefs.SetString(PrefsKey, JsonUtility.ToJson(new Saved { events = events.ToArray() }));
         PlayerPrefs.Save();
     }
 
@@ -321,23 +316,4 @@ public class PlayAnalytics : MonoBehaviour
         return UnityWebRequest.EscapeURL(entry) + "=" + UnityWebRequest.EscapeURL(value ?? "");
     }
 #endif
-
-    void OnGUI()
-    {
-        if (label == null)
-        {
-            label = new GUIStyle(GUI.skin.label) { fontSize = 14 };
-            label.normal.textColor = Color.white;
-        }
-        if (GUI.Button(new Rect(124f, 8f, 110f, 28f), show ? "Close" : "Events"))
-            show = !show;
-        if (!show) return;
-
-        GUI.Box(new Rect(8f, 42f, 560f, 220f), FormReady() ? "Events  (sending to the sheet)" : "Events  (sheet link not pasted yet)");
-        if (string.IsNullOrEmpty(json)) Save();
-        scroll = GUI.BeginScrollView(new Rect(24f, 74f, 528f, 140f), scroll, new Rect(0f, 0f, 500f, 400f));
-        GUI.TextArea(new Rect(0f, 0f, 500f, 400f), json);
-        GUI.EndScrollView();
-        GUI.Label(new Rect(24f, 222f, 528f, 28f), "Copy into tools/analytics/events.json, then run plot_metrics.py", label);
-    }
 }
