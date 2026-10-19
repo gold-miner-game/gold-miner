@@ -39,7 +39,8 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     // Hook asks this when it touches the character: a blocking one bounces the hook back.
     // Only Mr. Hyde can block
-    public virtual bool IsBlocking => false;
+    // A timed block (Mr. Hyde's Space) or the brace item, which blocks for the whole level
+    public virtual bool IsBlocking => Record != null && Record.isBracing();
 
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
     public virtual bool IsInvulnerable => false;

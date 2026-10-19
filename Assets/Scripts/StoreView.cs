@@ -14,21 +14,20 @@ public class StoreView : MonoBehaviour
 
     Canvas canvas;
     Text walletText;
+    Text itemsText;
     Text leaveLabel;
     RectTransform counter;
     RectTransform tip;
     Text tipText;
-    bool nextLevel;
     Action onLeave;
     readonly List<GameObject> items = new List<GameObject>();
 
-    public static void Show(bool asNextLevel, Action leave)
+    public static void Show(Action leave)
     {
         StoreView view = Ensure();
-        view.nextLevel = asNextLevel;
         view.onLeave = leave;
         view.canvas.gameObject.SetActive(true);
-        view.leaveLabel.text = asNextLevel ? "Next" : "Close";
+        view.leaveLabel.text = "Leave";
         view.HideTip();
         view.FillShelf();
         view.Refresh();
@@ -44,7 +43,6 @@ public class StoreView : MonoBehaviour
     {
         if (active != null) return active;
         var go = new GameObject("StoreView");
-        DontDestroyOnLoad(go);
         return go.AddComponent<StoreView>();
     }
 
@@ -57,7 +55,6 @@ public class StoreView : MonoBehaviour
         }
 
         active = this;
-        DontDestroyOnLoad(gameObject);
         if (FindFirstObjectByType<EventSystem>() == null)
         {
             var events = new GameObject("StoreEventSystem");
@@ -108,7 +105,16 @@ public class StoreView : MonoBehaviour
         bar.rectTransform.anchoredPosition = Vector2.zero;
 
         walletText = Label(bar.transform, "Wallet", font, 28, TextAnchor.MiddleLeft, new Color(0.15f, 0.08f, 0.03f));
-        Stretch(walletText.rectTransform, 28f, 8f, 360f, 8f);
+        walletText.rectTransform.anchorMin = new Vector2(0f, 0.42f);
+        walletText.rectTransform.anchorMax = new Vector2(1f, 1f);
+        walletText.rectTransform.offsetMin = new Vector2(28f, 0f);
+        walletText.rectTransform.offsetMax = new Vector2(-180f, -6f);
+
+        itemsText = Label(bar.transform, "Items", font, 18, TextAnchor.MiddleLeft, new Color(0.25f, 0.12f, 0.04f));
+        itemsText.rectTransform.anchorMin = new Vector2(0f, 0f);
+        itemsText.rectTransform.anchorMax = new Vector2(1f, 0.48f);
+        itemsText.rectTransform.offsetMin = new Vector2(28f, 6f);
+        itemsText.rectTransform.offsetMax = new Vector2(-180f, 0f);
 
         Button leave = MakeButton(bar.transform, "Leave", font, out leaveLabel);
         leaveLabel.fontSize = 22;
@@ -134,7 +140,7 @@ public class StoreView : MonoBehaviour
         lip.rectTransform.offsetMax = Vector2.zero;
 
         tip = Panel(canvasGo.transform, "Tip", new Color(0.97f, 0.95f, 0.88f)).rectTransform;
-        tip.sizeDelta = new Vector2(280f, 64f);
+        tip.sizeDelta = new Vector2(280f, 72f);
         tip.pivot = new Vector2(0.5f, 0f);
         tip.gameObject.SetActive(false);
         tipText = Label(tip, "TipText", font, 20, TextAnchor.MiddleCenter, new Color(0.12f, 0.08f, 0.05f));
@@ -151,8 +157,10 @@ public class StoreView : MonoBehaviour
         if (counter == null || CrossLevelStatus.Active == null) return;
 
         List<ShopOffer> offers = Offers();
-        const float col = 210f;
-        const float row = 200f;
+        const float col = 200f;
+        const float cardHeight = 156f;
+        const float rowGap = 28f;
+        const float aboveLip = 52f;
         for (int i = 0; i < offers.Count; i++)
         {
             ShopOffer offer = offers[i];
@@ -165,9 +173,8 @@ public class StoreView : MonoBehaviour
             int column = i % 2;
             int line = i / 2;
             float x = column == 0 ? -col : col;
-            float y = -36f - line * row;
-            GameObject item = AddItem(counter, x, y, title, price, description,
-                () => Stock(id),
+            float y = aboveLip + (1 - line) * (cardHeight + rowGap);
+            GameObject item = AddItem(counter, x, y, id, title, price, description,
                 () => Buy(id, price),
                 parent => DrawIcon(parent, icon, color));
             items.Add(item);
@@ -181,13 +188,13 @@ public class StoreView : MonoBehaviour
             new ShopOffer
             {
                 id = "swift", title = "Swift", price = 200,
-                description = "Double speed this level.",
+                description = "Double speed next level.",
                 icon = "bottle", color = new Color(0.45f, 0.72f, 0.86f)
             },
             new ShopOffer
             {
                 id = "ration", title = "Ration", price = 250,
-                description = "No digestion this level.",
+                description = "No digestion next level.",
                 icon = "ration", color = new Color(0.86f, 0.74f, 0.5f)
             },
             new ShopOffer
@@ -199,28 +206,24 @@ public class StoreView : MonoBehaviour
             new ShopOffer
             {
                 id = "brace", title = "Brace", price = 400,
-                description = "Blocking for this level.",
+                description = "Blocking next level.",
                 icon = "brace", color = new Color(0.25f, 0.45f, 0.85f)
             }
         };
     }
 
-    static int Stock(string id)
-    {
-        CrossLevelStatus player = CrossLevelStatus.Active;
-        if (player == null) return 0;
-        PlayerSkill skill = player.getSkill(id);
-        return skill == null ? 0 : skill.stock;
-    }
-
+    // Pays for one and uses it. Between levels that arms the effect for the next
+    // level: swift doubles speed, ration skips digest, shield runs 60s, brace
+    // blocks the whole level. A second buy while it is already armed stays as spare stock.
     static bool Buy(string id, int price)
     {
         CrossLevelStatus player = CrossLevelStatus.Active;
         if (player == null || player.getWallet() < price) return false;
-        player.setWallet(player.getWallet() - price);
+        player.addWallet(-price);
         PlayerSkill skill = player.addSkill(id);
         skill.stock++;
         skill.unlocked = true;
+        player.useSkill(id);
         return true;
     }
 
@@ -230,19 +233,19 @@ public class StoreView : MonoBehaviour
         else if (icon == "ration") Ration(parent);
         else if (icon == "shield") Shield(parent);
         else if (icon == "brace") Brace(parent);
-        else Block(parent, new Vector2(0f, 8f), new Vector2(70f, 70f), color);
+        else Piece(parent, 0f, 0f, 70f, 70f, color);
     }
 
-    GameObject AddItem(Transform shelf, float x, float y, string itemName, int price, string description,
-        Func<int> owned, Func<bool> buy, Action<RectTransform> icon)
+    GameObject AddItem(Transform shelf, float x, float y, string id, string itemName, int price, string description,
+        Func<bool> buy, Action<RectTransform> icon)
     {
         Font font = walletText.font;
         var root = new GameObject(itemName);
         root.transform.SetParent(shelf, false);
         RectTransform rect = root.AddComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0f);
         rect.pivot = new Vector2(0.5f, 0f);
-        rect.sizeDelta = new Vector2(180f, 168f);
+        rect.sizeDelta = new Vector2(170f, 156f);
         rect.anchoredPosition = new Vector2(x, y);
 
         Image hit = root.AddComponent<Image>();
@@ -253,7 +256,7 @@ public class StoreView : MonoBehaviour
         button.onClick.AddListener(() =>
         {
             if (CrossLevelStatus.Active == null) return;
-            if (!buy()) ShowTip(rect, itemName, "Not enough.");
+            if (!buy()) ShowTip(rect, itemName, "Not enough money!");
             Refresh();
         });
 
@@ -263,9 +266,10 @@ public class StoreView : MonoBehaviour
         var iconRoot = new GameObject("Icon");
         iconRoot.transform.SetParent(root.transform, false);
         RectTransform iconRect = iconRoot.AddComponent<RectTransform>();
-        iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0.62f);
-        iconRect.sizeDelta = new Vector2(90f, 110f);
-        iconRect.anchoredPosition = Vector2.zero;
+        iconRect.anchorMin = iconRect.anchorMax = new Vector2(0.5f, 0f);
+        iconRect.pivot = new Vector2(0.5f, 0f);
+        iconRect.sizeDelta = new Vector2(90f, 84f);
+        iconRect.anchoredPosition = new Vector2(0f, 64f);
         icon(iconRect);
 
         Text priceText = Label(root.transform, "Price", font, 26, TextAnchor.MiddleCenter, new Color(0.12f, 0.06f, 0.02f));
@@ -279,56 +283,47 @@ public class StoreView : MonoBehaviour
         ownedText.rectTransform.anchorMin = ownedText.rectTransform.anchorMax = new Vector2(0.5f, 0f);
         ownedText.rectTransform.sizeDelta = new Vector2(170f, 28f);
         ownedText.rectTransform.anchoredPosition = new Vector2(0f, 44f);
-        ownedText.gameObject.AddComponent<OwnedLabel>().Bind(owned);
+        ownedText.gameObject.AddComponent<OwnedLabel>().Bind(id);
         return root;
     }
 
     void Brace(RectTransform parent)
     {
-        Block(parent, new Vector2(0f, -8f), new Vector2(78f, 18f), new Color(0.25f, 0.45f, 0.85f));
-        Block(parent, new Vector2(0f, 16f), new Vector2(78f, 18f), new Color(0.25f, 0.45f, 0.85f));
-        Block(parent, new Vector2(0f, 40f), new Vector2(78f, 18f), new Color(0.55f, 0.75f, 1f));
+        Piece(parent, 0f, 0f, 74f, 14f, new Color(0.25f, 0.45f, 0.85f));
+        Piece(parent, 0f, 20f, 74f, 14f, new Color(0.25f, 0.45f, 0.85f));
+        Piece(parent, 0f, 40f, 74f, 14f, new Color(0.55f, 0.75f, 1f));
     }
 
     void Bottle(RectTransform parent)
     {
-        Block(parent, new Vector2(0f, -8f), new Vector2(40f, 72f), new Color(0.45f, 0.72f, 0.86f));
-        Block(parent, new Vector2(0f, 42f), new Vector2(18f, 22f), new Color(0.45f, 0.72f, 0.86f));
-        Block(parent, new Vector2(0f, 58f), new Vector2(22f, 10f), new Color(0.55f, 0.36f, 0.18f));
+        Piece(parent, 0f, 0f, 36f, 56f, new Color(0.45f, 0.72f, 0.86f));
+        Piece(parent, 0f, 56f, 16f, 16f, new Color(0.45f, 0.72f, 0.86f));
+        Piece(parent, 0f, 72f, 20f, 8f, new Color(0.55f, 0.36f, 0.18f));
     }
 
     void Ration(RectTransform parent)
     {
-        Block(parent, new Vector2(0f, -6f), new Vector2(70f, 58f), new Color(0.86f, 0.74f, 0.5f));
-        Block(parent, new Vector2(0f, 8f), new Vector2(54f, 14f), new Color(0.35f, 0.62f, 0.32f));
+        Piece(parent, 0f, 0f, 68f, 50f, new Color(0.86f, 0.74f, 0.5f));
+        Piece(parent, 0f, 22f, 52f, 12f, new Color(0.35f, 0.62f, 0.32f));
     }
 
     void Shield(RectTransform parent)
     {
-        var disc = new GameObject("Disc");
-        disc.transform.SetParent(parent, false);
-        RectTransform rect = disc.AddComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.45f);
-        rect.sizeDelta = new Vector2(78f, 78f);
-        Image image = disc.AddComponent<Image>();
-        image.sprite = circle;
-        image.color = new Color(0.45f, 0.78f, 0.95f);
-        var inner = new GameObject("Inner");
-        inner.transform.SetParent(disc.transform, false);
-        RectTransform innerRect = inner.AddComponent<RectTransform>();
-        innerRect.anchorMin = innerRect.anchorMax = new Vector2(0.5f, 0.5f);
-        innerRect.sizeDelta = new Vector2(36f, 36f);
-        Image innerImage = inner.AddComponent<Image>();
-        innerImage.sprite = circle;
-        innerImage.color = new Color(0.85f, 0.95f, 1f);
+        Image disc = Piece(parent, 0f, 0f, 74f, 74f, new Color(0.45f, 0.78f, 0.95f));
+        disc.sprite = circle;
+        Image inner = Piece(disc.rectTransform, 0f, 19f, 36f, 36f, new Color(0.85f, 0.95f, 1f));
+        inner.sprite = circle;
     }
 
-    void Block(RectTransform parent, Vector2 pos, Vector2 size, Color color)
+    // Bottom of the graphic sits on `bottom`, so a row of products shares one line.
+    Image Piece(RectTransform parent, float x, float bottom, float width, float height, Color color)
     {
         Image image = Panel(parent, "Part", color);
-        image.rectTransform.anchorMin = image.rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-        image.rectTransform.sizeDelta = size;
-        image.rectTransform.anchoredPosition = pos;
+        image.rectTransform.anchorMin = image.rectTransform.anchorMax = new Vector2(0.5f, 0f);
+        image.rectTransform.pivot = new Vector2(0.5f, 0f);
+        image.rectTransform.sizeDelta = new Vector2(width, height);
+        image.rectTransform.anchoredPosition = new Vector2(x, bottom);
+        return image;
     }
 
     void Refresh()
@@ -336,18 +331,59 @@ public class StoreView : MonoBehaviour
         CrossLevelStatus status = CrossLevelStatus.Active;
         if (status == null || walletText == null) return;
         walletText.text = "$" + status.getWallet().ToString("N0");
+        if (itemsText != null) itemsText.text = OwnedLine(status);
         foreach (OwnedLabel label in canvas.GetComponentsInChildren<OwnedLabel>(true))
             label.Refresh();
+    }
+
+    // Bought items still count after the effect is armed, because that spends the stock.
+    static int Held(PlayerSkill skill)
+    {
+        if (skill == null || !IsStoreItem(skill.id)) return 0;
+        int count = skill.stock;
+        if (skill.armed || skill.active || skill.secondsLeft > 0f) count++;
+        return count;
+    }
+
+    static bool IsStoreItem(string id)
+    {
+        return id == "swift" || id == "ration" || id == "shield" || id == "brace";
+    }
+
+    static string OwnedLine(CrossLevelStatus status)
+    {
+        var parts = new List<string>();
+        foreach (PlayerSkill skill in status.getSkills())
+        {
+            int count = Held(skill);
+            if (count <= 0) continue;
+            parts.Add(char.ToUpperInvariant(skill.id[0]) + skill.id.Substring(1) + " x" + count);
+        }
+        return string.Join("   ", parts);
     }
 
     void ShowTip(RectTransform item, string title, string body)
     {
         tip.gameObject.SetActive(true);
-        tipText.text = title + "  " + body;
-        Vector3 pos = item.position + new Vector3(0f, 150f, 0f);
-        pos.x = Mathf.Clamp(pos.x, 200f, Screen.width - 200f);
-        pos.y = Mathf.Clamp(pos.y, 80f, Screen.height - 140f);
-        tip.position = pos;
+        tipText.supportRichText = true;
+        tipText.text = "<b>" + title + "</b>\n" + body;
+
+        Vector3[] corners = new Vector3[4];
+        item.GetWorldCorners(corners);
+        float bottom = corners[0].y;
+        float top = corners[1].y;
+        float centerX = (corners[0].x + corners[2].x) * 0.5f;
+        float tipHeight = tip.rect.height * tip.lossyScale.y;
+        float tipWidth = tip.rect.width * tip.lossyScale.x;
+        const float gap = 12f;
+
+        Vector3[] shelf = new Vector3[4];
+        counter.GetWorldCorners(shelf);
+        bool placeAbove = (bottom + top) * 0.5f >= (shelf[0].y + shelf[1].y) * 0.5f;
+        float y = placeAbove ? top + gap : bottom - gap - tipHeight;
+        centerX = Mathf.Clamp(centerX, tipWidth * 0.5f + 12f, Screen.width - tipWidth * 0.5f - 12f);
+        y = Mathf.Clamp(y, 12f, Screen.height - tipHeight - 12f);
+        tip.position = new Vector3(centerX, y, tip.position.z);
     }
 
     void HideTip()
@@ -422,19 +458,19 @@ public class StoreView : MonoBehaviour
     class OwnedLabel : MonoBehaviour
     {
         Text text;
-        Func<int> owned;
+        string id;
 
-        public void Bind(Func<int> count)
+        public void Bind(string skillId)
         {
             text = GetComponent<Text>();
-            owned = count;
+            id = skillId;
             Refresh();
         }
 
         public void Refresh()
         {
-            if (text == null || owned == null || CrossLevelStatus.Active == null) return;
-            int count = owned();
+            if (text == null || CrossLevelStatus.Active == null) return;
+            int count = Held(CrossLevelStatus.Active.getSkill(id));
             text.text = count > 0 ? "x" + count : "";
         }
     }
