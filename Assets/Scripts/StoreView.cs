@@ -331,7 +331,7 @@ public class StoreView : MonoBehaviour
     {
         CrossLevelStatus status = CrossLevelStatus.Active;
         if (status == null || walletText == null) return;
-        walletText.text = "$" + status.getWallet().ToString("N0");
+        walletText.text = status.WalletLabel();
         if (itemsText != null) itemsText.text = OwnedLine(status);
         foreach (OwnedLabel label in canvas.GetComponentsInChildren<OwnedLabel>(true))
             label.Refresh();

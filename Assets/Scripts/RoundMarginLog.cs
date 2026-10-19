@@ -71,12 +71,14 @@ public class RoundMarginLog : MonoBehaviour
     void Add(GameManager gm)
     {
         LevelLoader loader = FindFirstObjectByType<LevelLoader>();
+        string level = loader != null ? loader.LevelName() : "level";
+        bool countMoney = LevelLoader.CountsMoney(level);
         var row = new RoundMargin
         {
-            level = loader != null ? loader.LevelName() : "level",
-            playerMoney = gm.PlayerMoney,
-            minerMoney = gm.MinerMoney,
-            margin = gm.PlayerMoney - gm.MinerMoney,
+            level = level,
+            playerMoney = countMoney ? gm.PlayerMoney : 0,
+            minerMoney = countMoney ? gm.MinerMoney : 0,
+            margin = countMoney ? gm.PlayerMoney - gm.MinerMoney : 0,
             playerWon = gm.PlayerWon,
             endReason = gm.EndReason,
             tutorial = LevelLoader.Tutorial,

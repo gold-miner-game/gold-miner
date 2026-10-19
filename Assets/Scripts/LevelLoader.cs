@@ -97,6 +97,18 @@ public class LevelLoader : MonoBehaviour
     // champion is picked on the select screen
     public static bool Tutorial { get; private set; }
 
+    // Wallet and recorded round money start at Level 1. The three tutorials
+    // (eat, dodge, block) and the character pick do not pay or charge.
+    public static bool CountsMoney(string levelName)
+    {
+        if (string.IsNullOrEmpty(levelName) || !levelName.StartsWith("level_")) return false;
+        string tail = levelName.Substring("level_".Length);
+        if (tail.Length == 0) return false;
+        for (int i = 0; i < tail.Length; i++)
+            if (tail[i] < '0' || tail[i] > '9') return false;
+        return int.Parse(tail) >= 1;
+    }
+
     // Set by GameFlow before loading the Game scene: build exactly this level instead of walking the
     // index list. Left null in the editor so N / P dev testing keeps working. With a single-level
     // list, the tutorial check below reads this one level's guide/stages, so it is correct per level.
@@ -492,17 +504,22 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    // A win pays the margin over the miner. A loss costs 100, and the wallet cannot go below 0.
+    // Level 1 onward: a win pays how much you beat the miner by. A loss subtracts that same gap.
+    // The wallet may go negative. Tutorials and character pick do not move it.
     void SettleWallet(GameManager gm)
     {
+        string name = LevelName();
+        if (!CountsMoney(name)) return;
+
         CrossLevelStatus record = CrossLevelStatus.Ensure();
+        int delta = gm.PlayerMoney - gm.MinerMoney;
         if (gm.PlayerWon)
         {
-            record.bank(LevelName(), gm.PlayerMoney - gm.MinerMoney);
+            record.bank(name, delta);
             if (!Tutorial && LevelWon != null) LevelWon();
             return;
         }
-        record.addWallet(-100);
+        record.addWallet(-Mathf.Abs(delta));
     }
 
     public string LevelName()

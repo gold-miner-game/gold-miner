@@ -458,7 +458,7 @@ public class HUDController : MonoBehaviour
     {
         if (walletSection == null) return;
         walletSection.SetActive(record != null);
-        if (record != null && walletText != null) walletText.text = "$" + record.getWallet().ToString("N0");
+        if (record != null && walletText != null) walletText.text = record.WalletLabel();
     }
 
     // "Active" while the skill runs, then the seconds until Space works again with the bar filling
