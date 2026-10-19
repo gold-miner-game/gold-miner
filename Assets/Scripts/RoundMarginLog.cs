@@ -90,6 +90,7 @@ public class RoundMarginLog : MonoBehaviour
         rounds.Add(row);
         if (rounds.Count > MaxRounds) rounds.RemoveAt(0);
         Save();
+        PlayAnalytics.RoundEnd(row.level, row.playerMoney, row.minerMoney, row.margin, row.playerWon, row.endReason, row.tutorial);
     }
 
     void Load()

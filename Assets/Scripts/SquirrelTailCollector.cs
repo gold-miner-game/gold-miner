@@ -177,7 +177,11 @@ public class SquirrelTailCollector : MonoBehaviour
 
         // The same as the body touching them, with the same digest
         Treasure treasure = other.GetComponent<Treasure>();
-        if (treasure != null) treasure.TryEat(player);
+        if (treasure != null)
+        {
+            PlayAnalytics.DigestContact(treasure, player);
+            treasure.TryEat(player);
+        }
 
         LifePickup life = other.GetComponent<LifePickup>();
         if (life != null) life.TryPickUp(player);

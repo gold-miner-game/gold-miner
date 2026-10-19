@@ -67,6 +67,7 @@ public class RolePickController : MonoBehaviour
         ChampionSpawner.Chosen = index;
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(index));
         ProgressStore.SelectedCharacter = index.ToString();
+        PlayAnalytics.CharacterPicked(index);
         GameFlow.Instance.CompleteCurrentNode();
     }
 
