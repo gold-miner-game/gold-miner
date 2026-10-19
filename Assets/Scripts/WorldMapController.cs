@@ -110,7 +110,7 @@ public class WorldMapController : MonoBehaviour
         for (int i = 0; i < map.nodes.Count; i++)
         {
             MapNode child = map.nodes[i];
-            if (child == null || child.prerequisites == null) continue;
+            if (child == null || child.type == NodeType.Store || child.prerequisites == null) continue;
             bool childOpen = map.IsUnlocked(i) || ProgressStore.IsCompleted(child.id);
 
             for (int p = 0; p < child.prerequisites.Length; p++)
@@ -152,7 +152,7 @@ public class WorldMapController : MonoBehaviour
         var spreads = new List<float>();
         foreach (MapNode n in map.nodes)
         {
-            if (n == null) continue;
+            if (n == null || n.type == NodeType.Store) continue;   // the shop sits in the corner
             depths.Add(n.mapPosition.y);
             spreads.Add(n.mapPosition.x);
         }
@@ -190,6 +190,8 @@ public class WorldMapController : MonoBehaviour
 
     Rect NodeRect(MapNode node)
     {
+        if (node.type == NodeType.Store)
+            return new Rect(22f, 58f, nodeSize.x, nodeSize.y);
         Vector2 c = Center(node);
         return new Rect(c.x - nodeSize.x * 0.5f, c.y - nodeSize.y * 0.5f, nodeSize.x, nodeSize.y);
     }
