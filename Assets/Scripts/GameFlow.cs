@@ -11,7 +11,7 @@ public class GameFlow : MonoBehaviour
     public const string BootScene = "Boot";
     public const string MapScene = "Map";
     public const string GameScene = "Game";
-    public const string RolePickScene = "RolePick";
+    public const string RolePickScene = "Select";
     public const string StoreScene = "Store";
     public const string SurvivalScene = "Survival";
 
@@ -91,7 +91,7 @@ public class GameFlow : MonoBehaviour
 
             case NodeType.RolePick:
                 flow = Flow.RolePick;
-                SceneManager.LoadScene(RolePickScene);
+                SceneManager.LoadScene(RolePickScene);   // the Select scene ("WHO ARE U")
                 break;
 
             case NodeType.Store:
