@@ -11,7 +11,7 @@ public class HUDController : MonoBehaviour
     public TMP_Text playerMoneyText;
     public TMP_Text minerMoneyText;
     public TMP_Text timerText;
-    public Button mapButton;        // sits just left of the timer; HUDBuilder wires it, or Start makes one
+    public Button mapButton;        // the Pause button, just left of the timer; HUDBuilder wires it, or Start makes one
     public TMP_Text livesText;      // optional
 
     [Header("Top bar and sidebar (HUDBuilder wires these; all optional)")]
@@ -32,6 +32,12 @@ public class HUDController : MonoBehaviour
     public Color activeColor = new Color(0.45f, 0.65f, 1f);    // blue, like the block tint
     public Color waitColor = Color.white;
     public Color noneColor = new Color(0.68f, 0.74f, 0.85f);   // the section titles' gray
+
+    [Header("Pause popup")]
+    public Color popupCard = new Color(0.99f, 0.99f, 0.99f);
+    public Color popupTitle = new Color(0.07f, 0.07f, 0.07f);
+    public Color popupMessage = new Color(0.4f, 0.4f, 0.4f);
+    public Color popupButton = new Color(0.953f, 0.953f, 0.953f);
 
     public GameObject endPanel;
     public TMP_Text resultText;
@@ -66,6 +72,7 @@ public class HUDController : MonoBehaviour
     private PlayerCharacter player;
     private readonly List<TMP_Text> itemRows = new List<TMP_Text>();
     private GameFlow flow;
+    private GameObject pausePopup;
     private string endDetail;   // the result lines, set once when the round ends   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
@@ -194,7 +201,10 @@ public class HUDController : MonoBehaviour
         }
 
         if (mapButton == null) mapButton = CreateMapButton(timerText);
-        mapButton.onClick.AddListener(OnMapClicked);
+        // A HUD saved before the pause popup still says "Exit"
+        TMP_Text buttonLabel = mapButton.GetComponentInChildren<TMP_Text>(true);
+        if (buttonLabel != null) buttonLabel.text = "Pause";
+        mapButton.onClick.AddListener(OpenPause);
         PlaceMapButton();
     }
 
@@ -230,7 +240,7 @@ public class HUDController : MonoBehaviour
         labelRect.offsetMax = Vector2.zero;
         TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
         label.font = timer.font;
-        label.text = "Exit";
+        label.text = "Pause";
         label.fontSize = 22f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
@@ -254,13 +264,138 @@ public class HUDController : MonoBehaviour
         rect.anchoredPosition = new Vector2(timerRect.anchoredPosition.x - digits * scale - 14f, timerRect.anchoredPosition.y);
     }
 
-    void OnMapClicked()
+    public bool IsPaused => pausePopup != null && pausePopup.activeSelf;
+
+    // Pause freezes the round (time scale 0: the clock, hooks and the character all stop) and asks
+    // "Quit Game?". Cancel picks up where it left off; Quit goes back to the map
+    void OpenPause()
     {
+        if (IsPaused) return;
+        if (pausePopup == null) BuildPausePopup();
+        pausePopup.transform.SetAsLastSibling();
+        pausePopup.SetActive(true);
+        Time.timeScale = 0f;
+    }
+
+    void ResumeFromPause()
+    {
+        pausePopup.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    // Leaving mid-round does not clear the node; leaving after a win does, so the clear is not lost
+    // to the auto-return timer
+    void QuitToMap()
+    {
+        ResumeFromPause();
         if (flow == null || flow.CurrentNode == null) return;
 
         GameManager gm = GameManager.Instance;
         if (gm != null && !gm.IsPlaying && gm.PlayerWon) flow.CompleteCurrentNode();
         else flow.ReturnToMap();
+    }
+
+    // R (restart) and N / P reload the scene even while paused; don't carry the frozen time over
+    void OnDestroy()
+    {
+        if (IsPaused) Time.timeScale = 1f;
+    }
+
+    // A dimmed screen (it also blocks clicks behind it) with a centered card. Built here rather than
+    // by HUDBuilder, so the Game scene's saved HUD needs no rebuild
+    void BuildPausePopup()
+    {
+        pausePopup = new GameObject("PausePopup", typeof(RectTransform), typeof(Image));
+        RectTransform dim = (RectTransform)pausePopup.transform;
+        dim.SetParent(timerText.canvas.transform, false);
+        dim.anchorMin = Vector2.zero;
+        dim.anchorMax = Vector2.one;
+        dim.offsetMin = Vector2.zero;
+        dim.offsetMax = Vector2.zero;
+        pausePopup.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+
+        RectTransform card = PopupBox(dim, "Card", popupCard, new Vector2(760f, 300f), Vector2.zero);
+        PopupText(card, "Title", "Quit Game?", 36f, FontStyles.Bold, popupTitle, new Vector2(0f, 95f));
+        PopupText(card, "Message", "Are you sure you want to quit?", 26f, FontStyles.Normal, popupMessage, new Vector2(0f, 35f));
+        PopupButton(card, "Cancel", new Vector2(-182f, -81f), ResumeFromPause);
+        PopupButton(card, "Quit", new Vector2(182f, -81f), QuitToMap);
+        pausePopup.SetActive(false);
+    }
+
+    RectTransform PopupBox(Transform parent, string name, Color color, Vector2 size, Vector2 position)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+        RectTransform rect = (RectTransform)go.transform;
+        rect.SetParent(parent, false);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+
+        Image image = go.GetComponent<Image>();
+        image.sprite = RoundedSprite();
+        image.type = Image.Type.Sliced;
+        image.color = color;
+        return rect;
+    }
+
+    void PopupText(RectTransform parent, string name, string text, float size, FontStyles style, Color color, Vector2 position)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
+        RectTransform rect = (RectTransform)go.transform;
+        rect.SetParent(parent, false);
+        rect.sizeDelta = new Vector2(parent.sizeDelta.x - 48f, size * 1.6f);
+        rect.anchoredPosition = position;
+
+        TextMeshProUGUI label = go.GetComponent<TextMeshProUGUI>();
+        label.font = timerText.font;
+        label.text = text;
+        label.fontSize = size;
+        label.fontStyle = style;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = color;
+        label.raycastTarget = false;
+    }
+
+    // A light gray button with a bold label that darkens a little on hover and press
+    void PopupButton(RectTransform card, string text, Vector2 position, UnityEngine.Events.UnityAction onClick)
+    {
+        RectTransform rect = PopupBox(card, text + "Button", popupButton, new Vector2(348f, 90f), position);
+        Button button = rect.gameObject.AddComponent<Button>();
+        button.targetGraphic = rect.GetComponent<Image>();
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.95f, 0.95f, 0.95f);
+        colors.pressedColor = new Color(0.88f, 0.88f, 0.88f);
+        colors.selectedColor = Color.white;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+        button.onClick.AddListener(onClick);
+        PopupText(rect, "Label", text, 30f, FontStyles.Bold, popupTitle, Vector2.zero);
+    }
+
+    static Sprite roundedSprite;
+
+    // A white rounded square, sliced so a box of any size keeps 16 px corners
+    static Sprite RoundedSprite()
+    {
+        if (roundedSprite != null) return roundedSprite;
+        const int size = 64;
+        const float radius = 16f;
+        var tex = new Texture2D(size, size, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                // Distance outside the corner circle, 0 along the straight edges and inside
+                float dx = Mathf.Max(0f, Mathf.Max(radius - (x + 0.5f), x + 0.5f - (size - radius)));
+                float dy = Mathf.Max(0f, Mathf.Max(radius - (y + 0.5f), y + 0.5f - (size - radius)));
+                float alpha = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        tex.Apply();
+        roundedSprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f, 0,
+            SpriteMeshType.FullRect, new Vector4(radius, radius, radius, radius));
+        return roundedSprite;
     }
 
     static Sprite flatSprite;
