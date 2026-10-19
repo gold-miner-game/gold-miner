@@ -196,6 +196,13 @@ public class CrossLevelStatus : MonoBehaviour
         return shield != null && shield.secondsLeft > 0f;
     }
 
+    // True for the rest of the level after the brace item is used.
+    public virtual bool isBracing()
+    {
+        PlayerSkill brace = getSkill("brace");
+        return brace != null && brace.active;
+    }
+
     public virtual IReadOnlyList<PlayerSkill> getSkills() { return skills; }
 
     // The skill with this id, or null if addSkill was never called for it.
@@ -230,6 +237,7 @@ public class CrossLevelStatus : MonoBehaviour
         addSkill("swift");
         addSkill("ration");
         addSkill("shield").power = ShieldDuration;
+        addSkill("brace");
     }
 
     // Called every frame after skill timers. deltaTime is 0 while the game is paused.
@@ -241,13 +249,15 @@ public class CrossLevelStatus : MonoBehaviour
         endSwiftBoost();
         PlayerSkill swift = getSkill("swift");
         if (swift != null) swift.active = false;
+        PlayerSkill brace = getSkill("brace");
+        if (brace != null) brace.active = false;
 
         for (int i = 0; i < skills.Count; i++)
         {
             PlayerSkill skill = skills[i];
             if (!skill.armed) continue;
             skill.armed = false;
-            if (skill.id == "ration" || skill.id == "swift")
+            if (skill.id == "ration" || skill.id == "swift" || skill.id == "brace")
             {
                 skill.active = true;
                 if (skill.id == "swift") beginSwiftBoost();
@@ -280,7 +290,7 @@ public class CrossLevelStatus : MonoBehaviour
         PlayerSkill skill = getSkill(id);
         if (skill == null || skill.stock <= 0) return false;
 
-        if (id == "ration" || id == "swift")
+        if (id == "ration" || id == "swift" || id == "brace")
         {
             if (roundIsOver())
             {

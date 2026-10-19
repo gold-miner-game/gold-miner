@@ -28,7 +28,8 @@ public class PigController : MonoBehaviour
     public float DigestLength { get; private set; }
 
     // Hook asks this when it touches the pig: a blocking pig bounces the hook back
-    public bool IsBlocking => Time.time < blockUntil;
+    public bool IsBlocking => Time.time < blockUntil
+        || (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isBracing());
 
     // Time left in the current block, and until the next one
     public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
