@@ -18,8 +18,9 @@ public static class FlowSceneBuilder
     const string LevelDir = "Assets/Resources/Levels/";
 
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
-    // The map is a tree. The trunk is the tutorial + role pick; the Store hangs off role pick as its
-    // own side spur (reachable as soon as you have a character, not gated behind a battle). Level 1
+    // The map is a tree. The trunk is the tutorial + role pick. The Store is not on that path: the
+    // map draws it in the top-left corner (its x/y here are unused) and unlocks it from role pick,
+    // so it is reachable as soon as you have a character, not gated behind a battle. Level 1
     // then splits into a left and a right path that merge back at Level 8, with Survive Mode after it
     // (SurvivalLoader). Add a level = add a row
     // here (and drop a level JSON); point its prereqs at whatever should unlock it.

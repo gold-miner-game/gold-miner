@@ -39,7 +39,8 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     // Hook asks this when it touches the character: a blocking one bounces the hook back.
     // Only Mr. Hyde can block
-    public virtual bool IsBlocking => false;
+    // A timed block (Mr. Hyde's Space) or the brace item, which blocks for the whole level
+    public virtual bool IsBlocking => Record != null && Record.isBracing();
 
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
     public virtual bool IsInvulnerable => false;
@@ -63,7 +64,8 @@ public abstract class PlayerCharacter : MonoBehaviour
     public Vector2 MoveInput { get; private set; }
 
     // No GameManager in the scene = always playing (handy in Dev scenes)
-    public static bool IsPlaying => GameManager.Instance == null || GameManager.Instance.IsPlaying;
+    // Not while the HUD's pause popup has time stopped, so Space can't queue a skill behind it
+    public static bool IsPlaying => (GameManager.Instance == null || GameManager.Instance.IsPlaying) && Time.timeScale > 0f;
 
     // The cross-level record, or null in the tutorial (which never touches it) or a Dev scene without one
     public static CrossLevelStatus Record => LevelLoader.Tutorial ? null : CrossLevelStatus.Active;

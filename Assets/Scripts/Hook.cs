@@ -225,6 +225,7 @@ public class Hook : MonoBehaviour
                     PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
                     if (player != null && player.IsBlocking)
                     {
+                        if (carried != null) PlayAnalytics.Steal();
                         DropCarried();
                         player.OnTreasureKnocked();
                     }

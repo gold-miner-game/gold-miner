@@ -1,0 +1,8 @@
+{
+  "rounds": [
+    {"level": "level_01", "playerMoney": 400, "minerMoney": 650, "margin": -250, "playerWon": false, "endReason": "All treasure collected!", "tutorial": false},
+    {"level": "level_02", "playerMoney": 800, "minerMoney": 500, "margin": 300, "playerWon": true, "endReason": "All treasure collected!", "tutorial": false},
+    {"level": "level_03", "playerMoney": 200, "minerMoney": 900, "margin": -700, "playerWon": false, "endReason": "Time's up!", "tutorial": false},
+    {"level": "level_02", "playerMoney": 1100, "minerMoney": 400, "margin": 700, "playerWon": true, "endReason": "All treasure collected!", "tutorial": false}
+  ]
+}

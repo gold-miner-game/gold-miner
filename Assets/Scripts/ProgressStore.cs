@@ -49,5 +49,6 @@ public static class ProgressStore
         PlayerPrefs.DeleteKey(CompletedKey);
         PlayerPrefs.DeleteKey(CharacterKey);
         PlayerPrefs.Save();
+        CrossLevelStatus.ClearSavedWallet();
     }
 }

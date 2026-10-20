@@ -46,7 +46,7 @@ public class LevelLoader : MonoBehaviour
     public int randomSeed = 0;
     [Tooltip("Lives the pig starts every level with (0 = the level file's starting_lives)")]
     public int livesPerLevel = 3;
-    [Tooltip("Level label, guide and retry text. The bottom dev line ([N]/[P]/[R]) shows in the editor only: in a build it covered the arena")]
+    [Tooltip("Guide and retry text. The level's dev label is logged to the Console, not drawn")]
     public bool showLevelLabel = true;
 
     [Header("Tutorial")]
@@ -96,6 +96,18 @@ public class LevelLoader : MonoBehaviour
     // cross-level record (speed, digest, shield, wallet) is left untouched; the record starts when a
     // champion is picked on the select screen
     public static bool Tutorial { get; private set; }
+
+    // Wallet and recorded round money start at Level 1. The three tutorials
+    // (eat, dodge, block) and the character pick do not pay or charge.
+    public static bool CountsMoney(string levelName)
+    {
+        if (string.IsNullOrEmpty(levelName) || !levelName.StartsWith("level_")) return false;
+        string tail = levelName.Substring("level_".Length);
+        if (tail.Length == 0) return false;
+        for (int i = 0; i < tail.Length; i++)
+            if (tail[i] < '0' || tail[i] > '9') return false;
+        return int.Parse(tail) >= 1;
+    }
 
     // Set by GameFlow before loading the Game scene: build exactly this level instead of walking the
     // index list. Left null in the editor so N / P dev testing keeps working. With a single-level
@@ -465,28 +477,56 @@ public class LevelLoader : MonoBehaviour
     public static bool WaitToAdvance { get; set; }
     public static bool AdvanceNow { get; set; }
 
+    bool moneySettled;
+
     // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
     // the next level. A loss stays put so R can retry. The last level doesn't wrap around.
     void UpdateAdvance()
     {
         GameManager gm = GameManager.Instance;
-        if (gm == null || gm.IsPlaying || !gm.PlayerWon) return;
+        if (gm == null || gm.IsPlaying) return;
+
+        if (!moneySettled)
+        {
+            moneySettled = true;
+            SettleWallet(gm);
+        }
+
+        if (!gm.PlayerWon) return;
 
         if (advanceAt < 0f)
-        {
             advanceAt = Time.time + advanceDelay;
-            if (!Tutorial)
-            {
-                CrossLevelStatus.Ensure().bank(CurrentLevel, gm.PlayerMoney);
-                if (LevelWon != null) LevelWon();
-            }
-        }
         if (!autoAdvance || IsLastLevel || WaitToAdvance) return;
         if (AdvanceNow || Time.time >= advanceAt)
         {
             AdvanceNow = false;
             Load(current + 1);
         }
+    }
+
+    // Level 1 onward: a win pays how much you beat the miner by. A loss subtracts that same gap.
+    // The wallet may go negative. Tutorials and character pick do not move it.
+    void SettleWallet(GameManager gm)
+    {
+        string name = LevelName();
+        if (!CountsMoney(name)) return;
+
+        CrossLevelStatus record = CrossLevelStatus.Ensure();
+        int delta = gm.PlayerMoney - gm.MinerMoney;
+        if (gm.PlayerWon)
+        {
+            record.bank(name, delta);
+            if (!Tutorial && LevelWon != null) LevelWon();
+            return;
+        }
+        record.addWallet(-Mathf.Abs(delta));
+    }
+
+    public string LevelName()
+    {
+        return list != null && current >= 0 && current < list.Length && list[current] != null
+            ? list[current].name
+            : CurrentLevel.ToString();
     }
 
     bool IsLastLevel => current >= list.Length - 1;
@@ -531,9 +571,8 @@ public class LevelLoader : MonoBehaviour
 
     void OnGUI()
     {
+        // The level label is only logged when the level builds; N / P / R still work in the editor
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;
-        if (Application.isEditor)
-            GUI.Label(new Rect(10, Screen.height - 30, 700, 24), label + "   [N] next  [P] previous  [R] restart");
 
         GameManager gm = GameManager.Instance;
         if (gm != null && gm.IsPlaying) DrawGuide();

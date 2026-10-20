@@ -35,7 +35,7 @@ using UnityEngine;
 public class CrossLevelStatus : MonoBehaviour
 {
     public const float SwiftBoost = 2f;
-    public const float ShieldDuration = 60f;
+    public const float ShieldDuration = 5f;
 
     public static CrossLevelStatus Active { get; private set; }
 
@@ -57,7 +57,11 @@ public class CrossLevelStatus : MonoBehaviour
     float invincibleTime = 1.5f;
     readonly List<PlayerSkill> skills = new List<PlayerSkill>();
 
-    int bankedLevel = -1;
+    // Level file names already paid this visit. Cleared when the next level starts, so a replay can pay again.
+    readonly HashSet<string> bankedLevels = new HashSet<string>();
+    bool levelInProgress;
+
+    const string WalletKey = "gm.wallet";
 
     public static void Prefer<T>() where T : CrossLevelStatus
     {
@@ -142,6 +146,7 @@ public class CrossLevelStatus : MonoBehaviour
 
         Active = this;
         DontDestroyOnLoad(gameObject);
+        wallet = PlayerPrefs.GetInt(WalletKey, 0);
         onReady();
     }
 
@@ -154,14 +159,40 @@ public class CrossLevelStatus : MonoBehaviour
     {
         tickSkills(Time.deltaTime);
         onTick(Time.deltaTime);
+
+        bool playing = GameManager.Instance != null && GameManager.Instance.IsPlaying && !LevelLoader.Tutorial;
+        if (levelInProgress && !playing) onLevelEnded();
+        levelInProgress = playing;
     }
 
     public virtual string getSkinId() { return skinId; }
     public virtual void setSkinId(string value) { skinId = value; }
 
     public virtual int getWallet() { return wallet; }
-    public virtual void setWallet(int value) { wallet = value; }
-    public virtual void addWallet(int amount) { wallet += amount; }
+
+    // Negative is kept. A loss can cost more than the wallet holds.
+    public virtual void setWallet(int value)
+    {
+        wallet = value;
+        PlayerPrefs.SetInt(WalletKey, wallet);
+        PlayerPrefs.Save();
+    }
+
+    public string WalletLabel()
+    {
+        int value = getWallet();
+        return value < 0 ? "-$" + (-value).ToString("N0") : "$" + value.ToString("N0");
+    }
+
+    public virtual void addWallet(int amount) { setWallet(wallet + amount); }
+
+    // Forget the saved wallet. The map reset uses this so a wiped save does not keep old money.
+    public static void ClearSavedWallet()
+    {
+        PlayerPrefs.DeleteKey(WalletKey);
+        PlayerPrefs.Save();
+        if (Active != null) Active.wallet = 0;
+    }
 
     public virtual float getSpeed() { return moveSpeed; }
     public virtual void setSpeed(float value) { moveSpeed = value; }
@@ -213,6 +244,13 @@ public class CrossLevelStatus : MonoBehaviour
         return shield != null && shield.secondsLeft > 0f;
     }
 
+    // True for the rest of the level after the brace item is used.
+    public virtual bool isBracing()
+    {
+        PlayerSkill brace = getSkill("brace");
+        return brace != null && brace.active;
+    }
+
     public virtual IReadOnlyList<PlayerSkill> getSkills() { return skills; }
 
     // The skill with this id, or null if addSkill was never called for it.
@@ -247,6 +285,7 @@ public class CrossLevelStatus : MonoBehaviour
         addSkill("swift");
         addSkill("ration");
         addSkill("shield").power = ShieldDuration;
+        addSkill("brace");
     }
 
     // Called every frame after skill timers. deltaTime is 0 while the game is paused.
@@ -254,17 +293,15 @@ public class CrossLevelStatus : MonoBehaviour
 
     public virtual void onLevelStarted()
     {
-        bankedLevel = -1;
-        endSwiftBoost();
-        PlayerSkill swift = getSkill("swift");
-        if (swift != null) swift.active = false;
+        bankedLevels.Clear();
+        onLevelEnded();
 
         for (int i = 0; i < skills.Count; i++)
         {
             PlayerSkill skill = skills[i];
             if (!skill.armed) continue;
             skill.armed = false;
-            if (skill.id == "ration" || skill.id == "swift")
+            if (skill.id == "ration" || skill.id == "swift" || skill.id == "brace")
             {
                 skill.active = true;
                 if (skill.id == "swift") beginSwiftBoost();
@@ -282,12 +319,37 @@ public class CrossLevelStatus : MonoBehaviour
         return 0f;
     }
 
-    // Stores winnings once per level.
+    // The level that was using a store item is over, or its timer ran out.
+    // Stock and anything armed for a later level stay. The effect itself turns off.
+    public virtual void onLevelEnded()
+    {
+        endSwiftBoost();
+        for (int i = 0; i < skills.Count; i++)
+        {
+            PlayerSkill skill = skills[i];
+            if (!IsStoreEffect(skill.id)) continue;
+            skill.active = false;
+            skill.secondsLeft = 0f;
+        }
+    }
+
+    static bool IsStoreEffect(string id)
+    {
+        return id == "swift" || id == "ration" || id == "shield" || id == "brace";
+    }
+
+    // Stores the win margin once for this level. The same visit cannot pay twice; the next level can.
+    // Money is kept on this record and in PlayerPrefs, so the store and other scenes see it.
     public virtual void bank(int levelNumber, int amount)
     {
-        if (bankedLevel == levelNumber) return;
-        bankedLevel = levelNumber;
-        addWallet(Mathf.Max(0, amount));
+        bank(levelNumber.ToString(), amount);
+    }
+
+    public virtual void bank(string levelId, int amount)
+    {
+        if (amount <= 0 || string.IsNullOrEmpty(levelId)) return;
+        if (!bankedLevels.Add(levelId)) return;
+        addWallet(amount);
     }
 
     // Uses one stock of a skill. Swift, ration, and shield have a default.
@@ -297,7 +359,7 @@ public class CrossLevelStatus : MonoBehaviour
         PlayerSkill skill = getSkill(id);
         if (skill == null || skill.stock <= 0) return false;
 
-        if (id == "ration" || id == "swift")
+        if (id == "ration" || id == "swift" || id == "brace")
         {
             if (roundIsOver())
             {
@@ -337,7 +399,9 @@ public class CrossLevelStatus : MonoBehaviour
     {
         if (other == null) return;
         skinId = other.skinId;
-        wallet = other.wallet;
+        setWallet(other.wallet);
+        bankedLevels.Clear();
+        foreach (string id in other.bankedLevels) bankedLevels.Add(id);
         moveSpeed = other.moveSpeed;
         speedMultiplier = other.speedMultiplier;
         multiplierBeforeSwift = other.multiplierBeforeSwift;
@@ -352,7 +416,6 @@ public class CrossLevelStatus : MonoBehaviour
         invincibleTime = other.invincibleTime;
         skills.Clear();
         skills.AddRange(other.skills);
-        bankedLevel = other.bankedLevel;
     }
 
     void beginSwiftBoost()
@@ -374,14 +437,16 @@ public class CrossLevelStatus : MonoBehaviour
     {
         for (int i = 0; i < skills.Count; i++)
         {
-            if (skills[i].secondsLeft > 0f)
-                skills[i].secondsLeft = Mathf.Max(0f, skills[i].secondsLeft - deltaTime);
+            PlayerSkill skill = skills[i];
+            if (skill.secondsLeft <= 0f) continue;
+            skill.secondsLeft = Mathf.Max(0f, skill.secondsLeft - deltaTime);
+            if (skill.secondsLeft <= 0f) skill.active = false;
         }
     }
 
     static bool roundIsOver()
     {
-        return GameManager.Instance != null && !GameManager.Instance.IsPlaying;
+        return GameManager.Instance == null || !GameManager.Instance.IsPlaying;
     }
 }
 

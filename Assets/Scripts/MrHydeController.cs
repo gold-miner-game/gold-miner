@@ -11,7 +11,7 @@ public class MrHydeController : PlayerCharacter
     public float blockCooldown = 1f;    // wait after a block ends before the next one
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
 
-    public override bool IsBlocking => Time.time < blockUntil;
+    public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
     public override string SkillHint => CanBlock ? "[Space] block" : "";
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
