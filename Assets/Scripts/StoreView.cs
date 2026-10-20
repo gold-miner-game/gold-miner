@@ -152,18 +152,25 @@ public class StoreView : MonoBehaviour
     void FillShelf()
     {
         for (int i = items.Count - 1; i >= 0; i--)
+        {
+            if (items[i] != null) items[i].SetActive(false);
             Destroy(items[i]);
+        }
         items.Clear();
         if (counter == null || CrossLevelStatus.Active == null) return;
 
         List<ShopOffer> offers = Offers();
+        var forSale = new List<ShopOffer>();
+        for (int i = 0; i < offers.Count; i++)
+            if (!AlreadyOwned(offers[i].id)) forSale.Add(offers[i]);
+
         const float col = 200f;
         const float cardHeight = 156f;
         const float rowGap = 28f;
         const float aboveLip = 52f;
-        for (int i = 0; i < offers.Count; i++)
+        for (int i = 0; i < forSale.Count; i++)
         {
-            ShopOffer offer = offers[i];
+            ShopOffer offer = forSale[i];
             string id = offer.id;
             int price = offer.price;
             string title = offer.title;
@@ -214,11 +221,11 @@ public class StoreView : MonoBehaviour
 
     // Pays for one and uses it. Between levels that arms the effect for the next
     // level: swift doubles speed, ration skips digest, shield runs 5s, brace
-    // blocks the whole level. A second buy while it is already armed stays as spare stock.
+    // blocks the whole level. A bought item leaves the shelf until that use is over.
     static bool Buy(string id, int price)
     {
         CrossLevelStatus player = CrossLevelStatus.Active;
-        if (player == null || player.getWallet() < price) return false;
+        if (player == null || AlreadyOwned(id) || player.getWallet() < price) return false;
         player.addWallet(-price);
         PlayerSkill skill = player.addSkill(id);
         skill.stock++;
@@ -256,8 +263,17 @@ public class StoreView : MonoBehaviour
         button.targetGraphic = hit;
         button.onClick.AddListener(() =>
         {
-            if (CrossLevelStatus.Active == null) return;
-            if (!buy()) ShowTip(rect, itemName, "Not enough money!");
+            CrossLevelStatus player = CrossLevelStatus.Active;
+            if (player == null) return;
+            if (player.getWallet() < price)
+            {
+                ShowTip(rect, itemName, "Not enough money!");
+                Refresh();
+                return;
+            }
+            if (!buy()) return;
+            HideTip();
+            FillShelf();
             Refresh();
         });
 
@@ -335,6 +351,13 @@ public class StoreView : MonoBehaviour
         if (itemsText != null) itemsText.text = OwnedLine(status);
         foreach (OwnedLabel label in canvas.GetComponentsInChildren<OwnedLabel>(true))
             label.Refresh();
+    }
+
+    static bool AlreadyOwned(string id)
+    {
+        CrossLevelStatus player = CrossLevelStatus.Active;
+        if (player == null) return false;
+        return Held(player.getSkill(id)) > 0;
     }
 
     // Bought items still count after the effect is armed, because that spends the stock.
