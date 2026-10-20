@@ -29,6 +29,8 @@ public class LevelLoader : MonoBehaviour
     [FormerlySerializedAs("pig")]
     public PlayerCharacter player;         // empty: the first character in the scene
     public bool clearSceneItems = true;    // remove treasure, rocks and lives already placed in the scene
+    [Tooltip("Solid walls on the screen edges, so the player can't walk out of view (ArenaWalls)")]
+    public bool screenWalls = true;
 
     [Header("Rules")]
     [Tooltip("Use the miner policy the levels were balanced against (MinerAI.Strategy.Efficient)")]
@@ -52,6 +54,10 @@ public class LevelLoader : MonoBehaviour
     [Header("Tutorial")]
     [Tooltip("Seconds a new guide shows in full before it shrinks to its first line and the progress")]
     public float guideFullTime = 8f;
+    [Tooltip("The guide box is at most this share of the arena's width (it wraps into more lines)")]
+    [Range(0.25f, 0.9f)] public float guideMaxWidth = 0.5f;
+    [Tooltip("The guide's opacity while the player is under it")]
+    [Range(0f, 1f)] public float guideCoveredAlpha = 0.25f;
     [Tooltip("Steal stage: seconds the hook rests on its treasure before pulling it back")]
     public float stealHold = 1.5f;
     [Tooltip("Steal stage: seconds between one pull ending and the next starting")]
@@ -84,6 +90,8 @@ public class LevelLoader : MonoBehaviour
     private GUIStyle guideStyle;
     private string shownGuide;       // the guide on screen, to notice a new level or stage
     private float guideSince;        // Time.time when it appeared
+    private Rect guideRect;          // where the guide was last drawn, in ScreenFrame's GUI space
+    private float guideAlpha = 1f;   // fades down while the player is under the guide
     private bool hasHud;             // the HUD's end panel shows what comes next; else OnGUI does
     private int lastTutorial = -1;   // index of the last tutorial level; -1 = no tutorial
     private float levelSpeed;        // the level's pig_speed, before game speed and the character's speedScale
@@ -200,6 +208,7 @@ public class LevelLoader : MonoBehaviour
         if (minerTemplate == null) minerTemplate = FindFirstObjectByType<MinerAI>();
 
         if (clearSceneItems) ClearItems();
+        if (screenWalls) new GameObject("ArenaWalls").AddComponent<ArenaWalls>();
         SpawnItems();
         SetUpPlayer();
         SetUpMiners();
@@ -394,6 +403,7 @@ public class LevelLoader : MonoBehaviour
         if (list == null || list.Length == 0) return;
         UpdateGoal();
         UpdateAdvance();
+        UpdateGuideFade();
 
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
@@ -573,12 +583,13 @@ public class LevelLoader : MonoBehaviour
     {
         // The level label is only logged when the level builds; N / P / R still work in the editor
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;
+        ScreenFrame.BeginGUI();   // lay out in 1280x720, scaled to the 16:9 frame
 
         GameManager gm = GameManager.Instance;
         if (gm != null && gm.IsPlaying) DrawGuide();
         if (hasHud) return;
         string hint = NextStepHint;
-        if (hint != "") GUI.Label(new Rect(10, Screen.height - 54, 700, 24), hint);
+        if (hint != "") GUI.Label(new Rect(10, ScreenFrame.GuiHeight - 54, 700, 24), hint);
     }
 
     // The guide text (the stage's, else the level's) at the top of the arena, with progress. A new
@@ -622,20 +633,42 @@ public class LevelLoader : MonoBehaviour
             back.Apply();
             guideStyle = new GUIStyle(GUI.skin.box)
             {
-                fontSize = 18,
+                fontSize = 15,
                 alignment = TextAnchor.MiddleCenter,
                 wordWrap = true,
-                padding = new RectOffset(16, 16, 12, 12),
+                padding = new RectOffset(12, 12, 8, 8),
                 border = new RectOffset(0, 0, 0, 0),
             };
             guideStyle.normal.background = back;
             guideStyle.normal.textColor = Color.white;
         }
-        // Centered over the arena (HUDLayout): under the top bar and clear of the sidebar
-        float arenaWidth = Screen.width * (1f - HUDLayout.SidebarWidth);
-        float width = Mathf.Min(760f, arenaWidth - 40f);
+        // Centered over the arena (HUDLayout), just under the top bar, at most guideMaxWidth of the
+        // arena's width. In ScreenFrame's 1280x720 space, so it is the same share of every screen
+        float arenaWidth = ScreenFrame.GuiWidth * (1f - HUDLayout.SidebarWidth);
+        float width = arenaWidth * guideMaxWidth;
         float height = guideStyle.CalcHeight(new GUIContent(text), width);
-        float top = Screen.height * HUDLayout.TopBarHeight + 12f;
-        GUI.Box(new Rect((arenaWidth - width) / 2f, top, width, height), text, guideStyle);
+        float top = ScreenFrame.GuiHeight * HUDLayout.TopBarHeight + 6f;
+        guideRect = new Rect((arenaWidth - width) / 2f, top, width, height);
+
+        Color before = GUI.color;
+        GUI.color = new Color(1f, 1f, 1f, guideAlpha);
+        GUI.Box(guideRect, text, guideStyle);
+        GUI.color = before;
+    }
+
+    // The guide fades out of the way while the player is under it (or close), so it never hides them
+    void UpdateGuideFade()
+    {
+        bool covered = false;
+        Camera cam = Camera.main;
+        if (player != null && cam != null && guideRect.width > 0f)
+        {
+            Vector3 screen = cam.WorldToScreenPoint(player.transform.position);
+            Vector2 at = ScreenFrame.ScreenToGui(screen);
+            Rect around = new Rect(guideRect.x - 40f, guideRect.y - 40f, guideRect.width + 80f, guideRect.height + 80f);
+            covered = screen.z > 0f && around.Contains(at);
+        }
+        float target = covered ? guideCoveredAlpha : 1f;
+        guideAlpha = Mathf.MoveTowards(guideAlpha, target, Time.unscaledDeltaTime * 4f);
     }
 }

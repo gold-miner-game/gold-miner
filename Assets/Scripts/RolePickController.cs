@@ -26,8 +26,9 @@ public class RolePickController : MonoBehaviour
 
     void OnGUI()
     {
+        ScreenFrame.BeginGUI();   // lay out in 1280x720, scaled to the 16:9 frame
         EnsureStyles();
-        GUI.Label(new Rect(0, 24, Screen.width, 40), "PICK YOUR CHARACTER", title);
+        GUI.Label(new Rect(0, 24, ScreenFrame.GuiWidth, 40), "PICK YOUR CHARACTER", title);
 
         // 2x2 grid, centred under the title.
         const int cols = 2;
@@ -37,8 +38,8 @@ public class RolePickController : MonoBehaviour
         float gap = 20f;
         float totalW = cols * cardW + (cols - 1) * gap;
         float totalH = rows * cardH + (rows - 1) * gap;
-        float startX = (Screen.width - totalW) * 0.5f;
-        float startY = Mathf.Max(78f, (Screen.height - totalH) * 0.5f + 22f);
+        float startX = (ScreenFrame.GuiWidth - totalW) * 0.5f;
+        float startY = Mathf.Max(78f, (ScreenFrame.GuiHeight - totalH) * 0.5f + 22f);
 
         string selected = ProgressStore.SelectedCharacter;
         for (int i = 0; i < Champions.Length; i++)

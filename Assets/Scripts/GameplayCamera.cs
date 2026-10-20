@@ -37,7 +37,8 @@ public class GameplayCamera : MonoBehaviour
         lastWidth = Screen.width;
         lastHeight = Screen.height;
 
-        Rect viewport = HUDLayout.GameplayViewport;
+        // HUDLayout's split is of the 16:9 frame (ScreenFrame), not of the whole screen
+        Rect viewport = ScreenFrame.ToViewport(HUDLayout.GameplayViewport);
         cam.rect = viewport;
 
         // Big enough for the arena's height, and for its width at this area's aspect

@@ -236,7 +236,7 @@ public class SurvivalLoader : MonoBehaviour
         if (cam == null) return;
         cam.orthographic = true;
         cam.orthographicSize = viewSize;
-        cam.rect = new Rect(0f, 0f, 1f, 1f);
+        cam.rect = ScreenFrame.Viewport;
         Vector3 at = player != null ? player.transform.position : Vector3.zero;
         cam.transform.position = new Vector3(at.x, at.y, cam.transform.position.z);
     }
@@ -547,6 +547,7 @@ public class SurvivalLoader : MonoBehaviour
     void OnGUI()
     {
         if (gm == null) return;
+        ScreenFrame.BeginGUI();
         EnsureStyles();
 
         var lines = new List<string>
@@ -573,9 +574,9 @@ public class SurvivalLoader : MonoBehaviour
         {
             const string hint = "SURVIVE\nEvery hook is hunting you, and they keep growing out of the ground.\n" +
                                 "The gold is all yours. WASD move, Space skill, Esc back to the map.";
-            float w = Mathf.Min(620f, Screen.width - 40f);
+            float w = Mathf.Min(620f, ScreenFrame.GuiWidth - 40f);
             float h = boxStyle.CalcHeight(new GUIContent(hint), w);
-            GUI.Box(new Rect((Screen.width - w) * 0.5f, 16f, w, h), hint, boxStyle);
+            GUI.Box(new Rect((ScreenFrame.GuiWidth - w) * 0.5f, 16f, w, h), hint, boxStyle);
         }
 
         if (!gm.IsPlaying) DrawEndPanel();
@@ -585,7 +586,7 @@ public class SurvivalLoader : MonoBehaviour
     {
         float w = 380f;
         float h = 250f;
-        Rect panel = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.5f, w, h);
+        Rect panel = new Rect((ScreenFrame.GuiWidth - w) * 0.5f, (ScreenFrame.GuiHeight - h) * 0.5f, w, h);
         GUI.Box(panel, GUIContent.none, boxStyle);
 
         GUI.Label(new Rect(panel.x, panel.y + 18f, w, 36f), "CAUGHT", titleStyle);

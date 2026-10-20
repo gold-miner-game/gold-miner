@@ -382,8 +382,10 @@ public class StoreView : MonoBehaviour
         counter.GetWorldCorners(shelf);
         bool placeAbove = (bottom + top) * 0.5f >= (shelf[0].y + shelf[1].y) * 0.5f;
         float y = placeAbove ? top + gap : bottom - gap - tipHeight;
-        centerX = Mathf.Clamp(centerX, tipWidth * 0.5f + 12f, Screen.width - tipWidth * 0.5f - 12f);
-        y = Mathf.Clamp(y, 12f, Screen.height - tipHeight - 12f);
+        // Inside the 16:9 frame (ScreenFrame), not the bars around it; the canvas is in screen pixels
+        Rect frame = ScreenFrame.Pixels;
+        centerX = Mathf.Clamp(centerX, frame.xMin + tipWidth * 0.5f + 12f, frame.xMax - tipWidth * 0.5f - 12f);
+        y = Mathf.Clamp(y, frame.yMin + 12f, frame.yMax - tipHeight - 12f);
         tip.position = new Vector3(centerX, y, tip.position.z);
     }
 

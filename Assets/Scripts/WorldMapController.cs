@@ -51,10 +51,11 @@ public class WorldMapController : MonoBehaviour
 
     void OnGUI()
     {
+        ScreenFrame.BeginGUI();   // lay out in 1280x720, scaled to the 16:9 frame
         Build();
         WorldMap map = GameFlow.Instance != null ? GameFlow.Instance.Map : null;
 
-        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), gradientTex, ScaleMode.StretchToFill);
+        GUI.DrawTexture(new Rect(0, 0, ScreenFrame.GuiWidth, ScreenFrame.GuiHeight), gradientTex, ScaleMode.StretchToFill);
 
         if (map == null)
         {
@@ -64,12 +65,12 @@ public class WorldMapController : MonoBehaviour
 
         Layout(map);
 
-        GUI.Label(new Rect(0, 16, Screen.width, 36), "WORLD MAP", title);
+        GUI.Label(new Rect(0, 16, ScreenFrame.GuiWidth, 36), "WORLD MAP", title);
 
         DrawEdges(map);                 // behind the cards
         for (int i = 0; i < map.nodes.Count; i++) DrawNode(map, i);
 
-        if (showResetButton && GUI.Button(new Rect(Screen.width - 150, Screen.height - 40, 134, 28), "Reset progress"))
+        if (showResetButton && GUI.Button(new Rect(ScreenFrame.GuiWidth - 150, ScreenFrame.GuiHeight - 40, 134, 28), "Reset progress"))
             ProgressStore.ResetAll();
     }
 
@@ -162,8 +163,8 @@ public class WorldMapController : MonoBehaviour
         depthMin = Min(depths); depthMax = Max(depths);
         spreadMin = Min(spreads); spreadMax = Max(spreads);
 
-        float spanW = Mathf.Max(1f, Screen.width - 2f * MarginSide);
-        float spanH = Mathf.Max(1f, Screen.height - MarginTop - MarginBottom);
+        float spanW = Mathf.Max(1f, ScreenFrame.GuiWidth - 2f * MarginSide);
+        float spanH = Mathf.Max(1f, ScreenFrame.GuiHeight - MarginTop - MarginBottom);
         float depthSpan = Mathf.Max(0.0001f, depthMax - depthMin);
         float spreadSpan = Mathf.Max(0.0001f, spreadMax - spreadMin);
         float gapX = (horizontal ? MinGap(depths) / depthSpan : MinGap(spreads) / spreadSpan);
@@ -174,7 +175,7 @@ public class WorldMapController : MonoBehaviour
         float h = Mathf.Clamp(gapY * spanH * 0.58f, 56f, maxNodeSize.y);
         nodeSize = new Vector2(w, h);
         area = Rect.MinMaxRect(MarginSide + w * 0.5f, MarginTop + h * 0.5f,
-                               Screen.width - MarginSide - w * 0.5f, Screen.height - MarginBottom - h * 0.5f);
+                               ScreenFrame.GuiWidth - MarginSide - w * 0.5f, ScreenFrame.GuiHeight - MarginBottom - h * 0.5f);
     }
 
     Vector2 Center(MapNode node)

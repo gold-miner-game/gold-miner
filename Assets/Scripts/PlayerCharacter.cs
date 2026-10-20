@@ -271,8 +271,10 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         digestLabelStyle.normal.textColor = digestLabelColor;
 
-        // GUI y grows downward, the opposite of screen-space y
-        Rect rect = new Rect(screen.x - 70f, Screen.height - screen.y - 24f, 140f, 22f);
+        // In ScreenFrame's 1280x720 space, so the label keeps its size next to the character on any screen
+        ScreenFrame.BeginGUI();
+        Vector2 at = ScreenFrame.ScreenToGui(screen);
+        Rect rect = new Rect(at.x - 70f, at.y - 24f, 140f, 22f);
         GUI.Label(rect, "Digesting\u2026", digestLabelStyle);
     }
 
