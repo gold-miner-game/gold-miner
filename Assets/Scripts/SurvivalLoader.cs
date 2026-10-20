@@ -98,7 +98,7 @@ public class SurvivalLoader : MonoBehaviour
     public Color holeRim = new Color(0.42f, 0.3f, 0.18f);
     public float holeSize = 0.9f;
 
-    const string BestTimeKey = "survival_best_time";
+    public const string BestTimeKey = "survival_best_time";   // PlayerPrefs; the main menu shows it too
 
     class Hunter
     {

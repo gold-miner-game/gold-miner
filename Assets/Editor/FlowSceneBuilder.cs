@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Owner: Penny (Level map & tutorial)
-// Tools > Gold Miner > Build Flow Scenes: creates the Boot, Map, RolePick, and Store scenes, builds
+// Tools > Gold Miner > Build Flow Scenes: creates the Boot, Menu, Map, RolePick, Store and Survival scenes, builds
 // the WorldMap asset in Resources (wired to the level JSONs), and registers every scene in Build
 // Settings with Boot first. Same pattern as GameSceneBuilder / HUDBuilder. Re-running keeps an
 // existing WorldMap so hand-tuned icon positions are not overwritten.
@@ -55,6 +55,7 @@ public static class FlowSceneBuilder
         BuildWorldMap();
 
         BuildScene("Boot", typeof(Boot));
+        BuildScene("Menu", typeof(MainMenu));
         BuildScene("Map", typeof(WorldMapController));
         BuildScene("RolePick", typeof(RolePickController));
         BuildScene("Store", typeof(StorePlaceholder));
@@ -64,7 +65,7 @@ public static class FlowSceneBuilder
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("FlowSceneBuilder: built Boot / Map / RolePick / Store scenes, WorldMap asset, and Build Settings. Open Boot and press Play.");
+        Debug.Log("FlowSceneBuilder: built Boot / Menu / Map / RolePick / Store / Survival scenes, WorldMap asset, and Build Settings. Open Boot and press Play.");
     }
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes", true)]
@@ -144,12 +145,13 @@ public static class FlowSceneBuilder
             Debug.LogError("FlowSceneBuilder: could not save " + path);
     }
 
-    // Boot first (index 0 = the launch scene), then the hub scenes, then the existing Game scene.
+    // Boot first (index 0 = the launch scene; it opens the Menu), then the hub scenes, then the existing Game scene.
     static void RegisterBuildScenes()
     {
         string[] order =
         {
             SceneDir + "/Boot.unity",
+            SceneDir + "/Menu.unity",
             SceneDir + "/Map.unity",
             SceneDir + "/RolePick.unity",
             SceneDir + "/Store.unity",

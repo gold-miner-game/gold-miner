@@ -4,11 +4,12 @@ using UnityEngine.SceneManagement;
 // Owner: Penny (Level map & tutorial)
 // The one persistent object that moves the player between scenes. Scenes never reference each
 // other; they all talk to GameFlow. It holds the WorldMap and drives:
-//   Map -> (node) -> Game / RolePick / Store -> back to Map.
+//   Menu -> Map -> (node) -> Game / RolePick / Store / Survival -> back to Map.
 // See docs/level-map-tutorial-design.md.
 public class GameFlow : MonoBehaviour
 {
     public const string BootScene = "Boot";
+    public const string MenuScene = "Menu";
     public const string MapScene = "Map";
     public const string GameScene = "Game";
     public const string RolePickScene = "Select";
@@ -18,7 +19,7 @@ public class GameFlow : MonoBehaviour
     [Tooltip("Seconds the win result stays on screen before returning to the map.")]
     public float returnDelay = 2.5f;
 
-    enum Flow { None, Map, Game, RolePick, Store, Survival }
+    enum Flow { None, Menu, Map, Game, RolePick, Store, Survival }
 
     static GameFlow instance;
     public static GameFlow Instance
@@ -51,7 +52,16 @@ public class GameFlow : MonoBehaviour
         if (Map == null) Debug.LogWarning("GameFlow: no WorldMap in Resources. Run Tools > Gold Miner > Build Flow Scenes.");
     }
 
-    // Called by the Boot scene (or anyone) to show the map.
+    // Called by the Boot scene, and the map's Menu button: the main menu (MainMenu)
+    public void OpenMenu()
+    {
+        ClearGameHooks();
+        CurrentNode = null;
+        flow = Flow.Menu;
+        SceneManager.LoadScene(MenuScene);
+    }
+
+    // Called by the main menu (or anyone) to show the map.
     public void OpenMap()
     {
         ClearGameHooks();

@@ -70,6 +70,9 @@ public class WorldMapController : MonoBehaviour
         DrawEdges(map);                 // behind the cards
         for (int i = 0; i < map.nodes.Count; i++) DrawNode(map, i);
 
+        if (GUI.Button(new Rect(16, 20, 96, 30), "Menu"))
+            GameFlow.Instance.OpenMenu();
+
         if (showResetButton && GUI.Button(new Rect(ScreenFrame.GuiWidth - 150, ScreenFrame.GuiHeight - 40, 134, 28), "Reset progress"))
             ProgressStore.ResetAll();
     }
@@ -293,7 +296,8 @@ public class WorldMapController : MonoBehaviour
         };
     }
 
-    static Texture2D MakeRounded(int radius)
+    // Also used by MainMenu, so the menu matches the map
+    internal static Texture2D MakeRounded(int radius)
     {
         int size = 2 * radius + 2;
         var t = new Texture2D(size, size, TextureFormat.ARGB32, false)
