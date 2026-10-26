@@ -2,6 +2,9 @@ using UnityEngine;
 
 // Put this on the squirrel root. TailPivot's local +Y points along the resting tail.
 // Only this visual child changes pose; physics, the head and face are unaffected.
+// The tail swings opposite to the way the squirrel moves, smoothly: it speeds up and eases into each
+// new direction over about turnTime, never faster than maxTurnSpeed. When the squirrel stops, the tail
+// leans into its standing-still pose over idleBlendTime, and back out when it moves again.
 [DisallowMultipleComponent]
 [ExecuteAlways]
 [RequireComponent(typeof(Rigidbody2D))]
@@ -11,8 +14,12 @@ public class SquirrelTailHeading : MonoBehaviour
     public Transform tailPivot;
     [Tooltip("Matches the approved left/right pose. Set 90 for a tail exactly opposite horizontal movement.")]
     [Range(0f, 90f)] public float horizontalLean = 35f;
-    [Tooltip("Larger values turn the tail faster. It follows momentum even after keys are released.")]
-    [Min(0f)] public float followSpeed = 10f;
+    [Tooltip("Roughly how long the tail takes to settle on a new direction. It speeds up, then eases in.")]
+    [Min(.01f)] public float turnTime = .25f;
+    [Tooltip("The fastest the tail can turn, in degrees per second (0 = no limit). Big turns take longer than small ones.")]
+    [Min(0f)] public float maxTurnSpeed = 360f;
+    [Tooltip("Seconds to lean into the standing-still pose when the squirrel stops, and back out when it moves (0 = instant).")]
+    [Min(0f)] public float idleBlendTime = .2f;
     [Min(0f)] public float stoppedSpeed = .05f;
     public bool returnUprightWhenStopped = true;
     [Tooltip("0 keeps the original tail pose. Increasing toward 90 turns in the reversed idle direction. Editable outside Play mode; movement is unaffected.")]
@@ -37,6 +44,8 @@ public class SquirrelTailHeading : MonoBehaviour
     [SerializeField, HideInInspector] private Quaternion outerRestRotation = Quaternion.identity;
     [SerializeField, HideInInspector] private bool hasOuterRestPose;
     private float angle;
+    private float turnVelocity;     // SmoothDampAngle's own speed, degrees per second
+    private float idleWeight = 1f;  // 0 = moving pose, 1 = full standing-still pose
 
     private void Awake()
     {
@@ -87,7 +96,8 @@ public class SquirrelTailHeading : MonoBehaviour
         outerTail.localRotation = outerRestRotation;
     }
 
-    private void ApplyIdleTilt()
+    // weight 1 = the full standing-still pose, 0 = none; in between while blending
+    private void ApplyIdleTilt(float weight)
     {
         // Use the actual viewing side instead of assuming negative world Z.
         // The Scene view may look from the opposite side to the Game camera.
@@ -110,7 +120,7 @@ public class SquirrelTailHeading : MonoBehaviour
         // Reverse the previous idle turn while keeping 0 exactly unchanged.
         // This affects only idle rotation; never invert the sprite scale.
         tailPivot.localScale = restScale;
-        tailPivot.localRotation *= Quaternion.Euler(-direction * Mathf.Clamp(idleAngle, 0f, 90f), 0f, 0f);
+        tailPivot.localRotation *= Quaternion.Euler(-direction * Mathf.Clamp(idleAngle, 0f, 90f) * weight, 0f, 0f);
         RestoreBasePose();
         RestoreOuterPose();
         if (outerTail != null && hasOuterRestPose)
@@ -124,7 +134,7 @@ public class SquirrelTailHeading : MonoBehaviour
                 Vector3 lowerEnd = new Vector3(renderer.sprite.bounds.center.x, renderer.sprite.bounds.min.y, 0f);
                 hinge += outerRestRotation * Vector3.Scale(lowerEnd, outerTail.localScale);
             }
-            Quaternion bend = Quaternion.Euler(-direction * Mathf.Clamp(outerIdleOffset, -90f, 90f), 0f, 0f);
+            Quaternion bend = Quaternion.Euler(-direction * Mathf.Clamp(outerIdleOffset, -90f, 90f) * weight, 0f, 0f);
             outerTail.localPosition = hinge + bend * (outerRestPosition - hinge);
             outerTail.localRotation = bend * outerRestRotation;
         }
@@ -150,7 +160,7 @@ public class SquirrelTailHeading : MonoBehaviour
         {
             EnsureRestRotation();
             tailPivot.localRotation = restRotation;
-            ApplyIdleTilt();
+            ApplyIdleTilt(1f);
             return;
         }
         if (Time.timeScale == 0f) return;
@@ -168,18 +178,26 @@ public class SquirrelTailHeading : MonoBehaviour
         {
             target = 0f;
         }
-        angle = Mathf.LerpAngle(angle, target, 1f - Mathf.Exp(-followSpeed * Time.deltaTime));
+        // Speed up, then ease in, capped at maxTurnSpeed
+        angle = Mathf.SmoothDampAngle(angle, target, ref turnVelocity, Mathf.Max(.01f, turnTime),
+            maxTurnSpeed > 0f ? maxTurnSpeed : Mathf.Infinity, Time.deltaTime);
         tailPivot.localRotation = restRotation * Quaternion.Euler(0f, 0f, angle);
         tailPivot.localScale = restScale;
         RestoreBasePose();
         RestoreOuterPose();
-        // Moving retains its original rotation AND full-length scale.
-        if (idle) ApplyIdleTilt();
+        // Lean into the standing-still pose (or out of it) gradually. Fully moving keeps the original
+        // rotation AND full-length scale
+        idleWeight = idleBlendTime > 0f
+            ? Mathf.MoveTowards(idleWeight, idle ? 1f : 0f, Time.deltaTime / idleBlendTime)
+            : (idle ? 1f : 0f);
+        if (idleWeight > 0f) ApplyIdleTilt(idleWeight);
     }
 
     private void OnDisable()
     {
         angle = 0f;
+        turnVelocity = 0f;
+        idleWeight = 1f;
         if (tailPivot != null && Application.IsPlaying(gameObject))
         {
             tailPivot.localRotation = restRotation;
