@@ -32,20 +32,49 @@ UI Redesign
 ## Current Status
 ![Level 4 in play](figures/example_level.png)
 
-A snapshot of level 4, a few seconds after the round started:
+A snapshot of level 4, a few seconds after the round started.
+
+> The screenshot predates the HUD redesign (PRs #15 and #19), so it still shows the old money bar and the bottom-left dev label. The tables below describe the current HUD.
+
+The screen is split in three: a **top bar** (8% of the height), a **sidebar** on the right (14.3% of the width), and the **arena** in the rest. The camera fits the whole arena into that space, so the HUD never covers a hook or a treasure.
+
+#### Top bar: this round
 
 | Where | What it shows |
 |---|---|
-| Bottom left | **Level 4 of 10**: 7 treasures (gold and diamond) and 3 hooks. Space blocks on this level. The simulator balanced it so the pig wins about 57% of the time. N / P / R load the next or previous level, or restart. 10 levels = 8 normal levels + 2 tutorials (eat, then block/steal). |
-| Top left | **Player: $0**: money the pig has eaten so far. **Life: 3**: the pig starts every level with 3 lives, and the third hook hit ends the round. |
-| Top right | **Miner: $0**: money the miners' hooks have brought home. **1:27**: time left in the 1:30 round. |
-| Top centre | **Money bar**: pink fills from the left for the pig, gray from the right for the miner, sized by each side's share of the money so far. It's empty here because nobody has scored yet. |
+| Left | **Level**: the map node's name (e.g. `LEVEL 4`) when the round was opened from the World Map, or `LV 4/10` when the Game scene is played in the editor (N / P / R load the next or previous level, or restart). |
+| Centre | **`$0 VS $0`**: the pig's money on the left, the miners' on the right. The side ahead is bold and the side behind is dimmed. A label flashes gold and a `+$600` popup rises when money comes in. |
+| Right | **Timer** (`1:27` of the 1:30 round). It turns red under 10 seconds and pulses every second under 5. |
+| Next to the timer | **Pause**: freezes the round and opens a *Quit Game?* popup. *Cancel* resumes, *Quit* goes back to the World Map. Only when the round was opened from the map. |
+
+#### Sidebar: the pig and the run
+
+A section with nothing to show is hidden (the tutorial has no wallet or items, for example), and dividers only appear between visible sections.
+
+| Section | What it shows |
+|---|---|
+| **LIFE** | `x3`: lives left. Every level starts with 3, and the hit that takes the last one ends the round. Flashes red on a hit, green on a Life pickup. Hidden on rounds without lives. |
+| **WALLET** | The run's money, carried between levels (and saved) and spent in the Store. From Level 1 on, a win adds how much the pig beat the miner by, and a loss takes that same gap away, so it can go below $0 (`-$150`). |
+| **SKILL** | The champion's Space skill (block, roll, tail, tongue): `Active` while it runs, then the seconds until it is ready again with a bar filling up, then `Ready`. |
+| **DIGEST** | `Ready` when the pig can eat, else the seconds left of digesting, in the digest's green. |
+| **ITEMS** | One row per Store item held (`Shield x1`), including one that is armed or running, or `None`. The items are Swift, Ration, Shield and Brace. |
+
+When the round ends, a panel covers only the arena and shows **YOU WIN** or **YOU LOSE**, the reason, the final `Player $ vs Miner $` score (with *"the miner wins ties"* on a tie), and what happens next (*Press R to retry*, *Back to the map...*). The top bar and sidebar stay visible.
+
+In the tutorial, the stage's guide is drawn at the top of the arena with its progress (e.g. `Blocked 2 / 3`), and shrinks to its first line after 8 seconds.
+
+#### Arena
+
+| Where | What it shows |
+|---|---|
 | Centre | **The pig** (the player, moved with W A S D). Pink means it can eat and block. It turns green while digesting and blue while blocking, and the color drains from the ears down as the cooldown runs out. |
 | Yellow circles | **Gold**: small $50, medium $100, large $250. This level has 3 large, 1 medium and 2 small. |
 | Light-blue shape (bottom left) | **Diamond**, $600: the most valuable item on the level. |
 | White squares | **The miners**, one per hook. Each hook's rope starts at its miner. |
 | Yellow lines with a claw | **Hooks in flight**. Yellow means the hook is going for treasure. A red hook is aimed at the pig. |
 | Dotted line | **Predicted path of the next hook**, shown before it fires. Here, the miner at the bottom right is about to go for the diamond (yellow dots). Red dots mean the next shot aims at the pig, so move or block. |
+
+Level 4 has 7 treasures and 3 hooks. The simulator balanced it so the pig wins about 57% of the time. There are 10 levels: 8 normal levels and 2 tutorials (eat, then block/steal).
 
 All the treasure on this level is worth $1,550. The round ends when the time runs out, all the treasure is gone, or the pig loses its last life. The pig wins with more money than the miner.
 
