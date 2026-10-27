@@ -333,7 +333,8 @@ public class CrossLevelStatus : MonoBehaviour
         }
     }
 
-    static bool IsStoreEffect(string id)
+    // The store item ids. The HUD's Items rows use this too, so a new item is added only here.
+    public static bool IsStoreEffect(string id)
     {
         return id == "swift" || id == "ration" || id == "shield" || id == "brace";
     }

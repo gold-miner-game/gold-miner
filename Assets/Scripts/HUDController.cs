@@ -183,9 +183,9 @@ public class HUDController : MonoBehaviour
         PlaceMapButton();
     }
 
-    // A Map button just left of the clock. Only when this round was opened from the map: editor
-    // N/P play of the Game scene has no node to return to. Leaving mid-round does not clear the
-    // node; leaving after a win does, so the clear is not lost to the auto-return timer.
+    // A Pause button just left of the clock. It opens the Quit Game popup, whose Quit goes back to
+    // the map. Only when this round was opened from the map: editor N/P play of the Game scene has
+    // no node to return to.
     void EnsureMapButton()
     {
         if (timerText == null) return;
@@ -505,7 +505,7 @@ public class HUDController : MonoBehaviour
         foreach (PlayerSkill skill in record.getSkills())
         {
             int held = skill.stock;
-            if (skill.id == "swift" || skill.id == "ration" || skill.id == "shield" || skill.id == "brace")
+            if (CrossLevelStatus.IsStoreEffect(skill.id))
             {
                 if (skill.armed || skill.active || skill.secondsLeft > 0f) held++;
             }
