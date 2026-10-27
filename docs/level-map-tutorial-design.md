@@ -112,37 +112,42 @@ Keep them separate or the roguelike + store logic gets tangled.
 | Layer / 层 | Lifetime / 生命周期 | Holds / 内容 | Who / 谁用 |
 |---|---|---|---|
 | `CrossLevelStatus` (PR #11) | one run, in memory / 一次 run，内存 | wallet, speed, digest, block, lives, skills | `GameManager`, `PlayerCharacter`, `LevelLoader`, Store |
-| `ProgressStore` (new) | across app restarts / 跨重启 | completed nodes, character id | `GameFlow`, Map, RolePick |
+| `ProgressStore` (new) | across app restarts / 跨重启 | completed nodes, character id | `GameFlow`, Map, Select |
 
 ---
 
 ## 5. Role pick contract / 选角色契约 (Yukun)
 
-PR #12 landed the character system in `main`, so `RolePick` now rides on it instead of a
-separate registry. Each character is a `PlayerCharacter` subclass (`MrHydeController`,
-`CatController`, `SquirrelController`, `FrogController`) with its own `CrossLevelStatus`
-subclass (`PigStatus`, `CatStatus`, …). `ChampionSpawner` holds the ordered list and swaps the
-chosen prefab into the Game scene. Adding a character = a new controller + status + prefab, wired
-into `ChampionSpawner` — no changes to the map code.
+PR #12 landed the character system in `main`. The map's `RolePick` node opens the existing
+**Select** scene ("WHO ARE U"), not the old OnGUI `RolePick` scene. Each character is a
+`PlayerCharacter` subclass (`MrHydeController`, `CatController`, `SquirrelController`,
+`FrogController`) with its own `CrossLevelStatus` subclass (`PigStatus`, `CatStatus`, …).
+`ChampionSpawner` holds the ordered list and swaps the chosen prefab into the Game scene.
+Adding a character = a new controller + status + prefab, wired into `ChampionSpawner` — no
+changes to the map code.
 
-PR #12 已经把角色系统合进 `main`，所以 `RolePick` 直接复用它，而不再单独做注册表。每个角色是
-`PlayerCharacter` 的子类（`MrHydeController`、`CatController`、`SquirrelController`、
-`FrogController`），各自带一个 `CrossLevelStatus` 子类（`PigStatus`、`CatStatus`…）。
-`ChampionSpawner` 持有有序列表，并把选中的 prefab 换进 Game 场景。加角色 = 新建控制器 + 状态 +
-prefab，接到 `ChampionSpawner`，**不碰地图代码**。
+PR #12 已经把角色系统合进 `main`。地图上的 `RolePick` 节点打开的是现成的 **Select** 场景
+（WHO ARE U），不再用旧的 OnGUI `RolePick` 场景。每个角色是 `PlayerCharacter` 的子类
+（`MrHydeController`、`CatController`、`SquirrelController`、`FrogController`），各自带一个
+`CrossLevelStatus` 子类（`PigStatus`、`CatStatus`…）。`ChampionSpawner` 持有有序列表，并把选中
+的 prefab 换进 Game 场景。加角色 = 新建控制器 + 状态 + prefab，接到 `ChampionSpawner`，
+**不碰地图代码**。
 
 ```csharp
-// RolePickController.Pick(index) — same order as ChampionSpawner
+// ChampionSelect.Choose(index) in the Select scene — same order as ChampionSpawner
 ChampionSpawner.Chosen = index;
 CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(index)); // fresh run record
 ProgressStore.SelectedCharacter = index.ToString();
-GameFlow.Instance.CompleteCurrentNode();
+// From the map: GameFlow.CompleteCurrentNode() → back to Map
+// Opened alone: SceneManager.LoadScene("Game")
 ```
 
-`RolePick` lists the champions from `ChampionSpawner` (default index 0 = Mr. Hyde, the pig).
+`GameFlow.RolePickScene` is `"Select"`. Name plates are labels; each champion has a Select
+button that turns to Selected. Order: 0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero.
 Picking one starts a fresh run record and stores the index in `ProgressStore`.
 
-`RolePick` 从 `ChampionSpawner` 列出角色（默认 index 0 = Mr. Hyde 猪）。选中后开一个全新的 run
+`GameFlow.RolePickScene` 是 `"Select"`。角色名只是标签；每个角色下面有一个 Select 按钮，选中后
+变成 Selected。顺序：0 Mr. Hyde，1 JK. Rolling，2 Scrat，3 Rero Rero。选中后开一个全新的 run
 记录，并把 index 存进 `ProgressStore`。
 
 Role pick happens **once**, right after the tutorial.
@@ -246,7 +251,7 @@ Boot → Map
   ├ Tutorial node 1 (Basics)  → Game → win → back to Map (unlock node 2)
   ├ Tutorial node 2 (Dodge)   → Game → win → back to Map
   ├ Tutorial node 3 (Block)   → Game → win → back to Map
-  ├ RolePick node             → choose character → back to Map
+  ├ RolePick node             → Select scene (WHO ARE U) → back to Map
   ├ Battle nodes (easy→hard)  → Game → win → back to Map
   └ Store node                → Store → spend wallet → back to Map
 ```
@@ -255,10 +260,11 @@ Boot → Map
 
 ## 11. Division of labour / 分工
 
-- **Penny**: `Boot`/`Map`/`RolePick` scenes, `GameFlow`, tree `WorldMap` SO + `WorldMapController`,
-  `ProgressStore`, tutorial JSON, `survive` goal, Digesting label, `LevelLoader` entry.
+- **Penny**: `Boot`/`Map` scenes, map `RolePick` node → Select scene, `GameFlow`, tree
+  `WorldMap` SO + `WorldMapController`, `ProgressStore`, tutorial JSON, `survive` goal,
+  Digesting label, `LevelLoader` entry.
 - **Zhan Li**: `CrossLevelStatus` (done), `Store` scene (section 6 contract).
-- **Yukun**: character subclasses via `ChampionSpawner` (section 5).
+- **Yukun**: character subclasses via `ChampionSpawner` + Select UI (section 5).
 - **Butian**: survival mode as a new node type (section 7).
 
 `GameFlow` and the `WorldMap` asset are the only shared surface, maintained by Penny.

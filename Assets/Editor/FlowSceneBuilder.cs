@@ -6,10 +6,12 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Owner: Penny (Level map & tutorial)
-// Tools > Gold Miner > Build Flow Scenes: creates the Boot, Map, RolePick, and Store scenes, builds
-// the WorldMap asset in Resources (wired to the level JSONs), and registers every scene in Build
-// Settings with Boot first. Same pattern as GameSceneBuilder / HUDBuilder. Re-running keeps an
-// existing WorldMap so hand-tuned icon positions are not overwritten.
+// Tools > Gold Miner > Build Flow Scenes: creates the Boot, Map, RolePick (legacy OnGUI), Store,
+// and Survival scenes, builds the WorldMap asset in Resources (wired to the level JSONs), and
+// registers every scene in Build Settings with Boot first. The map's RolePick node loads the
+// existing Select scene ("WHO ARE U"), not RolePick.unity — RolePick.unity is only kept so a
+// rebuild does not drop it from the project. Same pattern as GameSceneBuilder / HUDBuilder.
+// Re-running keeps an existing WorldMap so hand-tuned icon positions are not overwritten.
 public static class FlowSceneBuilder
 {
     const string SceneDir = "Assets/Scenes";
@@ -17,12 +19,13 @@ public static class FlowSceneBuilder
     const string LevelDir = "Assets/Resources/Levels/";
 
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
-    // The map is a tree. The trunk is the tutorial + role pick. The Store is not on that path: the
-    // map draws it in the top-left corner (its x/y here are unused) and unlocks it from role pick,
-    // so it is reachable as soon as you have a character, not gated behind a battle. Level 1
-    // then splits into a left and a right path that merge back at Level 8, with Survive Mode after it
-    // (a placeholder scene; Butian replaces it). Add a level = add a row
-    // here (and drop a level JSON); point its prereqs at whatever should unlock it.
+    // The map is a tree. The trunk is the tutorial + role pick. The role_pick node opens Select
+    // ("WHO ARE U") via GameFlow.RolePickScene. The Store is not on that path: the map draws it in
+    // the top-left corner (its x/y here are unused) and unlocks it from role pick, so it is
+    // reachable as soon as you have a character, not gated behind a battle. Level 1 then splits
+    // into a left and a right path that merge back at Level 8, with Survive Mode after it (a
+    // placeholder scene; Butian replaces it). Add a level = add a row here (and drop a level JSON);
+    // point its prereqs at whatever should unlock it.
     // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
@@ -63,7 +66,7 @@ public static class FlowSceneBuilder
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("FlowSceneBuilder: built Boot / Map / RolePick / Store scenes, WorldMap asset, and Build Settings. Open Boot and press Play.");
+        Debug.Log("FlowSceneBuilder: built Boot / Map / RolePick (legacy) / Store / Survival scenes, WorldMap asset, and Build Settings. Map role pick opens Select. Open Boot and press Play.");
     }
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes", true)]
