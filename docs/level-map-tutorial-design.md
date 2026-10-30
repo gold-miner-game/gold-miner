@@ -69,7 +69,7 @@ Inspector 里可编辑的有序节点列表。加一关 = 加一个节点 + 丢�
 
 ```
 MapNode:
-  id            stable string, e.g. "tut_basics" / 稳定字符串
+  id            stable string, e.g. "tut_maze" / 稳定字符串
   type          Tutorial | RolePick | Battle | Store | (future Survival/Boss)
   levelAsset    TextAsset, for Tutorial/Battle only / 仅教程、战斗用
   displayName   label on the map / 地图上的名字
@@ -247,13 +247,8 @@ the stage ends when `count` seconds pass.
 ## 10. One full session / 一次完整流程
 
 ```
-Boot → Map
-  ├ Tutorial node 1 (Basics)  → Game → win → back to Map (unlock node 2)
-  ├ Tutorial node 2 (Dodge)   → Game → win → back to Map
-  ├ Tutorial node 3 (Block)   → Game → win → back to Map
-  ├ RolePick node             → Select scene (WHO ARE U) → back to Map
-  ├ Battle nodes (easy→hard)  → Game → win → back to Map
-  └ Store node                → Store → spend wallet → back to Map
+Boot → maze world map (level_tutorial.json) until the gate is cleared
+     → LEVELS tree (battles + survival; RolePick / Store off the map for now)
 ```
 
 ---

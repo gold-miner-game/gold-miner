@@ -1,0 +1,250 @@
+{
+  "name": "Tutorial",
+  "guide": "",
+  "params": {
+    "pig_speed": 5.0,
+    "digest_time": 0.35,
+    "digest_per_value": 0.004,
+    "round_time": 9999.0,
+    "starting_lives": 5,
+    "tile_size": 0.4
+  },
+  "skills": {
+    "block": true,
+    "block_duration": 0.8,
+    "block_cooldown": 0.5
+  },
+  "creditSources": [
+    "G1",
+    "G2",
+    "D2",
+    "G3"
+  ],
+  "creditFormula": "entryCredit = value(G1)+value(G2)+value(D2)+value(G3). D1 is always stolen by H, so this is everything the pig can collect; missing D2 or G3 leaves it short.",
+  "legendNote": "# rock | . floor | < one-way (only passable leftward) | X LV1 gate | P pig spawn | G gold | $ diamond | S/H/E/M miner. Only # < X are terrain; letters are for reading, entities come from the entities list. Coordinates are grid (col,row), row 0 = top.",
+  "grid": [
+    "##################################",
+    "#....S......S............#########",
+    "#........................#########",
+    "#........................#########",
+    "#..###################...#########",
+    "#.G#.......###########...#########",
+    "#..#.#####.###########...#########",
+    "#.G#.#P....###########...#########",
+    "#..#.#################...#########",
+    "#....#################...#########",
+    "######################...#########",
+    "#####....................#########",
+    "#####....................#########",
+    "####2.X.##########################",
+    "#####...##########################",
+    "#####...<.....................M.##",
+    "#####...#.....G................###",
+    "#####...#####################..###",
+    "#####...#####################..###",
+    "#####...#####################..###",
+    "#.............................E###",
+    "#...$..........................###",
+    "#.........###############$########",
+    "#.H.......########################",
+    "##################################"
+  ],
+  "entities": [
+    {
+      "id": "P",
+      "type": "Pig",
+      "x": 6,
+      "y": 7
+    },
+    {
+      "id": "G1",
+      "type": "Gold",
+      "x": 2,
+      "y": 7
+    },
+    {
+      "id": "G2",
+      "type": "Gold",
+      "x": 2,
+      "y": 5
+    },
+    {
+      "id": "S1",
+      "type": "Miner",
+      "x": 5,
+      "y": 1,
+      "hook": "Red",
+      "autoFire": false,
+      "hookSpeed": 22,
+      "windup": 0.35
+    },
+    {
+      "id": "S2",
+      "type": "Miner",
+      "x": 12,
+      "y": 1,
+      "hook": "Red",
+      "autoFire": false,
+      "hookSpeed": 22,
+      "windup": 0.35
+    },
+    {
+      "id": "X",
+      "type": "LevelPortal",
+      "x": 6,
+      "y": 13,
+      "target": "battle_01",
+      "unlockCost": 900
+    },
+    {
+      "id": "L2",
+      "type": "LevelPortal",
+      "x": 4,
+      "y": 13,
+      "target": "battle_02",
+      "requires": "battle_01",
+      "unlockCost": 1500
+    },
+    {
+      "id": "D1",
+      "type": "Diamond",
+      "x": 4,
+      "y": 21
+    },
+    {
+      "id": "H",
+      "type": "Miner",
+      "x": 2,
+      "y": 23,
+      "hook": "Yellow",
+      "autoFire": false,
+      "hookSpeed": 9,
+      "windup": 0.2
+    },
+    {
+      "id": "D2",
+      "type": "Diamond",
+      "x": 25,
+      "y": 22
+    },
+    {
+      "id": "E",
+      "type": "Miner",
+      "x": 30,
+      "y": 20,
+      "hook": "Red",
+      "autoFire": false,
+      "hookSpeed": 12,
+      "windup": 0.25
+    },
+    {
+      "id": "M",
+      "type": "Miner",
+      "x": 30,
+      "y": 15,
+      "hook": "Yellow",
+      "autoFire": false,
+      "hookSpeed": 8,
+      "windup": 0.25
+    },
+    {
+      "id": "G3",
+      "type": "Gold",
+      "x": 14,
+      "y": 16
+    },
+    {
+      "id": "OW",
+      "type": "OneWay",
+      "x": 8,
+      "y": 15,
+      "dir": "Left"
+    }
+  ],
+  "triggers": [
+    {
+      "id": "T_move",
+      "type": "Hint",
+      "x": 4,
+      "y": 5,
+      "w": 7,
+      "h": 5,
+      "text": "WASD to move"
+    },
+    {
+      "id": "T_eat",
+      "type": "Hint",
+      "x": 1,
+      "y": 4,
+      "w": 2,
+      "h": 6,
+      "text": "Eat gold, then wait to digest"
+    },
+    {
+      "id": "T_dodge",
+      "type": "MinerZone",
+      "x": 1,
+      "y": 1,
+      "w": 24,
+      "h": 3,
+      "targets": [
+        "S1",
+        "S2"
+      ],
+      "text": "Dodge! Red hooks attack you"
+    },
+    {
+      "id": "T_gate",
+      "type": "Hint",
+      "x": 5,
+      "y": 13,
+      "w": 3,
+      "h": 1,
+      "text": "Level 1 — touch the purple star"
+    },
+    {
+      "id": "T_steal",
+      "type": "Steal",
+      "x": 5,
+      "y": 18,
+      "w": 3,
+      "h": 2,
+      "targets": [
+        "H",
+        "D1"
+      ],
+      "text": "The miner steals treasure!"
+    },
+    {
+      "id": "T_block",
+      "type": "BlockQTE",
+      "x": 25,
+      "y": 21,
+      "w": 1,
+      "h": 1,
+      "targets": [
+        "E",
+        "D2"
+      ],
+      "text": "Space to block!",
+      "param": 0.35
+    },
+    {
+      "id": "T_knock",
+      "type": "KnockQTE",
+      "x": 8,
+      "y": 15,
+      "w": 23,
+      "h": 1,
+      "targets": [
+        "M",
+        "G3"
+      ],
+      "text": "Space to knock gold off the hook!",
+      "param": 2.2
+    }
+  ],
+  "pigSpeed": 5.0,
+  "blockRange": 1.5,
+  "retryNote": "T_block and T_knock: on a miss, respawn the diamond/gold at its start tile and re-arm the trigger."
+}

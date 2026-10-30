@@ -20,6 +20,17 @@ public class GameManager : MonoBehaviour
     public string EndReason { get; private set; }
     public bool IsInvincible => Time.time < invincibleUntil;
 
+    // Maze world map: no countdown, and eating all gold must not end the round (gate does).
+    public bool UseRoundTimer = true;
+    public bool EndWhenTreasureGone = true;
+
+    public void ConfigureTimer(float seconds, bool countdown)
+    {
+        roundTime = seconds;
+        TimeLeft = seconds;
+        UseRoundTimer = countdown;
+    }
+
     private float invincibleUntil;
     private bool hadTreasure;
 
@@ -30,6 +41,11 @@ public class GameManager : MonoBehaviour
         Lives = startingLives;
         IsPlaying = true;
         PlayAnalytics.BeginLevel();
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this) Instance = null;
     }
 
     void Start()
@@ -43,20 +59,30 @@ public class GameManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R)) { Restart(); return; }
         if (!IsPlaying) return;
 
-        TimeLeft -= Time.deltaTime;
-        if (TimeLeft <= 0f)
+        if (UseRoundTimer)
         {
-            TimeLeft = 0f;
-            EndRound(false, "Time's up!");
+            TimeLeft -= Time.deltaTime;
+            if (TimeLeft <= 0f)
+            {
+                TimeLeft = 0f;
+                EndRound(false, "Time's up!");
+                return;
+            }
         }
-        else if (hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
-        {
+
+        if (EndWhenTreasureGone && hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
             EndRound(false, "All treasure collected!");
-        }
     }
 
     public void AddPlayerMoney(int amount) { if (IsPlaying) PlayerMoney += amount; }
     public void AddMinerMoney(int amount)  { if (IsPlaying) MinerMoney += amount; }
+
+    // Maze hub restore after returning from a battle (bypasses IsPlaying gate).
+    public void RestoreHubTotals(int playerMoney, int lives)
+    {
+        PlayerMoney = Mathf.Max(0, playerMoney);
+        if (lives > 0) Lives = lives;
+    }
     public void AddLife()
     {
         if (!IsPlaying) return;

@@ -5,6 +5,50 @@ using UnityEngine;
 // Owner: C (Miner AI)
 public class MinerAI : MonoBehaviour
 {
+    // Maze tutorial: when false the miner waits until Arm(true) or FireScripted.
+    public void Arm(bool on)
+    {
+        autoShoot = on;
+        if (on && startDelay > 10f) startDelay = 0.2f;
+    }
+
+    // One scripted shot at a world point (yellow treasure path, or red if aimAtPlayer).
+    public IEnumerator FireScripted(Vector2 targetPos, bool aimAtPlayer)
+    {
+        if (hook == null || hookOrigin == null) yield break;
+        bool prev = autoShoot;
+        autoShoot = false;
+
+        Vector2 origin = hookOrigin.position;
+        Vector2 toTarget = targetPos - origin;
+        Vector2 dir = toTarget.normalized;
+        if (dir.sqrMagnitude < 0.0001f) dir = Vector2.down;
+        float length = toTarget.magnitude + overshoot;
+
+        Color color = aimAtPlayer ? playerColor : treasureColor;
+        // windup 0 = fire immediately (E/M tutorial). Skip the telegraph wait entirely.
+        if (telegraph != null && telegraphMin > 0.02f)
+        {
+            telegraph.Show(origin, origin + dir * length, color);
+            float wait = telegraphMin;
+            float end = Time.time + wait;
+            while (Time.time < end) yield return null;
+            telegraph.Hide();
+        }
+
+        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
+        {
+            autoShoot = prev;
+            yield break;
+        }
+
+        hook.Fire(origin, dir, length, color);
+        while (hook.IsBusy && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
+            yield return null;
+
+        autoShoot = prev;
+    }
+
     public enum Strategy
     {
         Weighted,    // random treasure, weighted by value

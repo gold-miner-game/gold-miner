@@ -20,6 +20,21 @@ public class GameplayCamera : MonoBehaviour
             camera.gameObject.AddComponent<GameplayCamera>();
     }
 
+    // Grid tutorial levels are taller/wider than the sim arena; LevelLoader sets this after parse.
+    public static void SetArenaSize(Vector2 size)
+    {
+        GameplayCamera cam = FindFirstObjectByType<GameplayCamera>();
+        if (cam == null)
+        {
+            Camera main = Camera.main;
+            if (main != null) Ensure(main);
+            cam = FindFirstObjectByType<GameplayCamera>();
+        }
+        if (cam == null) return;
+        cam.arenaSize = size;
+        cam.Fit();
+    }
+
     void Awake()
     {
         cam = GetComponent<Camera>();
@@ -32,8 +47,9 @@ public class GameplayCamera : MonoBehaviour
         if (Screen.width != lastWidth || Screen.height != lastHeight) Fit();
     }
 
-    void Fit()
+    public void Fit()
     {
+        if (cam == null) cam = GetComponent<Camera>();
         lastWidth = Screen.width;
         lastHeight = Screen.height;
 

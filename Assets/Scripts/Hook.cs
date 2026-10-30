@@ -286,6 +286,9 @@ public class Hook : MonoBehaviour
         Rock rock = col.GetComponent<Rock>();
         if (rock != null)
         {
+            // Maze walls sit on neighboring tiles; ignore them until the hook has left its spawn cell
+            // so E/M are not instantly blocked by the rocks beside them.
+            if (traveled < 0.25f) return false;
             rock.OnHookBlocked();
             return true;
         }
