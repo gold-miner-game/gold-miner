@@ -45,8 +45,9 @@ public class Treasure : MonoBehaviour
 
         IsTaken = true;
         Active.Remove(this);
-        player.Digest(value);
+        // Money first so maze hub can snapshot the correct total when marking this id eaten.
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
+        player.DigestTreasure(this, value);
         PlayAnalytics.FirstGold(type);
         Destroy(gameObject);
         return true;

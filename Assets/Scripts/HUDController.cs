@@ -83,6 +83,9 @@ public class HUDController : MonoBehaviour
 
     private readonly List<Popup> popups = new List<Popup>();
 
+    private bool mazeHudApplied;
+    private TMP_Text mazeMoneyText;   // player's $ above LIFE in the sidebar (maze only)
+
     void Start()
     {
         // The arena goes in the space the top bar and sidebar leave (HUDLayout)
@@ -102,6 +105,7 @@ public class HUDController : MonoBehaviour
         minerMoney = new Label(minerMoneyText);
         lives = new Label(livesText);
         EnsureMapButton();
+        ApplyMazeHudIfNeeded();
 
         // A round "has Lives" if it starts with some or a Life pickup is in the scene
         GameManager gm = GameManager.Instance;
@@ -114,6 +118,7 @@ public class HUDController : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm == null) return;
 
+        ApplyMazeHudIfNeeded();
         DetectChanges(gm);
         UpdateMoney(gm);
         UpdateTimer(gm);
@@ -122,6 +127,68 @@ public class HUDController : MonoBehaviour
         UpdateSidebar();
         UpdatePopups();
         UpdateEndPanel(gm);
+    }
+
+    // World-map maze: drop timer / $ vs $ / Pause / title so the grid is readable.
+    // Reuse the LIFE sidebar block: show player $ above the LIFE xN row.
+    void ApplyMazeHudIfNeeded()
+    {
+        if (mazeHudApplied) return;
+        if (levelLoader == null) levelLoader = FindFirstObjectByType<LevelLoader>();
+        bool maze = (levelLoader != null && levelLoader.IsMazeLevel) || MazeRuntime.Active != null;
+        if (!maze) return;
+        mazeHudApplied = true;
+
+        HUDLayout.HideTopBar = true;
+        if (timerText != null)
+        {
+            Transform topBar = timerText.transform.parent;
+            if (topBar != null) topBar.gameObject.SetActive(false);
+        }
+        if (mapButton != null) mapButton.gameObject.SetActive(false);
+
+        roundHasLives = true;
+        if (lifeSection != null) lifeSection.SetActive(true);
+        else if (livesText != null) livesText.gameObject.SetActive(true);
+        EnsureMazeMoneyInLifeSection();
+
+        // Keep SKILL / DIGEST cooldown rows. Only hide wallet/items (no store run on the maze).
+        if (itemsSection != null) itemsSection.SetActive(false);
+        if (walletSection != null) walletSection.SetActive(false);
+
+        GameplayCamera cam = FindFirstObjectByType<GameplayCamera>();
+        if (cam != null) cam.Fit();
+    }
+
+    void EnsureMazeMoneyInLifeSection()
+    {
+        if (mazeMoneyText != null) return;
+        if (lifeSection == null || livesText == null) return;
+
+        // Title + value, same style as LIFE / xN, inserted at the top of that section.
+        var titleGo = new GameObject("MoneyTitle", typeof(RectTransform));
+        titleGo.transform.SetParent(lifeSection.transform, false);
+        titleGo.transform.SetAsFirstSibling();
+        var title = titleGo.AddComponent<TextMeshProUGUI>();
+        title.text = "MONEY";
+        title.alignment = TextAlignmentOptions.Center;
+        title.fontSize = 18f;
+        title.characterSpacing = 4f;
+        title.color = noneColor;
+        title.raycastTarget = false;
+        if (livesText.font != null) title.font = livesText.font;
+
+        var valueGo = new GameObject("MoneyValue", typeof(RectTransform));
+        valueGo.transform.SetParent(lifeSection.transform, false);
+        valueGo.transform.SetSiblingIndex(1);
+        mazeMoneyText = valueGo.AddComponent<TextMeshProUGUI>();
+        mazeMoneyText.text = "$0";
+        mazeMoneyText.alignment = TextAlignmentOptions.Center;
+        mazeMoneyText.fontSize = livesText.fontSize > 0f ? livesText.fontSize : 32f;
+        mazeMoneyText.fontStyle = FontStyles.Bold;
+        mazeMoneyText.color = Color.white;
+        mazeMoneyText.raycastTarget = false;
+        if (livesText.font != null) mazeMoneyText.font = livesText.font;
     }
 
     // Flash labels and spawn popups when a value changes (never on the first frame)
@@ -161,6 +228,8 @@ public class HUDController : MonoBehaviour
 
         if (playerMoneyText != null) playerMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
         if (minerMoneyText != null) minerMoneyText.text = "$" + gm.MinerMoney.ToString("N0");
+        if (mazeMoneyText != null)
+            mazeMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
 
         playerMoney.Apply(moneyFlashScale);
         minerMoney.Apply(moneyFlashScale);
@@ -168,7 +237,8 @@ public class HUDController : MonoBehaviour
 
     void UpdateTimer(GameManager gm)
     {
-        if (timerText == null) return;
+        if (timerText == null || !timerText.gameObject.activeInHierarchy) return;
+        if (!gm.UseRoundTimer) return;
 
         // Judge by the number on screen, so "0:10" is never red
         int seconds = Mathf.CeilToInt(gm.TimeLeft);
@@ -189,6 +259,8 @@ public class HUDController : MonoBehaviour
     void EnsureMapButton()
     {
         if (timerText == null) return;
+        // Maze world map has no Pause / quit-to-map chrome.
+        if (levelLoader != null && levelLoader.IsMazeLevel) return;
 
         Canvas canvas = timerText.canvas;
         if (canvas != null && canvas.GetComponent<GraphicRaycaster>() == null)
@@ -446,10 +518,23 @@ public class HUDController : MonoBehaviour
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
         CrossLevelStatus record = PlayerCharacter.Record;
 
+        if (mazeHudApplied)
+        {
+            if (walletSection != null) walletSection.SetActive(false);
+            if (itemsSection != null) itemsSection.SetActive(false);
+            if (lifeSection != null) lifeSection.SetActive(true);
+            // Skill / digest cooldowns stay visible on the world map.
+            bool hasSkill = UpdateSkill();
+            bool hasDigest = UpdateDigest();
+            if (skillSection != null) skillSection.SetActive(hasSkill || hasDigest);
+            UpdateDividers();
+            return;
+        }
+
         UpdateWallet(record);
-        bool hasSkill = UpdateSkill();
-        bool hasDigest = UpdateDigest();
-        if (skillSection != null) skillSection.SetActive(hasSkill || hasDigest);
+        bool skill = UpdateSkill();
+        bool digest = UpdateDigest();
+        if (skillSection != null) skillSection.SetActive(skill || digest);
         UpdateItems(record);
         UpdateDividers();
     }

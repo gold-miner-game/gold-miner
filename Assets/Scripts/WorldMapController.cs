@@ -2,15 +2,12 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Owner: Penny (Level map & tutorial)
-// The level-select map, drawn as a TREE. By default it flows LEFT -> RIGHT (set horizontal = false
-// for top -> bottom). A node opens when it has no parents, is already cleared, or ANY of its
-// prerequisites is cleared, so one node can split into two and two paths can merge back (e.g. the
-// Store hangs off Pick Character on its own spur).
+// After the maze world map is cleared, this screen is the level-select TREE (LEFT -> RIGHT).
+// Role pick and the store are intentionally not on this map for now. A node opens when it has no
+// parents, is already cleared, or ANY of its prerequisites is cleared.
 //
-// The look is pure OnGUI but intentionally not bare: a vertical gradient backdrop, soft smooth
-// bezier connectors behind the nodes, and rounded "cards" with a drop shadow, an accent outline and
-// a hover lift. All of its textures are generated once at runtime (no art assets). State reads from
-// the accent + card tone: green = cleared, amber = available (with a soft glow), grey = locked.
+// Look: vertical gradient, soft bezier connectors, rounded cards with shadow / accent / hover.
+// Green = cleared, amber = available, grey = locked.
 public class WorldMapController : MonoBehaviour
 {
     [Tooltip("Left-to-right tree. Off = top-to-bottom.")]
@@ -64,7 +61,7 @@ public class WorldMapController : MonoBehaviour
 
         Layout(map);
 
-        GUI.Label(new Rect(0, 16, Screen.width, 36), "WORLD MAP", title);
+        GUI.Label(new Rect(0, 16, Screen.width, 36), "LEVELS", title);
 
         DrawEdges(map);                 // behind the cards
         for (int i = 0; i < map.nodes.Count; i++) DrawNode(map, i);
@@ -73,12 +70,20 @@ public class WorldMapController : MonoBehaviour
             ProgressStore.ResetAll();
     }
 
+    // Role pick / Store stay out of this tree for now. The maze itself is entered from GameFlow.
+    static bool ShownOnTree(MapNode node)
+    {
+        if (node == null) return false;
+        if (node.type == NodeType.RolePick || node.type == NodeType.Store) return false;
+        return true;
+    }
+
     // --- nodes ----------------------------------------------------------------------------------
 
     void DrawNode(WorldMap map, int i)
     {
         MapNode node = map.nodes[i];
-        if (node == null) return;
+        if (!ShownOnTree(node)) return;
 
         Rect rect = NodeRect(node);
         bool unlocked = map.IsUnlocked(i);
@@ -110,7 +115,7 @@ public class WorldMapController : MonoBehaviour
         for (int i = 0; i < map.nodes.Count; i++)
         {
             MapNode child = map.nodes[i];
-            if (child == null || child.type == NodeType.Store || child.prerequisites == null) continue;
+            if (!ShownOnTree(child) || child.prerequisites == null) continue;
             bool childOpen = map.IsUnlocked(i) || ProgressStore.IsCompleted(child.id);
 
             for (int p = 0; p < child.prerequisites.Length; p++)
@@ -152,7 +157,7 @@ public class WorldMapController : MonoBehaviour
         var spreads = new List<float>();
         foreach (MapNode n in map.nodes)
         {
-            if (n == null || n.type == NodeType.Store) continue;   // the shop sits in the corner
+            if (!ShownOnTree(n)) continue;
             depths.Add(n.mapPosition.y);
             spreads.Add(n.mapPosition.x);
         }
@@ -190,8 +195,6 @@ public class WorldMapController : MonoBehaviour
 
     Rect NodeRect(MapNode node)
     {
-        if (node.type == NodeType.Store)
-            return new Rect(22f, 58f, nodeSize.x, nodeSize.y);
         Vector2 c = Center(node);
         return new Rect(c.x - nodeSize.x * 0.5f, c.y - nodeSize.y * 0.5f, nodeSize.x, nodeSize.y);
     }

@@ -90,6 +90,7 @@ public class LevelLoader : MonoBehaviour
 
     public static int CurrentLevel => current + 1;
     public int LevelCount => list != null ? list.Length : 0;   // 1 when a map node requested the level
+    public bool IsMazeLevel => level != null && level.IsMaze;
 
     // The tutorial: every level up to the last one with a guide or stages (level_01b_block), so the
     // normal level between the two tutorials counts too. It is always played as Mr. Hyde, and the
@@ -199,11 +200,14 @@ public class LevelLoader : MonoBehaviour
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
         if (minerTemplate == null) minerTemplate = FindFirstObjectByType<MinerAI>();
 
+        if (!level.IsMaze) HUDLayout.HideTopBar = false;
         if (clearSceneItems) ClearItems();
         SpawnItems();
+        FitArenaCamera();
         SetUpPlayer();
         SetUpMiners();
         SetUpRound();
+        if (level.IsMaze) SetUpMaze();
         if (level.stages.Count > 0) StartStage(0);
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
@@ -228,6 +232,32 @@ public class LevelLoader : MonoBehaviour
 
     void SpawnItems() { Spawn(level.items); }
 
+    // Grid mazes are larger than the default 16:9 arena; widen the camera to the level's bounds.
+    void FitArenaCamera()
+    {
+        float w = level.Param("arena_w", 0f);
+        float h = level.Param("arena_h", 0f);
+        if (w <= 0f || h <= 0f) return;
+        // Small pad so top-row S miners are not clipped by the viewport edge.
+        if (level.IsMaze)
+        {
+            float pad = level.TileSize * 1.5f;
+            w += pad * 2f;
+            h += pad * 2f;
+        }
+        GameplayCamera.SetArenaSize(new Vector2(w, h));
+    }
+
+    // One-way doors, entry gate, and the tutorial trigger zones from level_tutorial.json.
+    void SetUpMaze()
+    {
+        MazeRuntime maze = gameObject.GetComponent<MazeRuntime>();
+        if (maze == null) maze = gameObject.AddComponent<MazeRuntime>();
+        maze.Build(level, player, miners);
+        if (level.EntryCredit > 0)
+            Debug.Log("LevelLoader: maze entry credit $" + level.EntryCredit);
+    }
+
     // Returns the treasure among what it spawned
     List<Treasure> Spawn(List<LevelData.Item> items)
     {
@@ -235,6 +265,9 @@ public class LevelLoader : MonoBehaviour
         var byName = new Dictionary<string, GameObject>();
         foreach (GameObject p in itemPrefabs)
             if (p != null) byName[p.name] = p;
+
+        bool maze = level != null && level.IsMaze;
+        float tile = level != null ? level.TileSize : 1f;
 
         foreach (LevelData.Item item in items)
         {
@@ -244,6 +277,26 @@ public class LevelLoader : MonoBehaviour
                 continue;
             }
             GameObject go = Instantiate(prefab, item.position, Quaternion.identity);
+            if (item.scale > 0f) go.transform.localScale = Vector3.one * item.scale;
+
+            if (maze)
+            {
+                // Battle gold (0.7) is wider than a maze corridor (tile 0.4); shrink to fit the cell.
+                if (item.type.StartsWith("Gold"))
+                    go.transform.localScale = Vector3.one * (tile * 0.85f);
+                else if (item.type == "Diamond")
+                    go.transform.localScale = Vector3.one * (tile * 0.75f);
+
+                Rock rock = go.GetComponent<Rock>();
+                if (rock != null)
+                {
+                    // Slightly smaller than the cell so a hook sitting on a floor tile does not
+                    // instantly collide with the four neighboring wall rocks.
+                    go.transform.localScale = Vector3.one * (tile * 0.88f);
+                    rock.MakeWall();
+                }
+            }
+
             spawned.Add(go);
             Treasure t = go.GetComponent<Treasure>();
             if (t != null) treasure.Add(t);
@@ -258,6 +311,9 @@ public class LevelLoader : MonoBehaviour
         player.transform.position = level.pigStart;
         var body = player.GetComponent<Rigidbody2D>();
         if (body != null) body.position = level.pigStart;
+        // Battle pig (~0.8) is wider than a maze corridor (tile 0.4); shrink so it fits the ASCII paths.
+        if (level.IsMaze)
+            player.transform.localScale = Vector3.one * (level.TileSize * 0.9f);
 
         levelSpeed = level.Param("pig_speed", player.moveSpeed);
         if (Tutorial)
@@ -315,8 +371,10 @@ public class LevelLoader : MonoBehaviour
             return;
         }
 
-        // The template's body sits this far from its hook origin; copies keep the same offset
-        Vector3 bodyOffset = minerTemplate.transform.position - minerTemplate.hookOrigin.position;
+        // Battle miners sit above the hook; maze miners sit on their grid cell so S/H/E/M match the ASCII.
+        Vector3 bodyOffset = level.IsMaze
+            ? Vector3.zero
+            : minerTemplate.transform.position - minerTemplate.hookOrigin.position;
 
         for (int i = 0; i < level.hooks.Count; i++)
         {
@@ -335,6 +393,8 @@ public class LevelLoader : MonoBehaviour
             miner.hookOrigin.position = origin;   // child of the miner, so set after moving the body
             miner.hook.transform.position = origin;
             miner.pig = player != null ? player.transform : minerTemplate.pig;
+            if (level.IsMaze)
+                miner.transform.localScale = Vector3.one * Mathf.Max(0.35f, level.TileSize * 1.1f);
             Configure(miner);
             miners.Add(miner);
         }
@@ -374,7 +434,17 @@ public class LevelLoader : MonoBehaviour
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
-        gm.roundTime = level.Param("round_time", gm.roundTime);
+        if (level.IsMaze)
+        {
+            // World map: no clock, no "all gold gone" auto-end — only the gate clears the visit.
+            gm.ConfigureTimer(level.Param("round_time", 9999f), false);
+            gm.EndWhenTreasureGone = false;
+        }
+        else
+        {
+            gm.ConfigureTimer(level.Param("round_time", gm.roundTime), true);
+            gm.EndWhenTreasureGone = true;
+        }
         if (Tutorial)
         {
             gm.startingLives = BaseLives(gm);
@@ -551,6 +621,12 @@ public class LevelLoader : MonoBehaviour
     void Start()
     {
         hasHud = FindFirstObjectByType<HUDController>() != null;
+        // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
+        if (level != null && level.IsMaze)
+        {
+            MazeRuntime maze = GetComponent<MazeRuntime>();
+            if (maze != null) maze.RestoreHubIfNeeded();
+        }
     }
 
     // What happens next once the round is over, for the end panel. Empty while playing, or when a
@@ -587,6 +663,8 @@ public class LevelLoader : MonoBehaviour
     void DrawGuide()
     {
         if (level == null) return;
+        // Maze world map: zone hints only — the big guide banner covers the grid.
+        if (level.IsMaze) return;
         string guide;
         string progress = "";
         if (stage >= 0)

@@ -30,11 +30,15 @@ Map Design Concepts
 UI Redesign
 
 ## Current Status
+![Maze world map](figures/world_map_maze.png)
+
+The maze hub is the world map: walk the grid, clear tutorial lessons (steal / block / knock), collect minerals for the maze bank, then enter Level 1 / Level 2 portals. Sidebar **MONEY** = maze bank + each battle's best (player − miner) margin. **Reset progress** (bottom right) wipes hub + unlock saves.
+
 ![Level 4 in play](figures/example_level.png)
 
 A snapshot of level 4, a few seconds after the round started.
 
-> The screenshot predates the HUD redesign (PRs #15 and #19), so it still shows the old money bar and the bottom-left dev label. The tables below describe the current HUD.
+> The level-4 screenshot predates the HUD redesign (PRs #15 and #19), so it still shows the old money bar and the bottom-left dev label. The tables below describe the current HUD.
 
 The screen is split in three: a **top bar** (8% of the height), a **sidebar** on the right (14.3% of the width), and the **arena** in the rest. The camera fits the whole arena into that space, so the HUD never covers a hook or a treasure.
 

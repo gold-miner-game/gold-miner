@@ -28,6 +28,8 @@ public class MapNode
     [Tooltip("Ids of the nodes that unlock this one (its parents in the tree). Empty = a start node. " +
              "Completing ANY one unlocks it, so a node can branch into two and two can merge back.")]
     public string[] prerequisites = new string[0];
+    [Tooltip("World-map money (sum of best win margins) required to enter. Unlock does not spend money.")]
+    public int unlockCost;
 }
 
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]

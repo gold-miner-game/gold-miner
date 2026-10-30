@@ -32,10 +32,16 @@ public class MrHydeController : PlayerCharacter
     // Start a block if the skill is on and off cooldown
     protected override void UseSkill()
     {
-        if (!CanBlock || Time.time < blockReadyAt) return;
+        TryBlock();
+    }
 
+    // Maze QTEs also call this when Space is pressed during a freeze-frame.
+    public bool TryBlock()
+    {
+        if (!CanBlock || Time.time < blockReadyAt) return false;
         blockUntil = Time.time + BlockDuration;
         blockReadyAt = blockUntil + BlockCooldown;
+        return true;
     }
 
     // While blocking the whole body is blue

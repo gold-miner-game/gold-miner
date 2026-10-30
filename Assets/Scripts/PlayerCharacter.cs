@@ -36,6 +36,8 @@ public abstract class PlayerCharacter : MonoBehaviour
     public bool UsesDigest => digestTime > 0f || digestPerValue > 0f;
     public float DigestLeft => Mathf.Max(0f, digestUntil - Time.time);
     public float DigestLength { get; private set; }
+    public bool IsDigesting => !CanEat && DigestLength > 0f;
+    public float DigestProgress01 => IsDigesting ? 1f - DigestLeft / DigestLength : 0f;
 
     // Hook asks this when it touches the character: a blocking one bounces the hook back.
     // Only Mr. Hyde can block
@@ -220,10 +222,28 @@ public abstract class PlayerCharacter : MonoBehaviour
         cooldownMask.transform.localScale = new Vector3(bodyBounds.size.x, bodyBounds.size.y * Mathf.Clamp01(left), 1f);
     }
 
+    // Maze BlockQTE watches digest progress for a named treasure (e.g. D2).
+    public string LastEatenId { get; private set; }
+
     // Called by Treasure when the character eats it. A character can put it off (the cat while rolling)
     public virtual void Digest(int value)
     {
         StartDigest(value);
+    }
+
+    public void DigestTreasure(Treasure treasure, int value)
+    {
+        LastEatenId = treasure != null ? treasure.name : "";
+        StartDigest(value);
+        if (MazeRuntime.Active != null) MazeRuntime.Active.NotifyEatStart(treasure);
+    }
+
+    // Maze BlockQTE miss: stop the digest so the pig can try the diamond again.
+    public void CancelDigest()
+    {
+        DigestLength = 0f;
+        digestUntil = Time.time;
+        LastEatenId = "";
     }
 
     // Start digesting `value` worth of treasure now. The record's ration skill means no digest at all
@@ -246,6 +266,11 @@ public abstract class PlayerCharacter : MonoBehaviour
         if (body != null) body.color = BodyColor;
         UpdateCooldownTint();
         if (shieldBubble != null) shieldBubble.enabled = Record != null && Record.isShielded();
+        if (MazeRuntime.Active != null && !CanEat && DigestLength > 0f && !string.IsNullOrEmpty(LastEatenId))
+        {
+            float progress = 1f - DigestLeft / DigestLength;
+            MazeRuntime.Active.NotifyEatProgress(LastEatenId, progress);
+        }
     }
 
     // A "Digesting" label over the character's head while it can't eat. The green tint shows the
