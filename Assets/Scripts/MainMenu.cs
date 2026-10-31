@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 // The Menu scene: the first page a build shows (Boot opens it). Start / Continue goes to the world
 // map, New Game wipes the saved progress first (after a confirm), How to Play shows the controls
 // and rules, and Quit closes the app (not on the web, where a page can't close itself).
-// Same look as the map (WorldMapController): OnGUI in ScreenFrame's 1280x720 space.
+// Same palette as the map (WorldMapController): OnGUI in ScreenFrame's 1280x720 space.
 public class MainMenu : MonoBehaviour
 {
     static readonly Color BgTop      = new Color(0.10f, 0.12f, 0.17f, 1f);

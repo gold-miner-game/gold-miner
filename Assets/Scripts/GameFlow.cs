@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 // Owner: Penny (Level map & tutorial)
 // The one persistent object that moves the player between scenes. Scenes never reference each
 // other; they all talk to GameFlow. It holds the WorldMap and drives:
-//   Menu -> Map -> (node) -> Game / RolePick / Store / Survival -> back to Map.
+//   Menu -> Map -> (node) -> level scene + Game / RolePick / Store / Survival -> back to Map.
 // See docs/level-map-tutorial-design.md.
 public class GameFlow : MonoBehaviour
 {
@@ -86,7 +86,7 @@ public class GameFlow : MonoBehaviour
                 LevelLoader.WaitToAdvance = true;   // GameFlow handles the transition, not LevelLoader
                 LevelLoader.AdvanceNow = false;
                 flow = Flow.Game;
-                SceneManager.LoadScene(GameScene);
+                SceneManager.LoadScene(LevelLayout.SceneFor(node.levelAsset));   // its level scene, else Game
                 break;
 
             case NodeType.Battle:
@@ -96,7 +96,7 @@ public class GameFlow : MonoBehaviour
                 LevelLoader.WaitToAdvance = true;
                 LevelLoader.AdvanceNow = false;
                 flow = Flow.Game;
-                SceneManager.LoadScene(GameScene);
+                SceneManager.LoadScene(LevelLayout.SceneFor(node.levelAsset));   // its level scene, else Game
                 break;
 
             case NodeType.RolePick:
@@ -171,6 +171,7 @@ public class GameFlow : MonoBehaviour
             return;
         }
         if (!gm.PlayerWon) return;   // a loss stays put; R retries the same level
+        if (TutorialDialogue.Playing) { winHandled = false; return; }   // a story after the win: wait for it
 
         if (!winHandled)
         {

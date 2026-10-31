@@ -82,6 +82,18 @@ public class Hook : MonoBehaviour
             sprite.forceRenderingOff = true;
         }
 
+        // A copied hook (Instantiate copies the hidden lines too) would keep the original's lines,
+        // frozen where they were drawn: a second claw on the hook, or one stuck where the copy was
+        // made. Only the lines made below may exist
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            GameObject child = transform.GetChild(i).gameObject;
+            if ((child.hideFlags & HideFlags.DontSave) == 0 || child.GetComponent<LineRenderer>() == null) continue;
+            child.SetActive(false);
+            if (Application.isPlaying) Destroy(child);
+            else DestroyImmediate(child);
+        }
+
         // Back to front: rope outline, rope, claw outlines, claws (all above treasure at 0)
         rope = new Stroke(transform, "Rope", 2, material, sortingLayer, sortingOrder - 3);
         clawLeft = new Stroke(transform, "ClawLeft", 3, material, sortingLayer, sortingOrder - 1);

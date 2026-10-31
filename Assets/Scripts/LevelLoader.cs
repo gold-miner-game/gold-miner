@@ -26,6 +26,8 @@ public class LevelLoader : MonoBehaviour
 
     [Header("Scene")]
     public MinerAI minerTemplate;          // empty: the first MinerAI in the scene
+    [Tooltip("Spawned once per hook when the scene has no miner to copy. Empty = Resources/Prefabs/Miner")]
+    public GameObject minerPrefab;
     [FormerlySerializedAs("pig")]
     public PlayerCharacter player;         // empty: the first character in the scene
     public bool clearSceneItems = true;    // remove treasure, rocks and lives already placed in the scene
@@ -77,8 +79,11 @@ public class LevelLoader : MonoBehaviour
     // The level index survives GameManager.Restart (which reloads the scene)
     private static int current = -1;
 
+    const string MinerPrefabPath = "Prefabs/Miner";
+
     private TextAsset[] list;
     private LevelData level;
+    private LevelLayout layout;      // the level scene's layout; null = everything from the level file
     private string label = "";
     private readonly List<GameObject> spawned = new List<GameObject>();
     private float advanceAt = -1f;   // time the next level loads; -1 = not scheduled
@@ -129,6 +134,11 @@ public class LevelLoader : MonoBehaviour
 
     void Awake()
     {
+        // Played from a level scene (LevelLayout): that scene says which level this is
+        // (found directly too: opened together in the editor, its Awake may not have run yet)
+        layout = LevelLayout.Active != null ? LevelLayout.Active : FindFirstObjectByType<LevelLayout>();
+        TextAsset sceneLevel = layout != null ? layout.levelFile : null;
+
         if (Requested != null)
         {
             list = new[] { Requested };
@@ -137,6 +147,9 @@ public class LevelLoader : MonoBehaviour
         else
         {
             list = levels != null && levels.Length > 0 ? levels : LoadFromResources();
+            int inList = sceneLevel != null ? System.Array.IndexOf(list, sceneLevel) : -1;
+            if (inList >= 0) current = inList;
+            else if (sceneLevel != null) { list = new[] { sceneLevel }; current = 0; }
             if (current < 0 || current >= list.Length) current = Mathf.Clamp(startLevel - 1, 0, list.Length - 1);
         }
         if (list.Length == 0)
@@ -150,9 +163,21 @@ public class LevelLoader : MonoBehaviour
         // play (N/P through the level list), where no map node made the call.
         Tutorial = ScriptedTutorial ?? current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
+        if (layout != null) UseLayout();
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
         if (seed != 0) Random.InitState(seed);
         Build();
+    }
+
+    // The level scene's PlayerStart, Hooks and Items replace the file's pig_start, hooks and items.
+    // The items are already in the scene, so they are shown instead of spawned
+    void UseLayout()
+    {
+        level.pigStart = layout.PlayerStart;
+        level.hooks.Clear();
+        level.hooks.AddRange(layout.HookOrigins());
+        level.items.Clear();
+        level.items.AddRange(layout.Items());
     }
 
     // The character chosen on the role-pick screen, else whatever ChampionSpawner still remembers.
@@ -209,7 +234,8 @@ public class LevelLoader : MonoBehaviour
 
         if (clearSceneItems) ClearItems();
         if (screenWalls) new GameObject("ArenaWalls").AddComponent<ArenaWalls>();
-        SpawnItems();
+        if (layout != null) layout.ShowItems();
+        else SpawnItems();
         SetUpPlayer();
         SetUpMiners();
         SetUpRound();
@@ -230,6 +256,7 @@ public class LevelLoader : MonoBehaviour
         foreach (LifePickup l in FindObjectsByType<LifePickup>(FindObjectsSortMode.None)) doomed.Add(l.gameObject);
         foreach (GameObject go in doomed)
         {
+            if (layout != null && go.scene == layout.gameObject.scene) continue;   // the level scene's own items
             go.SetActive(false);   // leaves Treasure.Active now, not at the end of the frame
             Destroy(go);
         }
@@ -312,7 +339,7 @@ public class LevelLoader : MonoBehaviour
     {
         if (minerTemplate == null)
         {
-            Debug.LogWarning("LevelLoader: no MinerAI in the scene to copy");
+            SpawnMiners();
             return;
         }
         // A level without hooks has no miner: hide the scene's one before its Start runs
@@ -339,14 +366,42 @@ public class LevelLoader : MonoBehaviour
                 miner.telegraph = Instantiate(minerTemplate.telegraph.gameObject).GetComponent<TelegraphLine>();
                 miner.telegraph.name = minerTemplate.telegraph.name + " " + (i + 1);
             }
-            Vector3 origin = level.hooks[i];
-            miner.transform.position = origin + bodyOffset;
-            miner.hookOrigin.position = origin;   // child of the miner, so set after moving the body
-            miner.hook.transform.position = origin;
-            miner.pig = player != null ? player.transform : minerTemplate.pig;
-            Configure(miner);
-            miners.Add(miner);
+            PlaceMiner(miner, level.hooks[i], bodyOffset);
+            if (miner.pig == null) miner.pig = minerTemplate.pig;
         }
+    }
+
+    // No miner in the scene: one copy of the miner prefab (body, hook origin, hook and telegraph)
+    // per hook in the level file, so the level doesn't depend on what the Game scene still holds
+    void SpawnMiners()
+    {
+        if (level.hooks.Count == 0) return;
+        GameObject prefab = minerPrefab != null ? minerPrefab : Resources.Load<GameObject>(MinerPrefabPath);
+        if (prefab == null || prefab.GetComponent<MinerAI>() == null)
+        {
+            Debug.LogWarning("LevelLoader: no MinerAI in the scene and no miner prefab (Resources/" + MinerPrefabPath + ")");
+            return;
+        }
+        // Made right where it goes, so nothing is ever drawn at the prefab's own position
+        MinerAI template = prefab.GetComponent<MinerAI>();
+        Vector3 bodyOffset = template.transform.position - template.hookOrigin.position;
+        for (int i = 0; i < level.hooks.Count; i++)
+        {
+            Vector3 at = (Vector3)level.hooks[i] + bodyOffset;
+            MinerAI miner = Instantiate(prefab, at, prefab.transform.rotation).GetComponent<MinerAI>();
+            miner.name = prefab.name + (i > 0 ? " " + (i + 1) : "");
+            PlaceMiner(miner, level.hooks[i], bodyOffset);
+        }
+    }
+
+    void PlaceMiner(MinerAI miner, Vector3 origin, Vector3 bodyOffset)
+    {
+        miner.transform.position = origin + bodyOffset;
+        miner.hookOrigin.position = origin;   // child of the miner, so set after moving the body
+        miner.hook.transform.position = origin;
+        if (player != null) miner.pig = player.transform;
+        Configure(miner);
+        miners.Add(miner);
     }
 
     void Configure(MinerAI miner)
@@ -503,6 +558,7 @@ public class LevelLoader : MonoBehaviour
         }
 
         if (!gm.PlayerWon) return;
+        if (TutorialDialogue.Playing) { advanceAt = -1f; return; }   // a story after the win: wait for it
 
         if (advanceAt < 0f)
             advanceAt = Time.time + advanceDelay;
@@ -541,7 +597,7 @@ public class LevelLoader : MonoBehaviour
 
     bool IsLastLevel => current >= list.Length - 1;
 
-    // Switch level by reloading the scene (the index is static). Going from the tutorial to a normal
+    // Switch level by loading its scene (the index is static). Going from the tutorial to a normal
     // level opens the select scene first; it loads this scene again with the picked character
     public void Load(int index)
     {
@@ -553,9 +609,8 @@ public class LevelLoader : MonoBehaviour
             SceneManager.LoadScene(selectScene);
             return;
         }
-        if (GameManager.Instance != null) GameManager.Instance.Restart();
-        else UnityEngine.SceneManagement.SceneManager.LoadScene(
-            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+        // The level's own scene if it has one (it brings the Game scene with it), else the Game scene
+        SceneManager.LoadScene(LevelLayout.SceneFor(list[current]));
     }
 
     void Start()

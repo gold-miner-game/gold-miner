@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -10,7 +11,7 @@ using UnityEngine.SceneManagement;
 // Tools > Gold Miner > Build Flow Scenes: creates the Boot, Menu, Map, RolePick, Store and Survival scenes, builds
 // the WorldMap asset in Resources (wired to the level JSONs), and registers every scene in Build
 // Settings with Boot first. Same pattern as GameSceneBuilder / HUDBuilder. Re-running keeps an
-// existing WorldMap so hand-tuned icon positions are not overwritten.
+// existing WorldMap, and the existing Map scene, so hand-tuned nodes and map layout are not overwritten.
 public static class FlowSceneBuilder
 {
     const string SceneDir = "Assets/Scenes";
@@ -56,7 +57,7 @@ public static class FlowSceneBuilder
 
         BuildScene("Boot", typeof(Boot));
         BuildScene("Menu", typeof(MainMenu));
-        BuildScene("Map", typeof(WorldMapController));
+        BuildMapScene();
         BuildScene("RolePick", typeof(RolePickController));
         BuildScene("Store", typeof(StorePlaceholder));
         BuildScene("Survival", typeof(SurvivalLoader), c => WireSurvival((SurvivalLoader)c));
@@ -121,6 +122,23 @@ public static class FlowSceneBuilder
             weight = i.weight,
         }).ToArray();
         loader.telegraphDot = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "TelegraphDot.prefab");
+    }
+
+    // The map is edited by hand in the Scene view, so an existing Map scene is kept: it only gets the
+    // map UI if it has none yet, plus a card for any new WorldMap node (MapUIBuilder)
+    static void BuildMapScene()
+    {
+        string path = SceneDir + "/Map.unity";
+        if (!File.Exists(path))
+        {
+            BuildScene("Map", typeof(WorldMapController), c => MapUIBuilder.Build((WorldMapController)c));
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+        MapUIBuilder.Build(null);
+        if (!EditorSceneManager.SaveScene(scene))
+            Debug.LogError("FlowSceneBuilder: could not save " + path);
     }
 
     static void BuildScene(string name, Type controller, Action<Component> configure = null)

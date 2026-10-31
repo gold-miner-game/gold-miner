@@ -102,6 +102,7 @@ public class GameManager : MonoBehaviour
         EndReason = reason;
         PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
         RoundMarginLog.Record(this);
+        AnnounceEnd();
     }
 
     // Win now, whatever the money: for levels with another goal (the block tutorial)
@@ -112,6 +113,14 @@ public class GameManager : MonoBehaviour
         EndReason = reason;
         PlayerWon = true;
         RoundMarginLog.Record(this);
+        AnnounceEnd();
+    }
+
+    // For tutorial steps and stories that start when the round ends (TutorialEvents)
+    void AnnounceEnd()
+    {
+        TutorialEvents.Fire(PlayerWon ? "round_won" : "round_lost");
+        TutorialEvents.Fire("round_end");
     }
 
     public void Restart()

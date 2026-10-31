@@ -23,7 +23,8 @@ public class MapNode
     [Tooltip("Level JSON for Tutorial / Battle nodes (a TextAsset from Resources/Levels).")]
     public TextAsset levelAsset;
     public string displayName = "Level";
-    [Tooltip("Icon position in normalised screen space: (0,0) top-left, (1,1) bottom-right.")]
+    [Tooltip("Starting spot for this node's card (x = branch spread, y = depth, 0..1). Only used when " +
+             "Build Map UI first creates the card; after that, move the card in the Map scene.")]
     public Vector2 mapPosition = new Vector2(0.5f, 0.5f);
     [Tooltip("Ids of the nodes that unlock this one (its parents in the tree). Empty = a start node. " +
              "Completing ANY one unlocks it, so a node can branch into two and two can merge back.")]

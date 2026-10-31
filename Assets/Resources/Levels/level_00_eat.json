@@ -1,5 +1,4 @@
 {
-  "guide": "EAT GOLD\nMove with W A S D to eat the gold.\nEating makes you DIGEST (green): you can't eat again until the green drains from your head.\nThe gold in the middle is bunched up - wait out each digest, then grab the next.",
   "pig_start": [
     0.0,
     -1.0
