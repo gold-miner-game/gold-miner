@@ -2,7 +2,8 @@ using UnityEngine;
 
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
-// its skill is the block: Space bounces a hook off, or knocks treasure off a passing hook.
+// its skill is the block: Space bounces a hook off, or knocks treasure off a passing hook. Next to a
+// hook (HookHealth: a miner or a hook hole) the same press also hits it.
 public class MrHydeController : PlayerCharacter
 {
     [Header("Block (Space)")]
@@ -10,6 +11,8 @@ public class MrHydeController : PlayerCharacter
     public float blockDuration = 0.8f;  // how long one block lasts
     public float blockCooldown = 1f;    // wait after a block ends before the next one
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
+    [Tooltip("A block this close to a hook (a miner or a hook hole, with HookHealth) also hits it, in world units from the pig's centre to the hook's box")]
+    public float attackReach = 1.3f;
 
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
     public override string SkillHint => CanBlock ? "[Space] block" : "";
@@ -36,6 +39,10 @@ public class MrHydeController : PlayerCharacter
 
         blockUntil = Time.time + BlockDuration;
         blockReadyAt = blockUntil + BlockCooldown;
+
+        // Next to a hook, the same press attacks it
+        HookHealth target = HookHealth.InReach(transform.position, attackReach);
+        if (target != null) target.Damage();
     }
 
     // While blocking the whole body is blue

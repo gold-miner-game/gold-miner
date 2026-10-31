@@ -308,6 +308,18 @@ public class Hook : MonoBehaviour
         return false; // walls, Life items: the hook passes through
     }
 
+    // The block's flash: a white half sphere where the hook head meets the player's body, facing the hook
+    void ShowBlock(Collider2D body)
+    {
+        Vector2 head = transform.position;
+        Vector2 centre = body.bounds.center;
+        Vector2 surface = body.ClosestPoint(head);
+        if ((surface - head).sqrMagnitude < 0.0001f)   // the head is already inside: step out along the line to it
+            surface = centre + (head - centre).normalized * body.bounds.extents.magnitude * 0.7f;
+        float width = Mathf.Max(body.bounds.size.x, body.bounds.size.y) * 1.1f;
+        BlockFlash.Show(surface, head - centre, width);
+    }
+
     bool HandlePlayer(PlayerCharacter player, Collider2D col)
     {
         // Blocking: the hook bounces off and goes home empty, even in no-kill levels
@@ -315,6 +327,7 @@ public class Hook : MonoBehaviour
         {
             if (!touched.Add(col)) return false;
             player.OnHookBlocked();
+            ShowBlock(col);
             return true;
         }
         // A rolling cat can't be hit: the hook passes through (it can still hit once the roll ends)

@@ -19,6 +19,7 @@ using UnityEngine.UI;
 //   Tutorial Dodge     a step that freezes the game the first time a hook takes aim (hook_aim)
 //   Tutorial Squeeze   the dodge tutorial's end: a story after 4 dodges, then the presses close in
 //   Tutorial Rescue    the squeeze's way out: a friendly story on the last Life, then the Exit opens
+//   Tutorial Skills    the block tutorial: J.K. Rolling's story at the start, then Block and Attack steps
 //   Tutorial Life Lost a step for the first Life lost: the player and the HUD's Life panel lit
 //   Tutorial Arrow / Tutorial Spotlight   the one-off intro props (TutorialArrow, TutorialSpotlight)
 public static class TutorialPropsMenu
@@ -250,7 +251,7 @@ public static class TutorialPropsMenu
         TutorialDialogue.Character friend = dialogue.characters[0];
         friend.name = "Nice Meowmeow";
         friend.prefab = FindPrefab("GreedyMeowmeow");
-        friend.nameColor = new Color(0.55f, 1f, 0.6f);
+        friend.side = TutorialDialogue.Side.Friend;
         friend.spawnAt.position = new Vector3(-3.5f, 1.5f, 0f);
         friend.spawnAt.name = "FriendSpot";
 
@@ -267,6 +268,74 @@ public static class TutorialPropsMenu
         }
 
         Selection.activeGameObject = dialogue.gameObject;
+    }
+
+    // The block tutorial (level_01b_block): J.K. Rolling (the Cat) tells Assets/Story/ProfessorCat.txt
+    // when the level starts; then the first time a hook takes aim the game freezes on the player
+    // with a SPACE callout (block it); when the destroy stage starts it freezes on the miner to hit
+    [MenuItem("Tools/Gold Miner/Tutorial Skills", false, 109)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Skills", false, 19)]
+    static void CreateSkills(MenuCommand command)
+    {
+        Vector3 player = PlayerStart();
+
+        TutorialDialogue dialogue = CreateStoryStep("ProfessorStory", "");
+        TutorialStep story = dialogue.GetComponent<TutorialStep>();
+        story.startOn = TutorialStep.StartTrigger.LevelStart;
+        dialogue.scriptFile = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/ProfessorCat.txt");
+        dialogue.hideResult = false;
+        dialogue.leaveWhenDone = false;   // the lesson comes next
+        TutorialDialogue.Character professor = dialogue.characters[0];
+        professor.name = "J.K. Rolling";
+        professor.prefab = FindPrefab("Cat");
+        professor.side = TutorialDialogue.Side.Friend;
+        professor.spawnAt.name = "ProfessorSpot";
+        professor.spawnAt.position = player + new Vector3(2.5f, 0.5f, 0f);
+
+        // Block: the first red line freezes on the player and the miner's hook
+        TutorialStep block = CreateLessonStep("Block", SurvivalHookAI.AimEvent, "SPACE");
+        LevelLayout layout = Object.FindFirstObjectByType<LevelLayout>();
+        if (layout != null && layout.hooks != null)
+            foreach (Transform h in layout.hooks)
+                CreateHoleObject(block.transform, h.position).name = "Hole " + h.name;
+
+        // Attack: when the destroy stage starts, the miner to walk up to and hit (SPACE next to it)
+        TutorialStep attack = CreateLessonStep("Attack", "stage_destroy", null);
+        attack.seconds = 3f;
+        if (layout != null && layout.hooks != null)
+            foreach (Transform h in layout.hooks)
+            {
+                Vector3 body = h.position + new Vector3(0f, 0.8f, 0f);   // the miner sits above its hook origin
+                CreateHoleObject(attack.transform, body).name = "Hole " + h.name;
+                GameObject callout = CreateCalloutObject(attack.transform, body + new Vector3(-0.8f, 0f, 0f), "SPACE");
+                callout.transform.Find("Arrow").localRotation = Quaternion.Euler(0f, 0f, 90f);   // points right, at the miner
+            }
+
+        Selection.activeGameObject = story.gameObject;
+    }
+
+    // A frozen moment that lights the player, with a callout above their head
+    static TutorialStep CreateLessonStep(string name, string startEvent, string label)
+    {
+        var go = new GameObject(name);
+        Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Skills");
+        go.transform.SetParent(TutorialRoot(), false);
+        TutorialStep step = go.AddComponent<TutorialStep>();
+        step.startOn = TutorialStep.StartTrigger.Event;
+        step.startEvent = startEvent;
+        step.endOn = TutorialStep.EndTrigger.Seconds;
+        step.seconds = 2.5f;
+        step.darkness = 0.55f;   // the red line still shows across the dark
+        step.maxTimes = 1;
+
+        Vector3 player = PlayerStart();
+        CreateHoleObject(go.transform, player).GetComponent<TutorialFollow>().followPlayer = true;
+        if (!string.IsNullOrEmpty(label))
+        {
+            GameObject callout = CreateCalloutObject(go.transform, player + new Vector3(0f, 1.2f, 0f), label);
+            callout.GetComponent<TutorialFollow>().followPlayer = true;
+        }
+        return step;
     }
 
     static Transform CreatePress(Transform parent, string name, float x, float angle, float length, float depth)
@@ -308,8 +377,8 @@ public static class TutorialPropsMenu
         dialogue.characters = new[]
         {
             new TutorialDialogue.Character { name = "Evil Meowmeow", prefab = FindPrefab("EvilMeowmeow"), spawnAt = spot.transform,
-                                             nameColor = new Color(1f, 0.45f, 0.45f) },
-            new TutorialDialogue.Character { name = "You", isPlayer = true, nameColor = new Color(1f, 0.72f, 0.82f) },
+                                             side = TutorialDialogue.Side.Enemy },
+            new TutorialDialogue.Character { name = "You", isPlayer = true },
         };
         return dialogue;
     }
@@ -350,8 +419,8 @@ public static class TutorialPropsMenu
 
     // A step for the first Life lost (while still alive): the game freezes with the player and the
     // HUD's Life panel lit, so the player sees the count go down
-    [MenuItem("Tools/Gold Miner/Tutorial Life Lost", false, 109)]
-    [MenuItem("GameObject/Gold Miner/Tutorial Life Lost", false, 19)]
+    [MenuItem("Tools/Gold Miner/Tutorial Life Lost", false, 110)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Life Lost", false, 20)]
     static void CreateLifeLost(MenuCommand command)
     {
         Transform tutorial = TutorialRoot();

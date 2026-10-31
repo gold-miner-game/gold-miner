@@ -57,8 +57,8 @@ public abstract class PlayerCharacter : MonoBehaviour
     // Hooks bounced off a block, and treasure knocked off a hook, this round (the tutorial's goals)
     public int HooksBlocked { get; private set; }
     public int TreasureStolen { get; private set; }
-    public void OnHookBlocked() { HooksBlocked++; }
-    public void OnTreasureKnocked() { TreasureStolen++; }
+    public void OnHookBlocked() { HooksBlocked++; TutorialEvents.Fire("hook_blocked"); }
+    public void OnTreasureKnocked() { TreasureStolen++; TutorialEvents.Fire("treasure_stolen"); }
 
     // WASD this frame (not normalized)
     public Vector2 MoveInput { get; private set; }

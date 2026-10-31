@@ -30,8 +30,11 @@ public class TutorialDialogue : MonoBehaviour
         public Transform spawnAt;
         [Tooltip("This character is the player (no prefab is spawned)")]
         public bool isPlayer;
-        public Color nameColor = new Color(1f, 0.85f, 0.4f);
+        [Tooltip("Whose side they are on: the colour of their name and of the box's border while they talk (the colours are under Look)")]
+        public Side side = Side.Enemy;
     }
+
+    public enum Side { Enemy, Friend, Unknown }
 
     [System.Serializable]
     public class Line
@@ -57,6 +60,11 @@ public class TutorialDialogue : MonoBehaviour
     public SpriteMask speakerLight;
     [Tooltip("Sorting order the spawned characters draw at, as one piece: above the arena (items, characters, the squeeze's presses at 20) and under the tutorial dark (100), so the speaker light still picks them out")]
     public int characterOrder = 50;
+    [Tooltip("Name and border colour of each side; the player has their own")]
+    public Color enemyColor = new Color(1f, 0.35f, 0.35f);
+    public Color friendColor = new Color(0.4f, 0.7f, 1f);
+    public Color unknownColor = new Color(0.65f, 0.65f, 0.65f);
+    public Color playerColor = new Color(1f, 0.72f, 0.82f);
 
     [Header("Round")]
     [Tooltip("No \"YOU WIN\" / \"YOU LOSE\" panel while it plays (and after, with Leave When Done)")]
@@ -109,8 +117,9 @@ public class TutorialDialogue : MonoBehaviour
 
     GameObject box;
     TMP_Text nameText;
+    Outline border;   // round the box, in the speaker's side colour
     TMP_Text bodyText;
-    TMP_Text hintText;
+    Image hintImage;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()   // Play without a domain reload keeps statics
@@ -159,7 +168,7 @@ public class TutorialDialogue : MonoBehaviour
         int shown = lettersPerSecond > 0f ? Mathf.Min(line.text.Length, Mathf.FloorToInt(t * lettersPerSecond)) : line.text.Length;
         typing = shown < line.text.Length;
         bodyText.maxVisibleCharacters = shown;
-        hintText.enabled = !typing && line.autoNext <= 0f;
+        hintImage.enabled = !typing && line.autoNext <= 0f;
 
         bool pressed = (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
                     || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
@@ -176,6 +185,19 @@ public class TutorialDialogue : MonoBehaviour
         Bounce(t);
     }
 
+    // The speaker's side colour; white for the narrator
+    Color ColorOf(Character who)
+    {
+        if (who == null) return Color.white;
+        if (who.isPlayer) return playerColor;
+        switch (who.side)
+        {
+            case Side.Friend: return friendColor;
+            case Side.Unknown: return unknownColor;
+            default: return enemyColor;
+        }
+    }
+
     void Next()
     {
         index++;
@@ -188,7 +210,9 @@ public class TutorialDialogue : MonoBehaviour
 
         Character who = FindCharacter(line.speaker);
         nameText.text = who != null ? who.name : int.TryParse(line.speaker, out _) ? "" : (line.speaker ?? "");
-        nameText.color = who != null ? who.nameColor : Color.white;
+        Color color = ColorOf(who);
+        nameText.color = color;
+        if (border != null) { border.effectColor = color; border.enabled = who != null; }
         speaker = who != null && actors.TryGetValue(who.name, out Transform t) ? t : null;
         MoveLight();
         TutorialEvents.Fire(line.fireEvent);
@@ -287,7 +311,7 @@ public class TutorialDialogue : MonoBehaviour
             }
             if (c.prefab == null) continue;
             Transform at = c.spawnAt != null ? c.spawnAt : transform;
-            GameObject go = Instantiate(c.prefab, at.position, c.prefab.transform.rotation);
+            GameObject go = SpawnLook(c.prefab, at.position);
             go.name = c.name;
             // One sorting group: the prefab's own layering stays, the whole character draws on top
             SortingGroup group = go.GetComponent<SortingGroup>();
@@ -296,6 +320,26 @@ public class TutorialDialogue : MonoBehaviour
             spawned.Add(go);
             actors[c.name] = go.transform;
         }
+    }
+
+    // A copy of the prefab that only looks the part. A playable character's prefab (the Cat, JK.
+    // Rolling) would otherwise be a second player: hooks, steps and the camera look for the
+    // PlayerCharacter. It is made under an inactive holder, so its scripts never wake up, and its
+    // scripts, physics and colliders are taken off before it appears (scripts first: some need the body)
+    static GameObject SpawnLook(GameObject prefab, Vector3 at)
+    {
+        if (prefab.GetComponentInChildren<PlayerCharacter>(true) == null)
+            return Instantiate(prefab, at, prefab.transform.rotation);
+
+        var holder = new GameObject("SpawnHolder");
+        holder.SetActive(false);
+        GameObject go = Instantiate(prefab, at, prefab.transform.rotation, holder.transform);
+        foreach (MonoBehaviour script in go.GetComponentsInChildren<MonoBehaviour>(true)) DestroyImmediate(script);
+        foreach (Collider2D col in go.GetComponentsInChildren<Collider2D>(true)) DestroyImmediate(col);
+        foreach (Rigidbody2D body in go.GetComponentsInChildren<Rigidbody2D>(true)) DestroyImmediate(body);
+        go.transform.SetParent(null, true);
+        Destroy(holder);
+        return go;
     }
 
     // The speaker hops a little while their line types out
@@ -353,18 +397,45 @@ public class TutorialDialogue : MonoBehaviour
         image.type = Image.Type.Sliced;
         image.color = Panel;
         image.raycastTarget = false;
+        border = panel.gameObject.AddComponent<Outline>();   // the speaker's side colour (Next)
+        border.effectDistance = new Vector2(4f, -4f);
+        border.useGraphicAlpha = false;
+        border.enabled = false;
 
         nameText = Text(panel, "Name", new Vector2(36f, -18f), new Vector2(-72f, 50f), 34f, FontStyles.Bold);
         bodyText = Text(panel, "Text", new Vector2(36f, -70f), new Vector2(-72f, 140f), 32f, FontStyles.Normal);
         bodyText.textWrappingMode = TextWrappingModes.Normal;
         bodyText.alignment = TextAlignmentOptions.TopLeft;
-        hintText = Text(panel, "Hint", new Vector2(-36f, 18f), new Vector2(60f, 40f), 30f, FontStyles.Bold);
-        RectTransform hint = hintText.rectTransform;
+        // The "next" arrow: a drawn triangle (the font has no ▶)
+        var hintObject = new GameObject("Hint", typeof(RectTransform), typeof(Image));
+        RectTransform hint = (RectTransform)hintObject.transform;
+        hint.SetParent(panel, false);
         hint.anchorMin = hint.anchorMax = hint.pivot = new Vector2(1f, 0f);
-        hint.sizeDelta = new Vector2(60f, 40f);
-        hintText.text = "▶";
-        hintText.alignment = TextAlignmentOptions.BottomRight;
-        hintText.color = new Color(1f, 1f, 1f, 0.7f);
+        hint.anchoredPosition = new Vector2(-36f, 24f);
+        hint.sizeDelta = new Vector2(26f, 30f);
+        hintImage = hintObject.GetComponent<Image>();
+        hintImage.sprite = RightTriangle();
+        hintImage.color = new Color(1f, 1f, 1f, 0.7f);
+        hintImage.raycastTarget = false;
+    }
+
+    // A triangle pointing right, filling its square texture
+    static Sprite RightTriangle()
+    {
+        const int size = 32;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+        var pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size, v = (y + 0.5f) / size;
+                float halfHeight = 0.5f * (1f - u);   // the point is on the right edge
+                float inside = halfHeight - Mathf.Abs(v - 0.5f);
+                pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(inside * size));
+            }
+        texture.SetPixels(pixels);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
     }
 
     // A text stretched across the panel's width, pinned to its top

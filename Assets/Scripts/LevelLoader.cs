@@ -253,6 +253,7 @@ public class LevelLoader : MonoBehaviour
         else SpawnItems();
         SetUpPlayer();
         SetUpMiners();
+        foreach (MinerAI miner in miners) AddHealth(miner.gameObject, miner.hook != null ? miner.hook.gameObject : null, miner.telegraph != null ? miner.telegraph.gameObject : null);
         SetUpRound();
         if (level.stages.Count > 0) StartStage(0);
 
@@ -424,6 +425,23 @@ public class LevelLoader : MonoBehaviour
             AddHole(level.hooks[i], level.Param("start_delay", 2f) + i * level.Param("hole_stagger", 0.6f));
     }
 
+    // "hook_hp": the hooks can be destroyed (HookHealth): a solid box, and that many hits of Mr.
+    // Hyde's Space up close. The "destroy" stage goal counts them
+    int hooksDestroyed;
+
+    void AddHealth(GameObject hook, params GameObject[] parts)
+    {
+        int hp = Mathf.RoundToInt(level.Param("hook_hp", 0f));
+        if (hp <= 0 || hook == null || hook.GetComponent<HookHealth>() != null) return;
+        HookHealth health = hook.AddComponent<HookHealth>();
+        health.hp = hp;
+        health.parts = parts;
+    }
+
+    void OnEnable() { HookHealth.Destroyed += CountDestroyed; }
+    void OnDisable() { HookHealth.Destroyed -= CountDestroyed; }
+    void CountDestroyed(HookHealth hook) { hooksDestroyed++; }
+
     MinerAI holeTemplate;
     Sprite holeSprite;
     readonly List<SurvivalHookAI> holes = new List<SurvivalHookAI>();
@@ -462,6 +480,7 @@ public class LevelLoader : MonoBehaviour
         ai.overshoot = level.Param("overshoot", ai.overshoot);
         ai.hook.hitsPig = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
         ai.transform.parent.gameObject.SetActive(true);
+        AddHealth(ai.gameObject, ai.transform.parent.gameObject);
         holes.Add(ai);
         return ai;
     }
@@ -559,6 +578,7 @@ public class LevelLoader : MonoBehaviour
             player.moveSpeed = (s.pigSpeed >= 0f ? s.pigSpeed : levelSpeed) * gameSpeed * player.speedScale;
         nextPullAt = Time.time + stealPause;
         if (!steal) Spawn(s.items);
+        TutorialEvents.Fire("stage_" + s.goal);   // e.g. stage_block, stage_steal: a tutorial step can start on it
     }
 
     int GoalCount(string goal)
@@ -567,6 +587,7 @@ public class LevelLoader : MonoBehaviour
         // needs no counter on the character/hook/miner scripts.
         if (goal == "survive") return Mathf.FloorToInt(Mathf.Max(0f, Time.time - stageTime));
         if (player == null) return 0;
+        if (goal == "destroy") return hooksDestroyed;
         return goal == "steal" ? player.TreasureStolen : goal == "block" ? player.HooksBlocked : 0;
     }
 
@@ -731,7 +752,7 @@ public class LevelLoader : MonoBehaviour
         {
             LevelData.Stage s = level.stages[stage];
             if (string.IsNullOrEmpty(s.guide)) return;   // no words: TutorialSteps in the level scene teach it
-            string done = s.goal == "steal" ? "Stolen" : s.goal == "survive" ? "Survived" : "Blocked";
+            string done = s.goal == "steal" ? "Stolen" : s.goal == "survive" ? "Survived" : s.goal == "destroy" ? "Destroyed" : "Blocked";
             string unit = s.goal == "survive" ? "s" : "";
             guide = s.guide;
             progress = done + " " + StageProgress + unit + " / " + s.count + unit;
