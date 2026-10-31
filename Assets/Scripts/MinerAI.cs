@@ -92,14 +92,17 @@ public class MinerAI : MonoBehaviour
 
             // 3. Telegraph: yellow = treasure, red = player
             telegraph.Show(origin, origin + dir * length, aimAtPlayer ? playerColor : treasureColor);
+            if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.AimEvent);
             yield return new WaitForSeconds(Random.Range(telegraphMin, telegraphMax));
             telegraph.Hide();
             if (!GameManager.Instance.IsPlaying) yield break;
 
             // 4. Fire, then wait for the hook to come back
             hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
+            if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.FireEvent);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
             claims.Remove(this);
+            if (aimAtPlayer && GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(SurvivalHookAI.DodgedEvent);
 
             yield return new WaitForSeconds(cooldown);
         }

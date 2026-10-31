@@ -16,6 +16,10 @@ using UnityEngine.UI;
 //   Tutorial UI Hole   lights a HUD element in the selected step (TutorialUIHole)
 //   Tutorial UI Callout  an arrow + label on the selected step's screen canvas, drawn above the HUD
 //   Tutorial Story     a step with a TutorialDialogue: a conversation when the round is won
+//   Tutorial Dodge     a step that freezes the game the first time a hook takes aim (hook_aim)
+//   Tutorial Squeeze   the dodge tutorial's end: a story after 4 dodges, then the presses close in
+//   Tutorial Rescue    the squeeze's way out: a friendly story on the last Life, then the Exit opens
+//   Tutorial Life Lost a step for the first Life lost: the player and the HUD's Life panel lit
 //   Tutorial Arrow / Tutorial Spotlight   the one-off intro props (TutorialArrow, TutorialSpotlight)
 public static class TutorialPropsMenu
 {
@@ -43,7 +47,8 @@ public static class TutorialPropsMenu
         Vector3 at = first ? PlayerStart() : ViewCentre();
         GameObject hole = CreateHoleObject(go.transform, at);
         hole.GetComponent<TutorialFollow>().followPlayer = first;
-        CreateCalloutObject(go.transform, at + new Vector3(0f, 1.2f, 0f), first ? "You" : "Text");
+        GameObject callout = CreateCalloutObject(go.transform, at + new Vector3(0f, 1.2f, 0f), first ? "You" : "Text");
+        callout.GetComponent<TutorialFollow>().followPlayer = first;
 
         Selection.activeGameObject = go;
     }
@@ -170,14 +175,121 @@ public static class TutorialPropsMenu
     [MenuItem("GameObject/Gold Miner/Tutorial Story", false, 15)]
     static void CreateStory(MenuCommand command)
     {
+        TutorialDialogue dialogue = CreateStoryStep("Story", "round_won");
+        dialogue.lines = new[]
+        {
+            new TutorialDialogue.Line { speaker = "Evil Meowmeow", text = "So... you ate all of MY gold." },
+            new TutorialDialogue.Line { speaker = "You", text = "It was just lying there!" },
+            new TutorialDialogue.Line { speaker = "Evil Meowmeow", text = "Then let's see how you do against my miners. Mwahaha!" },
+        };
+        Selection.activeGameObject = dialogue.gameObject;
+    }
+
+    // The end of the dodge tutorial: after the 4th dodged hook the EvilMeowmeow says
+    // Assets/Story/squeezeYou.txt, then the Squeeze starts: two presses close in from the sides,
+    // new hook holes open between the level's hooks, the hooks speed up. Surviving it wins
+    [MenuItem("Tools/Gold Miner/Tutorial Squeeze", false, 107)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Squeeze", false, 17)]
+    static void CreateSqueeze(MenuCommand command)
+    {
+        TutorialDialogue dialogue = CreateStoryStep("SqueezeStory", SurvivalHookAI.DodgedEvent);
+        TutorialStep step = dialogue.GetComponent<TutorialStep>();
+        step.startEventCount = 4;
+        dialogue.scriptFile = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/squeezeYou.txt");
+        dialogue.hideResult = false;
+        dialogue.leaveWhenDone = false;   // the level goes on: the squeeze comes next
+
+        var go = new GameObject("Squeeze");
+        Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Squeeze");
+        SqueezePhase squeeze = go.AddComponent<SqueezePhase>();
+        squeeze.startEvent = step.name + ".end";
+
+        // Huge triangles on the arena's sides, base on the edge and the point inwards
+        const float halfWidth = 8.89f, height = 10.5f, depth = 3.5f;
+        squeeze.leftPress = CreatePress(go.transform, "Left Press", -halfWidth + depth * 0.5f, -90f, height, depth);
+        squeeze.rightPress = CreatePress(go.transform, "Right Press", halfWidth - depth * 0.5f, 90f, height, depth);
+
+        // New holes between the outermost two of the level's hooks: the middle first, then the quarters
+        var spots = new GameObject("Hook Spots").transform;
+        spots.SetParent(go.transform, false);
+        squeeze.hookSpots = spots;
+        LevelLayout layout = Object.FindFirstObjectByType<LevelLayout>();
+        var hooks = layout != null && layout.hooks != null
+            ? layout.hooks.Cast<Transform>().Select(h => h.position).OrderBy(p => p.x).ToList()
+            : new System.Collections.Generic.List<Vector3>();
+        Vector3 a = hooks.Count > 0 ? hooks[0] : new Vector3(-3f, 3.6f, 0f);
+        Vector3 b = hooks.Count > 1 ? hooks[hooks.Count - 1] : new Vector3(3f, 3.6f, 0f);
+        foreach (float f in new[] { 0.5f, 0.25f, 0.75f })
+        {
+            var spot = new GameObject("Spot " + (spots.childCount + 1)).transform;
+            spot.SetParent(spots, false);
+            spot.position = Vector3.Lerp(a, b, f);
+        }
+
+        Selection.activeGameObject = go;
+    }
+
+    // The squeeze's way out: once the player is down to their last Life, a friendly Meowmeow says
+    // Assets/Story/niceMeowmeow.txt; then the left press slides away and the Exit appears where it
+    // was. Reaching it wins the level. Needs the Squeeze (Tutorial Squeeze) in the scene
+    [MenuItem("Tools/Gold Miner/Tutorial Rescue", false, 108)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Rescue", false, 18)]
+    static void CreateRescue(MenuCommand command)
+    {
+        SqueezePhase squeeze = Object.FindFirstObjectByType<SqueezePhase>();
+        if (squeeze == null)
+        {
+            EditorUtility.DisplayDialog("No Squeeze yet", "Add the squeeze first (Tools > Gold Miner > Tutorial Squeeze), then try again.", "OK");
+            return;
+        }
+
+        TutorialDialogue dialogue = CreateStoryStep("NiceStory", SqueezePhase.RescueEvent);
+        dialogue.scriptFile = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/niceMeowmeow.txt");
+        dialogue.hideResult = false;
+        dialogue.leaveWhenDone = false;   // the level goes on: the exit opens next
+        TutorialDialogue.Character friend = dialogue.characters[0];
+        friend.name = "Nice Meowmeow";
+        friend.prefab = FindPrefab("GreedyMeowmeow");
+        friend.nameColor = new Color(0.55f, 1f, 0.6f);
+        friend.spawnAt.position = new Vector3(-3.5f, 1.5f, 0f);
+        friend.spawnAt.name = "FriendSpot";
+
+        Undo.RecordObject(squeeze, "Create Tutorial Rescue");
+        squeeze.exitEvent = dialogue.name + ".end";
+        squeeze.exitPrefab = FindPrefab("Exit");
+        if (squeeze.exitSpot == null)
+        {
+            var spot = new GameObject("Exit Spot").transform;
+            Undo.RegisterCreatedObjectUndo(spot.gameObject, "Create Tutorial Rescue");
+            spot.SetParent(squeeze.transform, false);
+            spot.position = new Vector3(-8f, 0f, 0f);   // the left edge, where the left press was
+            squeeze.exitSpot = spot;
+        }
+
+        Selection.activeGameObject = dialogue.gameObject;
+    }
+
+    static Transform CreatePress(Transform parent, string name, float x, float angle, float length, float depth)
+    {
+        SpriteRenderer sr = Shape(parent, name, "Triangle", new Color(0.45f, 0.18f, 0.22f), 20);   // above the arena, under the tutorial dark
+        sr.transform.position = new Vector3(x, 0f, 0f);
+        sr.transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        sr.transform.localScale = new Vector3(length, depth, 1f);
+        return sr.transform;
+    }
+
+    // A step with a TutorialDialogue that starts on `startEvent`: the EvilMeowmeow appears and
+    // talks with the player. Change the trigger, characters and lines in the Inspector
+    static TutorialDialogue CreateStoryStep(string name, string startEvent)
+    {
         Transform tutorial = TutorialRoot();
-        var go = new GameObject("Story");
+        var go = new GameObject(name);
         Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Story");
         go.transform.SetParent(tutorial, false);
 
         TutorialStep step = go.AddComponent<TutorialStep>();
         step.startOn = TutorialStep.StartTrigger.Event;
-        step.startEvent = "round_won";
+        step.startEvent = startEvent;
         step.endOn = TutorialStep.EndTrigger.Manual;   // the conversation ends it
         step.maxTimes = 1;
 
@@ -199,12 +311,66 @@ public static class TutorialPropsMenu
                                              nameColor = new Color(1f, 0.45f, 0.45f) },
             new TutorialDialogue.Character { name = "You", isPlayer = true, nameColor = new Color(1f, 0.72f, 0.82f) },
         };
-        dialogue.lines = new[]
-        {
-            new TutorialDialogue.Line { speaker = "Evil Meowmeow", text = "So... you ate all of MY gold." },
-            new TutorialDialogue.Line { speaker = "You", text = "It was just lying there!" },
-            new TutorialDialogue.Line { speaker = "Evil Meowmeow", text = "Then let's see how you do against my miners. Mwahaha!" },
-        };
+        return dialogue;
+    }
+
+    // A step for the dodge tutorial: the first time a hook takes aim (the red dotted line appears)
+    // the game freezes with the player, the line and the hook holes lit, then lets go so the player
+    // can step out of the line before it fires. Other hook events: hook_fire, hook_dodged, player_hit
+    [MenuItem("Tools/Gold Miner/Tutorial Dodge", false, 106)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Dodge", false, 16)]
+    static void CreateDodge(MenuCommand command)
+    {
+        Transform tutorial = TutorialRoot();
+        var go = new GameObject("Dodge");
+        Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Dodge");
+        go.transform.SetParent(tutorial, false);
+
+        TutorialStep step = go.AddComponent<TutorialStep>();
+        step.startOn = TutorialStep.StartTrigger.Event;
+        step.startEvent = SurvivalHookAI.AimEvent;
+        step.endOn = TutorialStep.EndTrigger.Seconds;
+        step.seconds = 2.5f;
+        step.darkness = 0.55f;   // light enough that the red line still shows across the dark
+        step.maxTimes = 1;
+
+        Vector3 player = PlayerStart();
+        GameObject hole = CreateHoleObject(go.transform, player);
+        hole.GetComponent<TutorialFollow>().followPlayer = true;
+        LevelLayout layout = Object.FindFirstObjectByType<LevelLayout>();
+        if (layout != null && layout.hooks != null)
+            foreach (Transform h in layout.hooks)
+                CreateHoleObject(go.transform, h.position).name = "Hole " + h.name;
+        // Just above the player's head, and stays there as they move
+        GameObject callout = CreateCalloutObject(go.transform, player + new Vector3(0f, 1.2f, 0f), "Dodge!");
+        callout.GetComponent<TutorialFollow>().followPlayer = true;
+
+        Selection.activeGameObject = go;
+    }
+
+    // A step for the first Life lost (while still alive): the game freezes with the player and the
+    // HUD's Life panel lit, so the player sees the count go down
+    [MenuItem("Tools/Gold Miner/Tutorial Life Lost", false, 109)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Life Lost", false, 19)]
+    static void CreateLifeLost(MenuCommand command)
+    {
+        Transform tutorial = TutorialRoot();
+        var go = new GameObject("LifeLost");
+        Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Life Lost");
+        go.transform.SetParent(tutorial, false);
+
+        TutorialStep step = go.AddComponent<TutorialStep>();
+        step.startOn = TutorialStep.StartTrigger.Event;
+        step.startEvent = "life_lost";
+        step.endOn = TutorialStep.EndTrigger.Seconds;
+        step.seconds = 2.5f;
+        step.maxTimes = 1;
+
+        GameObject hole = CreateHoleObject(go.transform, PlayerStart());
+        hole.GetComponent<TutorialFollow>().followPlayer = true;
+        var uiHole = new GameObject("UIHole Life");
+        uiHole.transform.SetParent(go.transform, false);
+        uiHole.AddComponent<TutorialUIHole>().target = "Life";   // the HUD's Life panel
 
         Selection.activeGameObject = go;
     }
@@ -267,12 +433,14 @@ public static class TutorialPropsMenu
         return go;
     }
 
-    // An arrow pointing down at `at`, with a label to its right. Rotate the Arrow child to aim it
+    // An arrow pointing down at `at`, with a label to its right. Rotate the Arrow child to aim it.
+    // Like a Hole, it has TutorialFollow, off: tick Follow Player to place it relative to the player
     static GameObject CreateCalloutObject(Transform parent, Vector3 at, string text)
     {
         var go = new GameObject("Callout");
         go.transform.SetParent(parent, false);
         go.transform.position = at;
+        go.AddComponent<TutorialFollow>().followPlayer = false;
 
         BuildArrow(go.transform, false);
 

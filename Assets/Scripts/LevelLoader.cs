@@ -201,10 +201,25 @@ public class LevelLoader : MonoBehaviour
         return last;
     }
 
+    // In the world map's order (eat, dodge, block, then the battles), so playing without the map
+    // goes through the levels the way the map does. By name alone level_01 came before
+    // level_01a_dodge. Levels not on the map follow, by name.
     static TextAsset[] LoadFromResources()
     {
         TextAsset[] found = Resources.LoadAll<TextAsset>("Levels");
-        System.Array.Sort(found, (a, b) => string.CompareOrdinal(a.name, b.name));
+        WorldMap map = Resources.Load<WorldMap>("WorldMap");
+        var order = new List<TextAsset>();
+        if (map != null)
+            foreach (MapNode node in map.nodes)
+                if (node != null && node.levelAsset != null) order.Add(node.levelAsset);
+
+        System.Array.Sort(found, (a, b) =>
+        {
+            int ia = order.IndexOf(a), ib = order.IndexOf(b);
+            if (ia < 0) ia = int.MaxValue;
+            if (ib < 0) ib = int.MaxValue;
+            return ia != ib ? ia.CompareTo(ib) : string.CompareOrdinal(a.name, b.name);
+        });
         return found;
     }
 
@@ -337,6 +352,12 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpMiners()
     {
+        if (level.Param("hook_holes", 0f) > 0.5f)
+        {
+            if (minerTemplate != null) minerTemplate.gameObject.SetActive(false);
+            SpawnHoles();
+            return;
+        }
         if (minerTemplate == null)
         {
             SpawnMiners();
@@ -392,6 +413,57 @@ public class LevelLoader : MonoBehaviour
             miner.name = prefab.name + (i > 0 ? " " + (i + 1) : "");
             PlaceMiner(miner, level.hooks[i], bodyOffset);
         }
+    }
+
+    // "hook_holes": 1 (the dodge tutorial): survival mode's hook holes instead of miners, one per
+    // hook origin, shooting only at the player. The telegraph dots and the sprite material come
+    // from the miner prefab, so nothing new needs assigning
+    void SpawnHoles()
+    {
+        for (int i = 0; i < level.hooks.Count; i++)
+            AddHole(level.hooks[i], level.Param("start_delay", 2f) + i * level.Param("hole_stagger", 0.6f));
+    }
+
+    MinerAI holeTemplate;
+    Sprite holeSprite;
+    readonly List<SurvivalHookAI> holes = new List<SurvivalHookAI>();
+
+    // The hook holes in play (the level's, and any added since)
+    public IReadOnlyList<SurvivalHookAI> Holes => holes;
+
+    // One more hook hole at `at`, timed like the level's (SqueezePhase adds them mid-level).
+    // Its first shot comes after startDelay seconds
+    public SurvivalHookAI AddHole(Vector2 at, float startDelay)
+    {
+        if (player == null) return null;
+        if (holeTemplate == null)
+        {
+            GameObject prefab = minerPrefab != null ? minerPrefab : Resources.Load<GameObject>(MinerPrefabPath);
+            holeTemplate = prefab != null ? prefab.GetComponent<MinerAI>() : null;
+            if (holeTemplate == null || holeTemplate.telegraph == null)
+            {
+                Debug.LogWarning("LevelLoader: hook holes need the miner prefab (Resources/" + MinerPrefabPath + ") for its telegraph dots");
+                return null;
+            }
+            holeSprite = HookHole.CreateSprite(HookHole.HoleColor, HookHole.RimColor);
+        }
+        SpriteRenderer look = holeTemplate.hook != null ? holeTemplate.hook.GetComponent<SpriteRenderer>() : null;
+
+        SurvivalHookAI ai = HookHole.Build("Hook Hole " + (holes.Count + 1), at, player.transform,
+            holeTemplate.telegraph.dotPrefab, holeSprite, look != null ? look.sharedMaterial : null,
+            level.Param("hook_extend", holeTemplate.hook.extendSpeed) * gameSpeed,
+            level.Param("hook_retract", holeTemplate.hook.retractSpeed) * gameSpeed);
+        ai.transform.localScale = Vector3.one * level.Param("hole_size", 0.9f);
+        ai.range = 0f;   // the whole arena
+        ai.startDelay = startDelay;
+        ai.telegraphMin = level.Param("telegraph_min", ai.telegraphMin);
+        ai.telegraphMax = level.Param("telegraph_max", ai.telegraphMax);
+        ai.cooldown = level.Param("cooldown", ai.cooldown);
+        ai.overshoot = level.Param("overshoot", ai.overshoot);
+        ai.hook.hitsPig = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
+        ai.transform.parent.gameObject.SetActive(true);
+        holes.Add(ai);
+        return ai;
     }
 
     void PlaceMiner(MinerAI miner, Vector3 origin, Vector3 bodyOffset)
@@ -658,6 +730,7 @@ public class LevelLoader : MonoBehaviour
         if (stage >= 0)
         {
             LevelData.Stage s = level.stages[stage];
+            if (string.IsNullOrEmpty(s.guide)) return;   // no words: TutorialSteps in the level scene teach it
             string done = s.goal == "steal" ? "Stolen" : s.goal == "survive" ? "Survived" : "Blocked";
             string unit = s.goal == "survive" ? "s" : "";
             guide = s.guide;

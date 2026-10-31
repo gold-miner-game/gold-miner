@@ -13,6 +13,7 @@ using UnityEngine;
 // "guide" is optional too: text shown on screen during the level (tutorial levels).
 // "stages" (tutorials) is a list of steps played in order, each with its own guide and goal:
 //   {"guide": "...", "goal": "block" | "steal", "count": 2, "pig_speed": 0, "items": [...]}
+//   goal "none": the stage never ends by itself; something in the level scene wins it (SqueezePhase)
 // "block" counts hooks bounced off the pig, "steal" counts treasure knocked off a hook. A stage's
 // items are spawned when it starts, and again whenever none are left. Clearing the last stage wins.
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.

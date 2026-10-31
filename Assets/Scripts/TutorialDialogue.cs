@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 using UnityEngine.UI;
 
 // Owner: Penny (Level map & tutorial)
@@ -41,7 +42,7 @@ public class TutorialDialogue : MonoBehaviour
         [Tooltip("Seconds before moving on by itself. 0 = wait for a key or click")]
         public float autoNext;
         [Tooltip("Fired (TutorialEvents) when this line shows, so other steps can react")]
-        public string fireEvent;
+        [TutorialEvent(true)] public string fireEvent;
     }
 
     public Character[] characters = new Character[0];
@@ -54,6 +55,8 @@ public class TutorialDialogue : MonoBehaviour
     public float lettersPerSecond = 45f;
     [Tooltip("A sprite mask that moves onto the speaker, so they show through the step's dark")]
     public SpriteMask speakerLight;
+    [Tooltip("Sorting order the spawned characters draw at, as one piece: above the arena (items, characters, the squeeze's presses at 20) and under the tutorial dark (100), so the speaker light still picks them out")]
+    public int characterOrder = 50;
 
     [Header("Round")]
     [Tooltip("No \"YOU WIN\" / \"YOU LOSE\" panel while it plays (and after, with Leave When Done)")]
@@ -286,6 +289,10 @@ public class TutorialDialogue : MonoBehaviour
             Transform at = c.spawnAt != null ? c.spawnAt : transform;
             GameObject go = Instantiate(c.prefab, at.position, c.prefab.transform.rotation);
             go.name = c.name;
+            // One sorting group: the prefab's own layering stays, the whole character draws on top
+            SortingGroup group = go.GetComponent<SortingGroup>();
+            if (group == null) group = go.AddComponent<SortingGroup>();
+            group.sortingOrder = characterOrder;
             spawned.Add(go);
             actors[c.name] = go.transform;
         }

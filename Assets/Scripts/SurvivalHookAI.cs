@@ -9,6 +9,12 @@ using UnityEngine;
 // has no meaningful shot, it shoots straight at the player.
 public class SurvivalHookAI : MonoBehaviour
 {
+    // TutorialEvents for the tutorial steps (the dodge tutorial uses these holes too)
+    public const string AimEvent = "hook_aim";        // the red dotted line appears; the aim is locked
+    public const string FireEvent = "hook_fire";      // the hook leaves the hole
+    public const string DodgedEvent = "hook_dodged";  // it came back without hitting the player
+
+
     [Header("References")]
     public Hook hook;
     public TelegraphLine telegraph;
@@ -56,12 +62,15 @@ public class SurvivalHookAI : MonoBehaviour
             float length = toTarget.magnitude + overshoot;
 
             telegraph.Show(origin, origin + dir * length, shotColor);
+            TutorialEvents.Fire(AimEvent);
             yield return new WaitForSeconds(telegraphTime);
             telegraph.Hide();
             if (!GameManager.Instance.IsPlaying) yield break;
 
             hook.Fire(origin, dir, length, shotColor);
+            TutorialEvents.Fire(FireEvent);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
+            if (GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(DodgedEvent);
 
             yield return new WaitForSeconds(cooldown);
         }

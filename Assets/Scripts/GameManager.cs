@@ -82,10 +82,12 @@ public class GameManager : MonoBehaviour
         if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
 
         PlayAnalytics.Death();
+        TutorialEvents.Fire("player_hit");
         if (Lives > 1)
         {
             Lives--;
             invincibleUntil = Time.time + invincibleTime;
+            TutorialEvents.Fire("life_lost");   // still alive (the last Life ends the round instead)
         }
         else
         {
@@ -100,9 +102,16 @@ public class GameManager : MonoBehaviour
     {
         IsPlaying = false;
         EndReason = reason;
-        PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
-        RoundMarginLog.Record(this);
+        PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss        RoundMarginLog.Record(this);
         AnnounceEnd();
+    }
+
+    // Killed outright, whatever the Lives left (the squeeze's presses closing on the player)
+    public void Crush(string reason)
+    {
+        if (!IsPlaying) return;
+        Lives = 0;
+        EndRound(true, reason);
     }
 
     // Win now, whatever the money: for levels with another goal (the block tutorial)

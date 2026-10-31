@@ -137,7 +137,7 @@ public class SurvivalLoader : MonoBehaviour
         SetUpPlayer();
         SetUpCamera();
         CreateGround();
-        holeSprite = CreateHoleSprite();
+        holeSprite = HookHole.CreateSprite(holeColor, holeRim);
 
         // A few treasures close by from the start, the rest further out
         for (int i = 0; i < treasureNearby; i++)
@@ -330,43 +330,12 @@ public class SurvivalLoader : MonoBehaviour
         if (!FindHoleSpot(around, out Vector2 spot)) return false;
 
         hunterCount++;
-        // Built inactive, so every Awake/OnEnable sees its references already set
-        var root = new GameObject("Hunter " + hunterCount);
-        root.SetActive(false);
-        root.transform.position = spot;
-
-        var holeObject = new GameObject("Hole");
-        holeObject.transform.SetParent(root.transform, false);
-        holeObject.transform.localScale = Vector3.zero;
-        SpriteRenderer holeRenderer = holeObject.AddComponent<SpriteRenderer>();
-        holeRenderer.sprite = holeSprite;
-        if (spriteMaterial != null) holeRenderer.sharedMaterial = spriteMaterial;
-        holeRenderer.sortingOrder = -50;   // under treasure and the player
-
-        // The hook's own sprite is hidden: it only lends the material and sorting to the rope
-        var hookObject = new GameObject("Hook");
-        hookObject.transform.SetParent(root.transform, false);
-        SpriteRenderer hookRenderer = hookObject.AddComponent<SpriteRenderer>();
-        if (spriteMaterial != null) hookRenderer.sharedMaterial = spriteMaterial;
-        hookRenderer.sortingOrder = 5;
-        Hook hook = hookObject.AddComponent<Hook>();
-        hook.extendSpeed = hookExtend * hookSpeedScale * gameSpeed;
-        hook.retractSpeed = hookRetract * hookSpeedScale * gameSpeed;
-        hook.hitsPig = true;
-        hook.grabsTreasure = false;
-        hook.defaultColor = Color.red;
-
-        var telegraphObject = new GameObject("Telegraph");
-        telegraphObject.transform.SetParent(root.transform, false);
-        TelegraphLine telegraph = telegraphObject.AddComponent<TelegraphLine>();
-        telegraph.dotPrefab = telegraphDot;
-
-        // Survival's own AI: every shot is a red one at the player, none at treasure
-        SurvivalHookAI ai = holeObject.AddComponent<SurvivalHookAI>();
-        ai.hook = hook;
-        ai.telegraph = telegraph;
-        ai.hookOrigin = holeObject.transform;
-        ai.target = player.transform;
+        // Built inactive (HookHole), so every Awake/OnEnable sees its references already set
+        SurvivalHookAI ai = HookHole.Build("Hunter " + hunterCount, spot, player.transform, telegraphDot,
+            holeSprite, spriteMaterial, hookExtend * hookSpeedScale * gameSpeed, hookRetract * hookSpeedScale * gameSpeed);
+        GameObject root = ai.transform.parent.gameObject;
+        GameObject holeObject = ai.gameObject;
+        holeObject.transform.localScale = Vector3.zero;   // grows out of the ground
         ai.range = hookRange;
         ai.startDelay = growTime + Random.Range(0.2f, 0.8f);
         ai.overshoot = overshoot;
@@ -520,26 +489,6 @@ public class SurvivalLoader : MonoBehaviour
         // Enough to cover the widest screen, plus a cell on each side for the snapping
         float height = viewSize * 2f + groundCell * 2f;
         ground.size = new Vector2(height * 3f, height);
-    }
-
-    // A dark round hole with a lighter rim, one world unit across
-    Sprite CreateHoleSprite()
-    {
-        const int size = 64;
-        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
-        var pixels = new Color[size * size];
-        float r = size * 0.5f;
-        for (int y = 0; y < size; y++)
-            for (int x = 0; x < size; x++)
-            {
-                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(r, r)) / r;
-                Color c = d < 0.72f ? holeColor : holeRim;
-                c.a *= Mathf.Clamp01((1f - d) * r);   // soft edge
-                pixels[y * size + x] = c;
-            }
-        texture.SetPixels(pixels);
-        texture.Apply();
-        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
     }
 
     // ---- HUD ----

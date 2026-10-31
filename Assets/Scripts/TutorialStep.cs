@@ -48,14 +48,16 @@ public class TutorialStep : MonoBehaviour
     [Tooltip("AfterStep: the step to follow. Empty = the step above this one in the Hierarchy")]
     public TutorialStep afterStep;
     [Tooltip("Event: the TutorialEvents name that starts this step")]
-    public string startEvent;
+    [TutorialEvent] public string startEvent;
+    [Tooltip("Event: how many times it has to happen first (4 = the 4th hook_dodged). Counts again after each play")]
+    [Min(1)] public int startEventCount = 1;
 
     [Header("End")]
     public EndTrigger endOn = EndTrigger.Seconds;
     [Tooltip("Seconds: how long the step shows")]
     public float seconds = 3f;
     [Tooltip("Event: the TutorialEvents name that ends this step")]
-    public string endEvent;
+    [TutorialEvent] public string endEvent;
 
     [Header("Used by the Area / Item triggers")]
     [Tooltip("PlayerEntersArea: the area's centre (a child or any object; empty = this step's position)")]
@@ -107,6 +109,7 @@ public class TutorialStep : MonoBehaviour
     float shownAt;
     float endingAt = -1f;     // when the fade out began; -1 = not ending
     bool startRequested;
+    int startEventsSeen;      // startEvent so far, towards startEventCount
     bool endRequested;
     bool levelStarted;
     bool wasInArea;
@@ -178,7 +181,12 @@ public class TutorialStep : MonoBehaviour
 
     void OnEvent(string name)
     {
-        if (startOn == StartTrigger.Event && name == startEvent) startRequested = true;
+        if (startOn == StartTrigger.Event && name == startEvent && Current == State.Waiting
+            && ++startEventsSeen >= startEventCount)
+        {
+            startEventsSeen = 0;
+            startRequested = true;
+        }
         if (endOn == EndTrigger.Event && name == endEvent) endRequested = true;
     }
 

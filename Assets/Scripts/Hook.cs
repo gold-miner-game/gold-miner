@@ -36,6 +36,7 @@ public class Hook : MonoBehaviour
     public float clawCloseSpeed = 10f;   // how fast it opens/closes
 
     public bool IsBusy => state != State.Idle;
+    public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
 
     // Held in place (by the squirrel's firm tail): nothing moves, then the shot carries on
     public bool IsStalled => Time.time < stallUntil;
@@ -132,6 +133,7 @@ public class Hook : MonoBehaviour
         traveled = 0f;
         carried = null;
         touched.Clear();
+        HitPlayer = false;
         stallUntil = 0f;
         ShotCount++;
 
@@ -322,6 +324,7 @@ public class Hook : MonoBehaviour
 
         // No color check: any hook that touches the pig hurts it.
         // GameManager decides the outcome (lose a Life, or end the round).
+        HitPlayer = true;
         if (GameManager.Instance != null) GameManager.Instance.PlayerHit();
         return true;
     }
