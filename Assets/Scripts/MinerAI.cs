@@ -1,0 +1,233 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+// Owner: C (Miner AI)
+public class MinerAI : MonoBehaviour
+{
+    // Maze tutorial: when false the miner waits until Arm(true) or FireScripted.
+    public void Arm(bool on)
+    {
+        autoShoot = on;
+        if (on && startDelay > 10f) startDelay = 0.2f;
+    }
+
+    // One scripted shot at a world point (yellow treasure path, or red if aimAtPlayer).
+    public IEnumerator FireScripted(Vector2 targetPos, bool aimAtPlayer)
+    {
+        if (hook == null || hookOrigin == null) yield break;
+        bool prev = autoShoot;
+        autoShoot = false;
+
+        Vector2 origin = hookOrigin.position;
+        Vector2 toTarget = targetPos - origin;
+        Vector2 dir = toTarget.normalized;
+        if (dir.sqrMagnitude < 0.0001f) dir = Vector2.down;
+        float length = toTarget.magnitude + overshoot;
+
+        Color color = aimAtPlayer ? playerColor : treasureColor;
+        // windup 0 = fire immediately (E/M tutorial). Skip the telegraph wait entirely.
+        if (telegraph != null && telegraphMin > 0.02f)
+        {
+            telegraph.Show(origin, origin + dir * length, color);
+            float wait = telegraphMin;
+            float end = Time.time + wait;
+            while (Time.time < end) yield return null;
+            telegraph.Hide();
+        }
+
+        if (GameManager.Instance != null && !GameManager.Instance.IsPlaying)
+        {
+            autoShoot = prev;
+            yield break;
+        }
+
+        hook.Fire(origin, dir, length, color);
+        while (hook.IsBusy && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
+            yield return null;
+
+        autoShoot = prev;
+    }
+
+    public enum Strategy
+    {
+        Weighted,    // random treasure, weighted by value
+        Efficient,   // best value per shot time from this hook, skipping treasure another miner is going for
+    }
+
+    [Header("References")]
+    public Hook hook;
+    public TelegraphLine telegraph;
+    public Transform hookOrigin;
+    public Transform pig;
+
+    [Header("Rhythm")]
+    public int minTreasureShots = 2;   // treasure hooks before one player hook
+    public int maxTreasureShots = 3;
+    [Tooltip("> 0: each shot rolls this chance to aim at the pig instead, never twice in a row " +
+             "(replaces the treasure shot counts above)")]
+    [Range(0f, 1f)]
+    public float pigShotChance = 0f;
+    public float startDelay = 1.5f;
+    public float telegraphMin = 1.0f;  // seconds the dotted line is shown
+    public float telegraphMax = 2.0f;
+    public float cooldown = 0.8f;
+    public float overshoot = 0.6f;     // how far past the target the hook travels
+
+    [Header("Targeting")]
+    public Strategy strategy = Strategy.Weighted;
+    public bool shootsPlayer = true;   // false: only treasure shots (no-kill levels)
+    public bool autoShoot = true;      // false: the miner waits (a tutorial drives the hook itself)
+
+    [Header("Colors")]
+    public Color treasureColor = Color.yellow;
+    public Color playerColor = Color.red;
+
+    private int treasureShotsLeft;
+    private bool lastShotAtPig;
+
+    // Treasure each miner is going for, until its hook is home (Efficient strategy)
+    private static readonly Dictionary<MinerAI, Treasure> claims = new Dictionary<MinerAI, Treasure>();
+
+    // Treasure this miner can reach right now (Weighted strategy), reused between shots
+    private readonly List<Treasure> reachable = new List<Treasure>();
+
+    void OnDisable() { claims.Remove(this); }
+
+    void Start()
+    {
+        treasureShotsLeft = Random.Range(minTreasureShots, maxTreasureShots + 1);
+        StartCoroutine(Loop());
+    }
+
+    IEnumerator Loop()
+    {
+        yield return new WaitForSeconds(startDelay);
+
+        while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
+        {
+            if (!autoShoot) { yield return null; continue; }
+
+            // 1. Pick a target
+            bool aimAtPlayer = shootsPlayer && PigShotDue();
+            Vector2 targetPos = Vector2.zero;
+
+            if (!aimAtPlayer)
+            {
+                Treasure t = strategy == Strategy.Efficient ? PickEfficient() : PickTreasure();
+                if (t != null)
+                {
+                    targetPos = t.transform.position;
+                    treasureShotsLeft--;
+                    if (strategy == Strategy.Efficient) claims[this] = t;
+                }
+                else if (shootsPlayer) aimAtPlayer = true;
+                else { yield return null; continue; }   // nothing to shoot at
+            }
+            if (aimAtPlayer)
+            {
+                targetPos = pig.position;
+                treasureShotsLeft = Random.Range(minTreasureShots, maxTreasureShots + 1);
+            }
+            lastShotAtPig = aimAtPlayer;
+
+            // 2. Lock the trajectory now, so the player can react to it
+            Vector2 origin = hookOrigin.position;
+            Vector2 toTarget = targetPos - origin;
+            Vector2 dir = toTarget.normalized;
+            float length = toTarget.magnitude + overshoot;
+
+            // 3. Telegraph: yellow = treasure, red = player
+            telegraph.Show(origin, origin + dir * length, aimAtPlayer ? playerColor : treasureColor);
+            yield return new WaitForSeconds(Random.Range(telegraphMin, telegraphMax));
+            telegraph.Hide();
+            if (!GameManager.Instance.IsPlaying) yield break;
+
+            // 4. Fire, then wait for the hook to come back
+            hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
+            while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
+            claims.Remove(this);
+
+            yield return new WaitForSeconds(cooldown);
+        }
+    }
+
+    // Whether this shot goes for the pig: a random roll when pigShotChance is set (but never right
+    // after a pig shot), otherwise after the counted treasure shots
+    bool PigShotDue()
+    {
+        if (pigShotChance > 0f) return !lastShotAtPig && Random.value < pigShotChance;
+        return treasureShotsLeft <= 0;
+    }
+
+    // Value per second of a full shot at it (telegraph, out, back with its weight, cooldown), as if
+    // there were no pig. Treasure another miner is going for is skipped unless nothing else is left,
+    // and treasure behind a rock is always skipped (the hook would stop on the rock).
+    Treasure PickEfficient()
+    {
+        Treasure best = Best(true);
+        return best != null ? best : Best(false);
+    }
+
+    Treasure Best(bool skipClaimed)
+    {
+        Vector2 origin = hookOrigin.position;
+        float telegraphMean = 0.5f * (telegraphMin + telegraphMax);
+        Treasure best = null;
+        float bestRate = float.NegativeInfinity;
+        foreach (Treasure t in Treasure.Active)
+        {
+            if (skipClaimed && ClaimedByOther(t)) continue;
+            if (BlockedByRock(origin, t.transform.position)) continue;
+            float d = Vector2.Distance(origin, t.transform.position);
+            float shot = telegraphMean + d / hook.extendSpeed
+                       + d / (hook.retractSpeed * hook.RetractMultiplier(t.type)) + cooldown;
+            float rate = t.value / shot;
+            if (rate > bestRate) { bestRate = rate; best = t; }
+        }
+        return best;
+    }
+
+    bool ClaimedByOther(Treasure t)
+    {
+        foreach (var kv in claims)
+            if (kv.Key != this && kv.Value == t) return true;
+        return false;
+    }
+
+    // Weighted random: a $600 diamond is picked 12 times as often as a $50 gold. Treasure behind a
+    // rock can't be picked.
+    Treasure PickTreasure()
+    {
+        Vector2 origin = hookOrigin.position;
+        reachable.Clear();
+        foreach (Treasure t in Treasure.Active)
+            if (!BlockedByRock(origin, t.transform.position)) reachable.Add(t);
+
+        int total = 0;
+        foreach (Treasure t in reachable) total += Mathf.Max(1, t.value);
+        if (total == 0) return null;
+
+        int roll = Random.Range(0, total);
+        foreach (Treasure t in reachable)
+        {
+            roll -= Mathf.Max(1, t.value);
+            if (roll < 0) return t;
+        }
+        return null;
+    }
+
+    // Whether a rock stands on the straight line from the hook origin to the target. Same sweep as
+    // the hook's own flight (a circle of the hook's hitRadius), so it agrees with where it would stop.
+    bool BlockedByRock(Vector2 origin, Vector2 target)
+    {
+        Vector2 toTarget = target - origin;
+        float distance = toTarget.magnitude;
+        if (distance <= 0f) return false;
+
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, hook.hitRadius, toTarget / distance, distance);
+        foreach (RaycastHit2D hit in hits)
+            if (hit.collider != null && hit.collider.GetComponent<Rock>() != null) return true;
+        return false;
+    }
+}
