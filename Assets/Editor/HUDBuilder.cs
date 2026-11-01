@@ -5,8 +5,9 @@ using UnityEngine.UI;
 
 // Owner: D (Hook & UI)
 // Tools > Gold Miner > Create HUD: builds the HUD canvas in the open scene and wires HUDController.
-// Layout (HUDLayout): a bar across the top (level, pig $ VS miner $, timer), a sidebar on the right
-// (Life, Wallet, Skill + Digest, Items), and the arena in the rest, which GameplayCamera draws into
+// Layout (HUDLayout): a bar across the top (level, pig $ VS miner $, timer + Pause), a sidebar on the
+// right (Life, Wallet, Skills, Items), and the arena in the rest, which GameplayCamera draws into.
+// Design source: Figma "Oinky Oinky - HUD Redesign", frame "HUD / v2". Colors here match its HUD variables
 public static class HUDBuilder
 {
     static readonly Color Backdrop = new Color(0.07f, 0.09f, 0.15f);      // behind the panels, outside the arena
@@ -15,10 +16,12 @@ public static class HUDBuilder
     static readonly Color TitleColor = new Color(0.68f, 0.74f, 0.85f);
     static readonly Color PigColor = new Color(1f, 0.72f, 0.82f);         // pink
     static readonly Color MinerColor = new Color(1f, 0.85f, 0.4f);        // gold
-    static readonly Color ReadyColor = new Color(0.55f, 0.9f, 0.6f);      // green
+    static readonly Color SkillColor = new Color(0.45f, 0.65f, 1f);       // blue  (color/accent/skill)
+    static readonly Color DigestColor = new Color(1f, 0.604f, 0.239f);    // orange (color/accent/digest)
     static readonly Color BarBack = new Color(1f, 1f, 1f, 0.15f);
-    static readonly Color BarFill = new Color(0.45f, 0.65f, 1f);
     const float Margin = 8f;                                              // gap around each panel
+    const float SidebarPadding = 20f;
+    const float MeterGap = 96f;                                           // between the Skill and Digest blocks
 
     [MenuItem("Tools/Gold Miner/Create HUD")]
     static void CreateHUD()
@@ -58,10 +61,12 @@ public static class HUDBuilder
         CreateImage(canvas, "TopBackdrop", Backdrop, new Vector2(0f, top), Vector2.one, 0f, false);
         CreateImage(canvas, "SideBackdrop", Backdrop, new Vector2(side, 0f), new Vector2(1f, top), 0f, false);
 
-        // Top bar: level on the left, the score in the middle, the timer on the right
+        // Top bar: level on the left, the score in the middle, the timer and Pause on the right
+        // (HUDController.PlaceMapButton puts Pause at the right edge and the timer just left of it)
         Transform topBar = CreateImage(canvas, "TopBar", Panel, new Vector2(0f, top), Vector2.one, Margin, true).transform;
         TMP_Text level = CreateText(topBar, "Level", "LV 1/10", new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(420f, 60f), 30f, TextAlignmentOptions.Left);
         level.color = TitleColor;
+        level.fontStyle = FontStyles.Bold;
         TMP_Text playerMoney = CreateText(topBar, "PlayerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(-50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Right);
         playerMoney.rectTransform.pivot = new Vector2(1f, 0.5f);
         playerMoney.color = PigColor;
@@ -76,7 +81,8 @@ public static class HUDBuilder
         // Sidebar: sections stacked top to bottom with dividers between them
         GameObject sidebar = CreateImage(canvas, "Sidebar", Panel, new Vector2(side, 0f), new Vector2(1f, top), Margin, true);
         VerticalLayoutGroup stack = sidebar.AddComponent<VerticalLayoutGroup>();
-        stack.padding = new RectOffset(16, 16, 16, 16);
+        int pad = Mathf.RoundToInt(SidebarPadding);
+        stack.padding = new RectOffset(pad, pad, pad, pad);
         SetUpStack(stack, 0f);
 
         GameObject lifeSection = CreateSection(sidebar.transform, "Life", "LIFE");
@@ -87,12 +93,14 @@ public static class HUDBuilder
         TMP_Text wallet = CreateValue(walletSection.transform, "WalletValue", "$0", MinerColor);
         CreateDivider(sidebar.transform);
 
-        // Skill and digest share a section: both are "can I act right now"
-        GameObject skillSection = CreateSection(sidebar.transform, "Skill", "SKILL");
-        TMP_Text skill = CreateValue(skillSection.transform, "SkillValue", "Ready", ReadyColor);
-        RectTransform skillBarFill = CreateBar(skillSection.transform, "SkillBar");
-        CreateTitle(skillSection.transform, "DIGEST");
-        TMP_Text digest = CreateValue(skillSection.transform, "DigestValue", "Ready", ReadyColor);
+        // Skill and digest share a section: both are "can I act right now". Each is a meter:
+        // a row with the title on the left and the state on the right, and a bar under it
+        GameObject skillSection = new GameObject("Skills", typeof(RectTransform));
+        skillSection.transform.SetParent(sidebar.transform, false);
+        skillSection.AddComponent<LayoutElement>().flexibleHeight = 1f;
+        SetUpStack(skillSection.AddComponent<VerticalLayoutGroup>(), MeterGap);
+        GameObject skillBlock = CreateMeter(skillSection.transform, "Skill", "SKILL", "Ready", SkillColor, out TMP_Text skill, out RectTransform skillBarFill);
+        GameObject digestBlock = CreateMeter(skillSection.transform, "Digest", "DIGEST", "CAN EAT", DigestColor, out TMP_Text digest, out RectTransform digestBarFill);
         CreateDivider(sidebar.transform);
 
         // Items: HUDController adds one row per owned store item under ItemsRoot
@@ -130,7 +138,10 @@ public static class HUDBuilder
         hud.skillSection = skillSection;
         hud.skillText = skill;
         hud.skillBarFill = skillBarFill;
+        hud.skillBlock = skillBlock;
         hud.digestText = digest;
+        hud.digestBarFill = digestBarFill;
+        hud.digestBlock = digestBlock;
         hud.itemsSection = itemsSection;
         hud.itemRowTemplate = itemTemplate;
         hud.itemKeyText = itemKey;
@@ -230,15 +241,41 @@ public static class HUDBuilder
         layout.preferredHeight = 2f;
     }
 
-    // A thin progress bar; returns the fill, which HUDController stretches by setting anchorMax.x
-    static RectTransform CreateBar(Transform parent, string name)
+    // "SkillBlock": a "SkillRow" (bold title left, small state right) over a "SkillBar". Returns the block
+    static GameObject CreateMeter(Transform parent, string name, string title, string value, Color color, out TMP_Text valueText, out RectTransform barFill)
     {
-        GameObject back = CreateImage(parent, name, BarBack, Vector2.zero, Vector2.zero, 0f, false);
+        GameObject block = new GameObject(name + "Block", typeof(RectTransform));
+        block.transform.SetParent(parent, false);
+        SetUpStack(block.AddComponent<VerticalLayoutGroup>(), 10f);
+
+        GameObject row = new GameObject(name + "Row", typeof(RectTransform));
+        row.transform.SetParent(block.transform, false);
+        HorizontalLayoutGroup line = row.AddComponent<HorizontalLayoutGroup>();
+        line.childAlignment = TextAnchor.LowerLeft;
+        line.childControlWidth = true;
+        line.childControlHeight = true;
+        line.childForceExpandWidth = true;
+        line.childForceExpandHeight = false;
+
+        TMP_Text titleText = CreateText(row.transform, name + "Title", title, Vector2.zero, Vector2.zero, Vector2.zero, 24f, TextAlignmentOptions.BottomLeft);
+        titleText.color = TitleColor;
+        titleText.fontStyle = FontStyles.Bold;
+        valueText = CreateText(row.transform, name + "Value", value, Vector2.zero, Vector2.zero, Vector2.zero, 16f, TextAlignmentOptions.BottomRight);
+        valueText.color = color;
+
+        barFill = CreateBar(block.transform, name + "Bar", color);
+        return block;
+    }
+
+    // A thin rounded progress bar; returns the fill, which HUDController stretches by setting anchorMax.x
+    static RectTransform CreateBar(Transform parent, string name, Color fillColor)
+    {
+        GameObject back = CreateImage(parent, name, BarBack, Vector2.zero, Vector2.zero, 0f, true);
         LayoutElement layout = back.AddComponent<LayoutElement>();
         layout.minHeight = 8f;
         layout.preferredHeight = 8f;
 
-        GameObject fill = CreateImage(back.transform, "Fill", BarFill, Vector2.zero, Vector2.one, 0f, false);
+        GameObject fill = CreateImage(back.transform, "Fill", fillColor, Vector2.zero, Vector2.one, 0f, true);
         RectTransform fillRect = fill.GetComponent<RectTransform>();
         fillRect.anchorMax = new Vector2(0f, 1f);   // empty until a cooldown runs
         return fillRect;

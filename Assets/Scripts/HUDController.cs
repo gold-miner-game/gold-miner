@@ -22,7 +22,10 @@ public class HUDController : MonoBehaviour
     public GameObject skillSection;
     public TMP_Text skillText;
     public RectTransform skillBarFill;
+    public GameObject skillBlock;    // v2 HUD: the SKILL row + bar, hidden together (null on an older HUD)
     public TMP_Text digestText;
+    public RectTransform digestBarFill;
+    public GameObject digestBlock;
     public GameObject itemsSection;
     public TMP_Text itemRowTemplate;
     public TMP_Text itemKeyText;
@@ -32,6 +35,8 @@ public class HUDController : MonoBehaviour
     public Color activeColor = new Color(0.45f, 0.65f, 1f);    // blue, like the block tint
     public Color waitColor = Color.white;
     public Color noneColor = new Color(0.68f, 0.74f, 0.85f);   // the section titles' gray
+    public Color skillColor = new Color(0.45f, 0.65f, 1f);     // SKILL "Ready" (Figma color/accent/skill)
+    public Color digestColor = new Color(1f, 0.604f, 0.239f);  // DIGEST value and bar, orange (color/accent/digest)
 
     [Header("Pause popup")]
     public Color popupCard = new Color(0.99f, 0.99f, 0.99f);
@@ -66,6 +71,7 @@ public class HUDController : MonoBehaviour
     private Label minerMoney;
     private Label lives;
     private Color timerBaseColor;
+    private float timerHomeX;       // where the builder put the timer: the right edge when there is no Pause
     private Vector3 timerBaseScale;
     private bool roundHasLives;
     private LevelLoader levelLoader;
@@ -96,6 +102,7 @@ public class HUDController : MonoBehaviour
         {
             timerBaseColor = timerText.color;
             timerBaseScale = timerText.transform.localScale;
+            timerHomeX = timerText.rectTransform.anchoredPosition.x;
         }
 
         levelLoader = FindFirstObjectByType<LevelLoader>();
@@ -253,8 +260,8 @@ public class HUDController : MonoBehaviour
         PlaceMapButton();
     }
 
-    // A Pause button just left of the clock. It opens the Quit Game popup, whose Quit goes back to
-    // the map. Only when this round was opened from the map: editor N/P play of the Game scene has
+    // A Pause button at the right end of the top bar, the clock just left of it. It opens the Quit
+    // Game popup, whose Quit goes back to the map. Only when this round was opened from the map: editor N/P play of the Game scene has
     // no node to return to.
     void EnsureMapButton()
     {
@@ -287,7 +294,7 @@ public class HUDController : MonoBehaviour
         rect.SetParent(timer.rectTransform.parent, false);
         rect.anchorMin = rect.anchorMax = new Vector2(1f, 0.5f);
         rect.pivot = new Vector2(1f, 0.5f);
-        rect.sizeDelta = new Vector2(92f, 42f);
+        rect.sizeDelta = new Vector2(92f, 40f);
 
         Image image = go.GetComponent<Image>();
         image.sprite = FlatSprite();
@@ -313,7 +320,7 @@ public class HUDController : MonoBehaviour
         TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
         label.font = timer.font;
         label.text = "Pause";
-        label.fontSize = 22f;
+        label.fontSize = 24f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(0.86f, 0.90f, 0.96f, 1f);
@@ -327,13 +334,14 @@ public class HUDController : MonoBehaviour
 
         bool show = flow != null && flow.CurrentNode != null;
         if (mapButton.gameObject.activeSelf != show) mapButton.gameObject.SetActive(show);
-        if (!show) return;
 
+        // HUD v2: Pause takes the timer's old spot at the right edge; the timer (right aligned)
+        // moves left by the button's width plus a 50 px gap
         RectTransform timerRect = timerText.rectTransform;
         RectTransform rect = mapButton.GetComponent<RectTransform>();
-        float digits = Mathf.Max(72f, timerText.preferredWidth);
-        float scale = Mathf.Max(1f, timerRect.localScale.x);
-        rect.anchoredPosition = new Vector2(timerRect.anchoredPosition.x - digits * scale - 14f, timerRect.anchoredPosition.y);
+        float timerX = show ? timerHomeX - rect.sizeDelta.x - 50f : timerHomeX;
+        timerRect.anchoredPosition = new Vector2(timerX, timerRect.anchoredPosition.y);
+        if (show) rect.anchoredPosition = new Vector2(timerHomeX, timerRect.anchoredPosition.y);
     }
 
     public bool IsPaused => pausePopup != null && pausePopup.activeSelf;
@@ -552,30 +560,37 @@ public class HUDController : MonoBehaviour
     {
         if (skillText == null) return false;
         bool shown = player != null && player.SkillHint != "";
-        SetRow(skillText, shown);
+        if (skillBlock != null) skillBlock.SetActive(shown);
+        else SetRow(skillText, shown);
         if (skillBarFill != null) skillBarFill.parent.gameObject.SetActive(shown);
         if (!shown) return false;
 
         float readyIn = player.SkillReadyIn;
         if (player.SkillActive) SetValue(skillText, "Active", activeColor);
         else if (readyIn > 0f) SetValue(skillText, Seconds(readyIn), waitColor);
-        else SetValue(skillText, "Ready", readyColor);
+        else SetValue(skillText, "Ready", skillBlock != null ? skillColor : readyColor);
 
         float fill = readyIn > 0f && player.SkillWait > 0f ? 1f - readyIn / player.SkillWait : 1f;
         if (skillBarFill != null) skillBarFill.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
         return true;
     }
 
-    // Seconds left in the digest (in the digest's green tint), else "Ready". Returns whether shown
+    // Seconds left in the digest, else "CAN EAT", in orange; the bar fills back up as the digest
+    // runs out. An older HUD (no digestBlock) keeps "Ready" in green and the character's tint
     bool UpdateDigest()
     {
         if (digestText == null) return false;
         bool shown = player != null && player.UsesDigest;
-        SetRow(digestText, shown);
+        if (digestBlock != null) digestBlock.SetActive(shown);
+        else SetRow(digestText, shown);
         if (!shown) return false;
 
-        if (player.CanEat) SetValue(digestText, "Ready", readyColor);
-        else SetValue(digestText, Seconds(player.DigestLeft), player.digestTint);
+        bool v2 = digestBlock != null;
+        if (player.CanEat) SetValue(digestText, v2 ? "CAN EAT" : "Ready", v2 ? digestColor : readyColor);
+        else SetValue(digestText, Seconds(player.DigestLeft), v2 ? digestColor : player.digestTint);
+
+        float fill = player.IsDigesting ? player.DigestProgress01 : 1f;
+        if (digestBarFill != null) digestBarFill.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
         return true;
     }
 
