@@ -81,7 +81,9 @@ public class TutorialUIDark : MonoBehaviour
         int count = 0;
         // The arena: its own (sprite) dark is there, with the world holes cut out of it
         Camera cam = Camera.main;
-        if (cam != null) AddHole(ref count, cam.pixelRect, 0f, 0f);
+        // (none in a scene without an arena, like the store: the dark covers the whole screen)
+        if (cam != null && (LevelLayout.Active != null || FindFirstObjectByType<PlayerCharacter>() != null))
+            AddHole(ref count, cam.pixelRect, 0f, 0f);
 
         float scale = Screen.height / 1080f;   // the holes' sizes are in 1080p pixels
         if (holes != null)

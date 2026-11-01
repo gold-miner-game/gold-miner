@@ -8,6 +8,7 @@ public static class ProgressStore
 {
     const string CompletedKey = "gm.progress.completed";   // ';'-separated node ids
     const string CharacterKey = "gm.progress.character";
+    const string RevealedKey = "gm.progress.revealed";    // ';'-separated ids of hidden hub portals already shown
 
     static HashSet<string> completed;
 
@@ -40,6 +41,27 @@ public static class ProgressStore
         set { PlayerPrefs.SetString(CharacterKey, value ?? "pig"); PlayerPrefs.Save(); }
     }
 
+    // A hidden hub portal (HubPortal) turns from rock into portal once; after that it stays a portal
+    public static bool WasRevealed(string nodeId)
+    {
+        foreach (string id in PlayerPrefs.GetString(RevealedKey, "").Split(';'))
+            if (id == nodeId) return true;
+        return false;
+    }
+
+    public static void MarkRevealed(string nodeId)
+    {
+        if (string.IsNullOrEmpty(nodeId) || WasRevealed(nodeId)) return;
+        string raw = PlayerPrefs.GetString(RevealedKey, "");
+        PlayerPrefs.SetString(RevealedKey, raw == "" ? nodeId : raw + ";" + nodeId);
+        PlayerPrefs.Save();
+    }
+
+    // The tutorial run (WorldMap.tutorialLevels) is saved under this id once it is finished.
+    public const string TutorialDoneId = "tutorial";
+    // tut_block = the last tutorial node of the old map, so older saves skip the run too
+    public static bool TutorialDone => IsCompleted(TutorialDoneId) || IsCompleted("tut_block");
+
     public static bool HasPickedCharacter => PlayerPrefs.HasKey(CharacterKey);
 
     // Dev helper: wipe all meta progress (also clear the in-memory cache).
@@ -48,6 +70,7 @@ public static class ProgressStore
         completed = null;
         PlayerPrefs.DeleteKey(CompletedKey);
         PlayerPrefs.DeleteKey(CharacterKey);
+        PlayerPrefs.DeleteKey(RevealedKey);
         PlayerPrefs.Save();
         CrossLevelStatus.ClearSavedWallet();
     }

@@ -6,19 +6,25 @@ using UnityEngine.UI;
 
 // Shop counter. Items sit on the shelf; hovering one shows its description.
 // No shopkeeper. Built from Unity UI shapes, not imported art.
+// The Store scene holds the counter, wallet bar, Leave button and tip as real objects (Tools > Gold
+// Miner > Build Store UI), so they can be moved and restyled in the Scene view; the items on the
+// shelf are still made at runtime, under the Counter, one per offer and named after it (e.g.
+// "Swift"), so a TutorialUIHole can point at them. Without the scene objects it builds its own.
 public class StoreView : MonoBehaviour
 {
     static StoreView active;
     static Sprite white;
     static Sprite circle;
 
-    Canvas canvas;
-    Text walletText;
-    Text itemsText;
-    Text leaveLabel;
-    RectTransform counter;
-    RectTransform tip;
-    Text tipText;
+    [Header("Scene objects (Build Store UI fills these)")]
+    [SerializeField] Canvas canvas;
+    [SerializeField] Text walletText;
+    [SerializeField] Text itemsText;
+    [SerializeField] Button leaveButton;
+    [SerializeField] Text leaveLabel;
+    [SerializeField] RectTransform counter;
+    [SerializeField] RectTransform tip;
+    [SerializeField] Text tipText;
     Action onLeave;
     readonly List<GameObject> items = new List<GameObject>();
 
@@ -42,6 +48,8 @@ public class StoreView : MonoBehaviour
     static StoreView Ensure()
     {
         if (active != null) return active;
+        StoreView inScene = FindFirstObjectByType<StoreView>(FindObjectsInactive.Include);
+        if (inScene != null) return inScene;
         var go = new GameObject("StoreView");
         return go.AddComponent<StoreView>();
     }
@@ -55,15 +63,19 @@ public class StoreView : MonoBehaviour
         }
 
         active = this;
-        if (FindFirstObjectByType<EventSystem>() == null)
-        {
-            var events = new GameObject("StoreEventSystem");
-            events.transform.SetParent(transform, false);
-            events.AddComponent<EventSystem>();
-            events.AddComponent<StandaloneInputModule>();
-        }
-        Build();
+        if (FindFirstObjectByType<EventSystem>() == null) MakeEventSystem(transform);
+        MakeSprites();
+        if (canvas == null) Build();
+        if (leaveButton != null) leaveButton.onClick.AddListener(() => { if (onLeave != null) onLeave(); });
         canvas.gameObject.SetActive(false);
+    }
+
+    static void MakeEventSystem(Transform parent)
+    {
+        var events = new GameObject("StoreEventSystem");
+        events.transform.SetParent(parent, false);
+        events.AddComponent<EventSystem>();
+        events.AddComponent<StandaloneInputModule>();
     }
 
     void OnDestroy()
@@ -71,15 +83,34 @@ public class StoreView : MonoBehaviour
         if (active == this) active = null;
     }
 
+    // Lays the store out as objects in the open scene, for editing (Tools > Gold Miner > Build Store
+    // UI). Its panels are plain white images (no generated sprite, which a scene can't keep)
+    public void BuildInScene()
+    {
+        white = null;
+        Build();
+        if (FindFirstObjectByType<EventSystem>() == null) MakeEventSystem(null);
+    }
+
+    static void MakeSprites()
+    {
+        if (white == null)
+        {
+            var sheet = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+            var pixels = new Color[16];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
+            sheet.SetPixels(pixels);
+            sheet.Apply();
+            white = Sprite.Create(sheet, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
+        }
+        if (circle == null) circle = CircleSprite();
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { active = null; white = null; circle = null; }   // Play without a domain reload keeps statics
+
     void Build()
     {
-        var sheet = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-        var pixels = new Color[16];
-        for (int i = 0; i < pixels.Length; i++) pixels[i] = Color.white;
-        sheet.SetPixels(pixels);
-        sheet.Apply();
-        white = Sprite.Create(sheet, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
-        circle = CircleSprite();
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
         var canvasGo = new GameObject("StoreCanvas");
@@ -89,7 +120,7 @@ public class StoreView : MonoBehaviour
         canvas.sortingOrder = 50;
         var scaler = canvasGo.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1280, 720);
+        scaler.referenceResolution = new Vector2(1600, 900);   // laid out in 1280x720 numbers, drawn at 80%: the HUD's and the stories' scale
         scaler.matchWidthOrHeight = 0.5f;
         canvasGo.AddComponent<GraphicRaycaster>();
 
@@ -116,15 +147,14 @@ public class StoreView : MonoBehaviour
         itemsText.rectTransform.offsetMin = new Vector2(28f, 6f);
         itemsText.rectTransform.offsetMax = new Vector2(-180f, 0f);
 
-        Button leave = MakeButton(bar.transform, "Leave", font, out leaveLabel);
+        leaveButton = MakeButton(bar.transform, "Leave", font, out leaveLabel);
         leaveLabel.fontSize = 22;
         leaveLabel.color = new Color(0.25f, 0.12f, 0.04f);
-        RectTransform leaveRect = leave.GetComponent<RectTransform>();
+        RectTransform leaveRect = leaveButton.GetComponent<RectTransform>();
         leaveRect.anchorMin = leaveRect.anchorMax = new Vector2(1f, 0.5f);
         leaveRect.pivot = new Vector2(1f, 0.5f);
         leaveRect.sizeDelta = new Vector2(140f, 52f);
         leaveRect.anchoredPosition = new Vector2(-24f, 0f);
-        leave.onClick.AddListener(() => { if (onLeave != null) onLeave(); });
 
         Image counterImage = Panel(bg.transform, "Counter", new Color(0.58f, 0.38f, 0.18f));
         counter = counterImage.rectTransform;

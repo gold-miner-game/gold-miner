@@ -20,6 +20,8 @@ using UnityEngine.UI;
 //   Tutorial Squeeze   the dodge tutorial's end: a story after 4 dodges, then the presses close in
 //   Tutorial Rescue    the squeeze's way out: a friendly story on the last Life, then the Exit opens
 //   Tutorial Skills    the block tutorial: J.K. Rolling's story at the start, then Block and Attack steps
+//   Tutorial Store Intro  the store's first visit: J.K. Rolling's story on screen, lighting the wallet, goods, Leave
+//   Tutorial Pointer   a UI object selected: a step lighting it with an arrow, from a story line #show_<name>
 //   Tutorial Life Lost a step for the first Life lost: the player and the HUD's Life panel lit
 //   Tutorial Arrow / Tutorial Spotlight   the one-off intro props (TutorialArrow, TutorialSpotlight)
 public static class TutorialPropsMenu
@@ -95,6 +97,12 @@ public static class TutorialPropsMenu
     {
         TutorialStep step = SelectedStep(command);
         if (step == null) return;
+        Selection.activeGameObject = BuildUICallout(step, "Text").gameObject;
+    }
+
+    // An arrow pointing down at the callout's origin, with a label, on the step's screen canvas
+    static RectTransform BuildUICallout(TutorialStep step, string labelText)
+    {
         RectTransform overlay = StepOverlay(step);
 
         var go = new GameObject("UICallout", typeof(RectTransform));
@@ -124,7 +132,7 @@ public static class TutorialPropsMenu
         labelRect.anchoredPosition = new Vector2(40f, 90f);
         labelRect.sizeDelta = new Vector2(400f, 60f);
         var text = label.GetComponent<TextMeshProUGUI>();
-        text.text = "Text";
+        text.text = labelText;
         text.fontSize = 40f;
         text.fontStyle = FontStyles.Bold;
         text.color = Color.white;
@@ -132,7 +140,7 @@ public static class TutorialPropsMenu
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.raycastTarget = false;
 
-        Selection.activeGameObject = go;
+        return rect;
     }
 
     // The step's screen canvas for UI callouts (made the first time): drawn above the HUD and the
@@ -312,6 +320,121 @@ public static class TutorialPropsMenu
             }
 
         Selection.activeGameObject = story.gameObject;
+    }
+
+    // The store's introduction (open the Store scene first, with its UI built: Tools > Gold Miner >
+    // Build Store UI). The first time the store opens, J.K. Rolling and the pig stand on the
+    // dialogue box and talk through Assets/Story/StoreIntro.txt; lines ending in #show_wallet,
+    // #show_shelf and #show_leave light that part of the store until the next one
+    [MenuItem("Tools/Gold Miner/Tutorial Store Intro", false, 111)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Store Intro", false, 21)]
+    static void CreateStoreIntro(MenuCommand command)
+    {
+        TutorialDialogue dialogue = CreateStoryStep("StoreIntro", "");
+        TutorialStep story = dialogue.GetComponent<TutorialStep>();
+        story.startOn = TutorialStep.StartTrigger.LevelStart;
+        story.onlyFirstTime = true;
+        story.freezeGame = false;   // nothing to freeze, and the store keeps working
+        story.darkness = 0.7f;
+        dialogue.scriptFile = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/StoreIntro.txt");
+        dialogue.onScreen = true;
+        dialogue.besideBox = true;
+        dialogue.hideResult = false;
+        dialogue.leaveWhenDone = false;
+        TutorialDialogue.Character professor = dialogue.characters[0];
+        professor.name = "J.K. Rolling";
+        professor.prefab = FindPrefab("Cat");
+        professor.side = TutorialDialogue.Side.Friend;
+        dialogue.characters[1].prefab = FindPrefab("MrHyde");   // On Screen: the player needs a picture too
+        // In the arena only: no arena here
+        Object.DestroyImmediate(professor.spawnAt.gameObject);
+        Object.DestroyImmediate(dialogue.speakerLight.gameObject);
+        dialogue.speakerLight = null;
+
+        CreateSpotlightStep("ShowWallet", "show_wallet", "show_shelf", "Wallet");
+        CreateSpotlightStep("ShowShelf", "show_shelf", "show_leave", "Counter");
+        CreateSpotlightStep("ShowLeave", "show_leave", "show_modes", "Leave");
+
+        Selection.activeGameObject = story.gameObject;
+    }
+
+    // Lights one UI object from one event to another, once
+    static void CreateSpotlightStep(string name, string startEvent, string endEvent, string target)
+    {
+        var go = new GameObject(name);
+        Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Store Intro");
+        go.transform.SetParent(TutorialRoot(), false);
+        TutorialStep step = go.AddComponent<TutorialStep>();
+        step.startOn = TutorialStep.StartTrigger.Event;
+        step.startEvent = startEvent;
+        step.endOn = TutorialStep.EndTrigger.Event;
+        step.endEvent = endEvent;
+        step.freezeGame = false;
+        step.darkness = 0.7f;
+        step.onlyFirstTime = true;
+
+        var hole = new GameObject("UIHole " + target);
+        hole.transform.SetParent(go.transform, false);
+        hole.AddComponent<TutorialUIHole>().target = target;
+        GameObject found = GameObject.Find(target);
+        if (found != null && found.transform is RectTransform rect) AimUICallout(BuildUICallout(step, ""), rect);
+    }
+
+    // Select a UI object (the store's Wallet, Counter, a HUD panel, ...) and run this: a step that
+    // lights it and points an arrow at it, from a story line ending in #show_<name> (e.g.
+    // #show_wallet) until the next line (story_line). No freeze; change the events in the Inspector
+    [MenuItem("Tools/Gold Miner/Tutorial Pointer", false, 112)]
+    [MenuItem("GameObject/Gold Miner/Tutorial Pointer", false, 22)]
+    static void CreatePointer(MenuCommand command)
+    {
+        GameObject picked = command.context as GameObject ?? Selection.activeGameObject;
+        var target = picked != null ? picked.transform as RectTransform : null;
+        if (target == null || target.GetComponentInParent<Canvas>() == null)
+        {
+            EditorUtility.DisplayDialog("Pick a UI object",
+                "Select the UI object to point at (e.g. Wallet under StoreCanvas) in the Hierarchy, then try again.", "OK");
+            return;
+        }
+
+        var go = new GameObject("Point " + target.name);
+        Undo.RegisterCreatedObjectUndo(go, "Create Tutorial Pointer");
+        go.transform.SetParent(TutorialRoot(), false);
+        TutorialStep step = go.AddComponent<TutorialStep>();
+        step.startOn = TutorialStep.StartTrigger.Event;
+        step.startEvent = "show_" + target.name.ToLowerInvariant().Replace(' ', '_');
+        step.endOn = TutorialStep.EndTrigger.Event;
+        step.endEvent = TutorialDialogue.LineEvent;
+        step.freezeGame = false;
+        step.darkness = 0.6f;
+        step.maxTimes = 1;
+
+        var hole = new GameObject("UIHole " + target.name);
+        hole.transform.SetParent(go.transform, false);
+        hole.AddComponent<TutorialUIHole>().target = target.name;
+        AimUICallout(BuildUICallout(step, ""), target);
+
+        Selection.activeGameObject = go;
+    }
+
+    // Puts a UI callout's arrow tip just above `target` (below it, pointing up, near the top of the
+    // screen). Both are screen canvases, so they meet in screen pixels; the callout's canvas is laid
+    // out at 1920x1080, fitted to the screen (Expand)
+    static void AimUICallout(RectTransform callout, RectTransform target)
+    {
+        Canvas root = target.GetComponentInParent<Canvas>().rootCanvas;
+        if (root.renderMode != RenderMode.ScreenSpaceOverlay) return;   // left in the middle: drag it
+        Vector2 screen = root.pixelRect.size;
+        var corners = new Vector3[4];
+        target.GetWorldCorners(corners);   // an overlay canvas's world space is screen pixels
+        float midX = (corners[0].x + corners[2].x) * 0.5f;
+        bool nearTop = corners[2].y > screen.y * 0.7f;
+        Vector2 tip = new Vector2(midX, nearTop ? corners[0].y - 12f : corners[2].y + 12f);
+        float scale = Mathf.Min(screen.x / 1920f, screen.y / 1080f);
+        callout.anchoredPosition = (tip - screen * 0.5f) / Mathf.Max(0.01f, scale);
+        callout.gameObject.AddComponent<TutorialUIPoint>();   // stays by the step's UI Hole target at Play
+        if (!nearTop) return;
+        callout.Find("Arrow").localRotation = Quaternion.Euler(0f, 0f, 180f);   // pointing up
+        ((RectTransform)callout.Find("Label")).anchoredPosition = new Vector2(40f, -90f);
     }
 
     // A frozen moment that lights the player, with a callout above their head

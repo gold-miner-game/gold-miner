@@ -6,7 +6,7 @@ using UnityEngine;
 // level is: add a node here + drop a level JSON. See docs/level-map-tutorial-design.md.
 public enum NodeType
 {
-    Tutorial,   // a Game-scene level with stages/guide; completed on win
+    Tutorial,   // unused on the map now (the tutorials run back to back before it, see WorldMap.tutorialLevels); kept so saved type numbers don't shift
     Battle,     // a normal Game-scene level; completed on win
     RolePick,   // the character picker; completed on leave
     Store,      // the shop (Zhan Li); completed on leave, re-enterable
@@ -34,6 +34,14 @@ public class MapNode
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]
 public class WorldMap : ScriptableObject
 {
+    [Tooltip("Tutorial levels played back to back, in order, the first time the player opens the map. " +
+             "They are not map nodes; finishing the last one opens the map.")]
+    public List<TextAsset> tutorialLevels = new List<TextAsset>();
+
+    [Tooltip("The world map as a walkable level: a \"grid\" level file whose portals are the nodes below " +
+             "(MapHub). Empty = the card map in the Map scene.")]
+    public TextAsset hubLevel;
+
     public List<MapNode> nodes = new List<MapNode>();
 
     public MapNode Find(string id)

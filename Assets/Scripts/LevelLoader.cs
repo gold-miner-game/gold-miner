@@ -132,6 +132,17 @@ public class LevelLoader : MonoBehaviour
     // skill. Null = no map (editor N/P), fall back to the guide/stages heuristic.
     public static bool? ScriptedTutorial;
 
+    // Play without a domain reload keeps statics: a level requested in the last play would replace
+    // the open scene's own level (the world map scene ran the Eat tutorial)
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics()
+    {
+        Requested = null;
+        ScriptedTutorial = null;
+        WaitToAdvance = false;
+        AdvanceNow = false;
+    }
+
     void Awake()
     {
         // Played from a level scene (LevelLayout): that scene says which level this is
@@ -163,6 +174,7 @@ public class LevelLoader : MonoBehaviour
         // play (N/P through the level list), where no map node made the call.
         Tutorial = ScriptedTutorial ?? current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
+        if (level.IsMaze) Tutorial = true;   // the hub, even played straight from its scene: the pig, no run record
         if (layout != null) UseLayout();
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
         if (seed != 0) Random.InitState(seed);
@@ -256,6 +268,7 @@ public class LevelLoader : MonoBehaviour
         foreach (MinerAI miner in miners) AddHealth(miner.gameObject, miner.hook != null ? miner.hook.gameObject : null, miner.telegraph != null ? miner.telegraph.gameObject : null);
         SetUpRound();
         if (level.stages.Count > 0) StartStage(0);
+        if (level.IsMaze) SetUpHub();
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
         if (player != null && player.SkillHint != "") label += "  " + player.SkillHint;
@@ -279,6 +292,45 @@ public class LevelLoader : MonoBehaviour
     }
 
     void SpawnItems() { Spawn(level.items); }
+
+    // The world-map hub (a "grid" level): wall rocks, a view that fits the whole maze, a player
+    // small enough for its corridors, then MapHub adds the one-way tiles and the portals
+    void SetUpHub()
+    {
+        float tile = level.TileSize;
+        // Baked into the world map scene (Tools > Gold Miner > Bake World Map Into Scene): its walls,
+        // portals and doors are already there, edited in the Scene view
+        Transform baked = layout != null ? layout.transform.Find(MapHub.BakedRootName) : null;
+        GameObject rockPrefab = System.Array.Find(itemPrefabs, p => p != null && p.name == "Rock");
+        Sprite hex = null;
+        Color grey = new Color(0.5f, 0.5f, 0.5f);
+        SpriteRenderer rockSprite = rockPrefab != null ? rockPrefab.GetComponent<SpriteRenderer>() : null;
+        if (rockSprite != null) { hex = rockSprite.sprite; grey = rockSprite.color; }
+
+        if (baked == null && rockPrefab == null) Debug.LogWarning("LevelLoader: no Rock in Item Prefabs for the hub walls");
+        else if (baked == null)
+        {
+            var walls = new GameObject("Walls").transform;
+            void Wall(Vector2 at, Color? tint)
+            {
+                GameObject go = Instantiate(rockPrefab, at, Quaternion.identity, walls);
+                go.transform.localScale = Vector3.one * tile;
+                Rock rock = go.GetComponent<Rock>();
+                if (rock != null) rock.MakeWall();
+                SpriteRenderer r = go.GetComponent<SpriteRenderer>();
+                if (r != null && tint.HasValue) r.color = tint.Value;
+            }
+            foreach (Vector2 at in level.walls) Wall(at, null);
+            foreach (LevelData.ColoredWall w in level.coloredWalls) Wall(w.position, MapHub.WallColor(w.color, grey));   // the mode areas
+        }
+
+        GameplayCamera.SetArenaSize(level.MazeSize + Vector2.one * tile);
+        if (player != null) player.transform.localScale = Vector3.one * tile * level.Param("player_scale", 0.9f);
+
+        MapHub hub = GetComponent<MapHub>();
+        if (hub == null) hub = gameObject.AddComponent<MapHub>();
+        hub.Build(level, player, hex, grey, baked);
+    }
 
     // Returns the treasure among what it spawned
     List<Treasure> Spawn(List<LevelData.Item> items)
@@ -529,6 +581,7 @@ public class LevelLoader : MonoBehaviour
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
+        gm.endless = level.IsMaze;   // the hub: no clock, nothing ends it
         gm.roundTime = level.Param("round_time", gm.roundTime);
         if (Tutorial)
         {

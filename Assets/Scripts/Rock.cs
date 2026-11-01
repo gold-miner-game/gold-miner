@@ -11,17 +11,29 @@ public class Rock : MonoBehaviour
     public float pieceSpeed = 3.5f;
 
     private SpriteRenderer sr;
+    [Tooltip("A maze wall (the world map): planted, and it never breaks")]
+    public bool isWall;
+
     private bool shattered;
 
     void Awake()
     {
         sr = GetComponent<SpriteRenderer>();
+        if (isWall) MakeWall();
+    }
+
+    // The world-map hub's maze walls: planted, and they never break
+    public void MakeWall()
+    {
+        isWall = true;
+        Rigidbody2D body = GetComponent<Rigidbody2D>();
+        if (body != null) body.bodyType = RigidbodyType2D.Static;
     }
 
     // Called by Hook when this rock blocks it
     public void OnHookBlocked()
     {
-        if (shattered) return;
+        if (shattered || isWall) return;
         shattered = true;
 
         SpawnPieces();

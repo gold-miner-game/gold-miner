@@ -16,6 +16,15 @@ using UnityEngine;
 //   goal "none": the stage never ends by itself; something in the level scene wins it (SqueezePhase)
 // "block" counts hooks bounced off the pig, "steal" counts treasure knocked off a hook. A stage's
 // items are spawned when it starts, and again whenever none are left. Clearing the last stage wins.
+// "grid" (the world-map hub, after Penny's maze on feature/penny-level-map) makes it a maze: a list of
+// strings, row 0 at the top, one character per tile of "tile_size" world units:
+//   # wall   R / Y / G red / yellow / green wall (the attack / survival / compete areas)
+//   P player start   < > ^ v one-way tile (passable only
+//   that way)   anything else floor
+// plus "portals": [{"target": "battle_01", "x": col, "y": row, "hidden": true}], each a WorldMap
+// node id. A hidden portal is a rock, coloured like the walls around it, until its node unlocks. And "labels":
+// [{"text": "ATTACK", "x": col, "y": row}], words on the floor. A grid level has no hooks unless it
+// lists some.
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.
 public class LevelData
 {
@@ -42,6 +51,20 @@ public class LevelData
     public string guide = "";
     public readonly List<Stage> stages = new List<Stage>();
 
+    // Grid maze (the world-map hub)
+    public struct Portal { public string target; public Vector2 position; public bool hidden; public char stone; }
+    public struct ColoredWall { public Vector2 position; public char color; }   // R red, Y yellow, G green
+    public struct Label { public string text; public Vector2 position; }
+    public struct OneWay { public Vector2 position; public Vector2 dir; }
+    public bool IsMaze;
+    public float TileSize = 1f;
+    public Vector2 MazeSize;   // world units
+    public readonly List<Vector2> walls = new List<Vector2>();
+    public readonly List<ColoredWall> coloredWalls = new List<ColoredWall>();
+    public readonly List<OneWay> oneWays = new List<OneWay>();
+    public readonly List<Portal> portals = new List<Portal>();
+    public readonly List<Label> labels = new List<Label>();
+
     public static LevelData Parse(string json)
     {
         var root = LevelJson.Parse(json) as Dictionary<string, object>;
@@ -57,11 +80,92 @@ public class LevelData
         if (root.TryGetValue("params", out object ps)) level.AddParameters(ps);
         if (root.TryGetValue("skills", out object skills)) level.AddParameters(skills);
         if (root.TryGetValue("guide", out object guide) && guide is string text) level.guide = text;
+        if (root.TryGetValue("grid", out object grid) && grid is List<object> rows)
+        {
+            ReadGrid(level, rows, root);
+            if (!root.ContainsKey("hooks")) level.hooks.Clear();   // the hub has no miner
+        }
         if (root.TryGetValue("stages", out object stages))
             foreach (object s in (List<object>)stages) level.stages.Add(ReadStage((Dictionary<string, object>)s));
         if (root.TryGetValue("level", out object info) && info is Dictionary<string, object> dict)
             foreach (var kv in dict) level.info[kv.Key] = kv.Value;
         return level;
+    }
+
+    // The grid is centred on the world origin, so it sits in the middle of the arena
+    static void ReadGrid(LevelData level, List<object> rows, Dictionary<string, object> root)
+    {
+        float tile = level.Param("tile_size", 0.5f);
+        int cols = 0;
+        foreach (object r in rows) if (r is string line) cols = Mathf.Max(cols, line.Length);
+        level.IsMaze = true;
+        level.TileSize = tile;
+        level.MazeSize = new Vector2(cols, rows.Count) * tile;
+
+        for (int row = 0; row < rows.Count; row++)
+        {
+            if (!(rows[row] is string line)) continue;
+            for (int col = 0; col < line.Length; col++)
+            {
+                Vector2 at = GridToWorld(level, col, row);
+                switch (line[col])
+                {
+                    case '#': level.walls.Add(at); break;
+                    case 'R': case 'Y': case 'G': level.coloredWalls.Add(new ColoredWall { position = at, color = line[col] }); break;
+                    case 'P': level.pigStart = at; break;
+                    case '<': level.oneWays.Add(new OneWay { position = at, dir = Vector2.left }); break;
+                    case '>': level.oneWays.Add(new OneWay { position = at, dir = Vector2.right }); break;
+                    case '^': level.oneWays.Add(new OneWay { position = at, dir = Vector2.up }); break;
+                    case 'v': level.oneWays.Add(new OneWay { position = at, dir = Vector2.down }); break;
+                }
+            }
+        }
+
+        if (root.TryGetValue("portals", out object portals) && portals is List<object> list)
+            foreach (object o in list)
+            {
+                if (!(o is Dictionary<string, object> p) || !(p.TryGetValue("target", out object t) && t is string target)) continue;
+                int x = p.TryGetValue("x", out object xv) ? Mathf.RoundToInt(ToFloat(xv)) : 0;
+                int y = p.TryGetValue("y", out object yv) ? Mathf.RoundToInt(ToFloat(yv)) : 0;
+                level.portals.Add(new Portal
+                {
+                    target = target,
+                    position = GridToWorld(level, x, y),
+                    hidden = p.TryGetValue("hidden", out object h) && h is bool hb && hb,
+                    stone = WallAround(rows, x, y),
+                });
+            }
+
+        if (root.TryGetValue("labels", out object labels) && labels is List<object> words)
+            foreach (object o in words)
+            {
+                if (!(o is Dictionary<string, object> w) || !(w.TryGetValue("text", out object t) && t is string text)) continue;
+                float x = w.TryGetValue("x", out object xv) ? ToFloat(xv) : 0f;
+                float y = w.TryGetValue("y", out object yv) ? ToFloat(yv) : 0f;
+                level.labels.Add(new Label { text = text, position = GridToWorld(level, x, y) });
+            }
+    }
+
+    // The coloured wall (R / Y / G) among the 8 tiles around (col, row), else '#'
+    static char WallAround(List<object> rows, int col, int row)
+    {
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int r = row + dy, x = col + dx;
+                if ((dx != 0 || dy != 0) && r >= 0 && r < rows.Count && rows[r] is string line && x >= 0 && x < line.Length
+                    && (line[x] == 'R' || line[x] == 'Y' || line[x] == 'G'))
+                    return line[x];
+            }
+        return '#';
+    }
+
+    // Tile centre of (col, row); row 0 is the top
+    public static Vector2 GridToWorld(LevelData level, float col, float row)
+    {
+        float tile = level.TileSize;
+        return new Vector2((col + 0.5f) * tile - level.MazeSize.x * 0.5f,
+                           level.MazeSize.y * 0.5f - (row + 0.5f) * tile);
     }
 
     static void ReadItems(object list, List<Item> into)

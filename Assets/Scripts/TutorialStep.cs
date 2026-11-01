@@ -76,6 +76,11 @@ public class TutorialStep : MonoBehaviour
     public float fadeTime = 0.4f;
     [Tooltip("How many times the step can play. 0 = every time its trigger happens")]
     public int maxTimes = 1;
+    [Tooltip("Play only the first time ever (saved), not again on later visits, e.g. the store's introduction. Tools > Gold Miner > Reset Tutorials Seen shows them again")]
+    public bool onlyFirstTime = false;
+
+    // Tools > Gold Miner > Replay Only First Time Steps (editor, while testing): they play every time
+    public static bool ReplaySeen;
 
     [Header("Hooks for other things")]
     public UnityEvent onStart;
@@ -156,6 +161,26 @@ public class TutorialStep : MonoBehaviour
         for (int i = 0; i < texts.Length; i++) textAlphas[i] = texts[i].alpha;
 
         if (afterStep == null && startOn == StartTrigger.AfterStep) afterStep = StepAbove();
+        inLevel = FindFirstObjectByType<LevelLayout>() != null;
+        if (onlyFirstTime && !ReplaySeen && PlayerPrefs.GetInt(SeenKey, 0) == 1) Current = State.Done;
+    }
+
+    bool inLevel;   // in a level scene: the player is on its way with the Game scene
+
+    bool NeedsPlayer => startOn == StartTrigger.PlayerEntersArea || endOn == EndTrigger.PlayerMoves
+                        || endOn == EndTrigger.PlayerEntersArea;
+
+    // PlayerPrefs key for Only First Time: this step in this scene
+    string SeenKey => "tutorial_seen/" + gameObject.scene.name + "/" + name;
+    const string SeenListKey = "tutorial_seen_list";
+
+    // Forget every Only First Time step that has played, so they show again
+    public static void ResetSeen()
+    {
+        foreach (string key in PlayerPrefs.GetString(SeenListKey, "").Split('\n'))
+            if (key.Length > 0) PlayerPrefs.DeleteKey(key);
+        PlayerPrefs.DeleteKey(SeenListKey);
+        PlayerPrefs.Save();
     }
 
     void OnEnable() { TutorialEvents.Fired += OnEvent; }
@@ -193,7 +218,9 @@ public class TutorialStep : MonoBehaviour
     void Update()
     {
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
-        if (player == null) return;   // the Game scene isn't in yet
+        // In a level, wait for the Game scene (the player) to come in. Elsewhere (the store) there
+        // is no player, and only the player triggers need one
+        if (player == null && (inLevel || NeedsPlayer)) return;
         float now = Time.unscaledTime;
 
         // Starts happen at the moment (walking in, the item going); ends also when it's already so
@@ -257,7 +284,7 @@ public class TutorialStep : MonoBehaviour
                 return (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
                     || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
             case EndTrigger.PlayerMoves:
-                return settled && Vector2.Distance(player.transform.position, playerAtStart) > 0.3f;
+                return settled && player != null && Vector2.Distance(player.transform.position, playerAtStart) > 0.3f;
             case EndTrigger.PlayerEntersArea: return inArea;
             case EndTrigger.ItemGone: return itemGone;
             case EndTrigger.Event: return endRequested;
@@ -305,6 +332,15 @@ public class TutorialStep : MonoBehaviour
         if (showing.Count == 0) SetDark(0f, null);
         TimesFinished++;
         Current = maxTimes <= 0 || TimesPlayed < maxTimes ? State.Waiting : State.Done;
+        if (onlyFirstTime)
+        {
+            PlayerPrefs.SetInt(SeenKey, 1);
+            string list = PlayerPrefs.GetString(SeenListKey, "");   // so ResetSeen can find them
+            if (("\n" + list + "\n").IndexOf("\n" + SeenKey + "\n") < 0)
+                PlayerPrefs.SetString(SeenListKey, list.Length == 0 ? SeenKey : list + "\n" + SeenKey);
+            PlayerPrefs.Save();
+            Current = State.Done;
+        }
         onEnd.Invoke();
         TutorialEvents.Fire(name + ".end");
     }
@@ -379,7 +415,7 @@ public class TutorialStep : MonoBehaviour
     {
         if (startOn != StartTrigger.PlayerEntersArea && endOn != EndTrigger.PlayerEntersArea) return false;
         Vector2 centre = area != null ? (Vector2)area.position : (Vector2)transform.position;
-        return new Rect(centre - areaSize * 0.5f, areaSize).Contains(player.transform.position);
+        return player != null && new Rect(centre - areaSize * 0.5f, areaSize).Contains(player.transform.position);
     }
 
     bool ItemGone()

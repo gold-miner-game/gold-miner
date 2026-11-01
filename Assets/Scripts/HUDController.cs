@@ -172,7 +172,7 @@ public class HUDController : MonoBehaviour
 
         // Judge by the number on screen, so "0:10" is never red
         int seconds = Mathf.CeilToInt(gm.TimeLeft);
-        timerText.text = (seconds / 60) + ":" + (seconds % 60).ToString("00");
+        timerText.text = flow != null && flow.InHub ? "" : (seconds / 60) + ":" + (seconds % 60).ToString("00");   // the hub has no clock
         timerText.color = seconds < timerWarningTime ? timerWarningColor : timerBaseColor;
 
         // Heartbeat: pop right after each second ticks over, settle within ~0.3 s
@@ -253,7 +253,7 @@ public class HUDController : MonoBehaviour
     {
         if (mapButton == null || timerText == null) return;
 
-        bool show = flow != null && flow.CurrentNode != null;
+        bool show = flow != null && (flow.CurrentNode != null || flow.InHub);
         if (mapButton.gameObject.activeSelf != show) mapButton.gameObject.SetActive(show);
         if (!show) return;
 
@@ -288,6 +288,7 @@ public class HUDController : MonoBehaviour
     void QuitToMap()
     {
         ResumeFromPause();
+        if (flow != null && flow.InHub) { flow.OpenMenu(); return; }   // quitting the map goes to the menu
         if (flow == null || flow.CurrentNode == null) return;
 
         GameManager gm = GameManager.Instance;
@@ -431,6 +432,7 @@ public class HUDController : MonoBehaviour
         MapNode node = flow != null ? flow.CurrentNode : null;
         string text = "";
         if (node != null) text = node.displayName.ToUpperInvariant();
+        else if (flow != null && flow.InHub) text = "WORLD MAP";
         else if (levelLoader != null && levelLoader.LevelCount > 0)
             text = "LV " + LevelLoader.CurrentLevel + "/" + levelLoader.LevelCount;
 

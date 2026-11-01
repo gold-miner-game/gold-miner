@@ -4,7 +4,7 @@ using UnityEngine.SceneManagement;
 // Owner: Penny (Level map & tutorial)
 // The one persistent object that moves the player between scenes. Scenes never reference each
 // other; they all talk to GameFlow. It holds the WorldMap and drives:
-//   Menu -> Map -> (node) -> level scene + Game / RolePick / Store / Survival -> back to Map.
+//   Menu -> (first time: every tutorial level back to back) -> Map (the hub level, MapHub) -> (portal) -> level scene + Game / RolePick / Store / Survival -> back to Map.
 // See docs/level-map-tutorial-design.md.
 public class GameFlow : MonoBehaviour
 {
@@ -19,7 +19,7 @@ public class GameFlow : MonoBehaviour
     [Tooltip("Seconds the win result stays on screen before returning to the map.")]
     public float returnDelay = 2.5f;
 
-    enum Flow { None, Menu, Map, Game, RolePick, Store, Survival }
+    enum Flow { None, Menu, Map, Hub, Game, RolePick, Store, Survival }
 
     static GameFlow instance;
     public static GameFlow Instance
@@ -37,8 +37,11 @@ public class GameFlow : MonoBehaviour
 
     public WorldMap Map { get; private set; }
     public MapNode CurrentNode { get; private set; }
+    // True while the world-map hub (a walkable level, MapHub) is open
+    public bool InHub => flow == Flow.Hub || MapHub.Active != null;   // or its scene was played directly
 
     Flow flow = Flow.None;
+    int tutorialStep = -1;   // index into Map.tutorialLevels while the tutorial run plays; -1 = not in it
     bool winHandled;
     float winAt;
 
@@ -64,10 +67,54 @@ public class GameFlow : MonoBehaviour
     // Called by the main menu (or anyone) to show the map.
     public void OpenMap()
     {
+        bool backFromNode = CurrentNode != null;   // already on the map, so not the first visit
         ClearGameHooks();
         CurrentNode = null;
+        tutorialStep = -1;
+        if (!backFromNode && !ProgressStore.TutorialDone && Map != null && Map.tutorialLevels.Count > 0)
+        {
+            PlayTutorial(0);   // a new player goes through every tutorial before seeing the map
+            return;
+        }
+        if (Map != null && Map.hubLevel != null)
+        {
+            // The map is a place to walk around in: the hub level in the Game scene, a portal per node
+            LevelLoader.ScriptedTutorial = true;   // the pig, and the run record is left alone
+            LevelLoader.Requested = Map.hubLevel;
+            LevelLoader.WaitToAdvance = true;
+            LevelLoader.AdvanceNow = false;
+            flow = Flow.Hub;
+            SceneManager.LoadScene(LevelLayout.SceneFor(Map.hubLevel));
+            return;
+        }
+        // No hub level: the card map scene
         flow = Flow.Map;
         SceneManager.LoadScene(MapScene);
+    }
+
+    // The tutorial run: level i of Map.tutorialLevels, always as Mr. Hyde. Winning moves to the next
+    // one (Update); after the last, the run is saved as done and the map opens.
+    void PlayTutorial(int i)
+    {
+        TextAsset level = Map.tutorialLevels[i];
+        if (level == null) { NextTutorial(i); return; }   // an empty slot in the list: skip it
+        tutorialStep = i;
+        CurrentNode = null;
+        winHandled = false;
+        winAt = 0f;
+        LevelLoader.ScriptedTutorial = true;
+        LevelLoader.Requested = level;
+        LevelLoader.WaitToAdvance = true;   // GameFlow handles the transition, not LevelLoader
+        LevelLoader.AdvanceNow = false;
+        flow = Flow.Game;
+        SceneManager.LoadScene(LevelLayout.SceneFor(level));
+    }
+
+    void NextTutorial(int finished)
+    {
+        if (finished + 1 < Map.tutorialLevels.Count) { PlayTutorial(finished + 1); return; }
+        ProgressStore.MarkCompleted(ProgressStore.TutorialDoneId);
+        OpenMap();
     }
 
     // Called by the map when the player clicks an unlocked node.
@@ -159,7 +206,7 @@ public class GameFlow : MonoBehaviour
 
     void Update()
     {
-        if (flow != Flow.Game || CurrentNode == null) return;
+        if (flow != Flow.Game || (CurrentNode == null && tutorialStep < 0)) return;
 
         GameManager gm = GameManager.Instance;
         if (gm == null) return;
@@ -178,6 +225,8 @@ public class GameFlow : MonoBehaviour
             winHandled = true;
             winAt = Time.unscaledTime + returnDelay;
         }
-        if (Time.unscaledTime >= winAt) CompleteCurrentNode();
+        if (Time.unscaledTime < winAt) return;
+        if (tutorialStep >= 0) NextTutorial(tutorialStep);
+        else CompleteCurrentNode();
     }
 }

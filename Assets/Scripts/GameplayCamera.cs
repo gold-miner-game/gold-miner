@@ -23,6 +23,17 @@ public class GameplayCamera : MonoBehaviour
             camera.gameObject.AddComponent<GameplayCamera>();
     }
 
+    // A level bigger than the default arena (the world-map hub's maze) widens the view to fit it
+    public static void SetArenaSize(Vector2 size)
+    {
+        Camera main = Camera.main;
+        if (main == null) return;
+        Ensure(main);
+        GameplayCamera fit = main.GetComponent<GameplayCamera>();
+        fit.arenaSize = size;
+        fit.Fit();
+    }
+
     void Awake()
     {
         cam = GetComponent<Camera>();
@@ -51,6 +62,7 @@ public class GameplayCamera : MonoBehaviour
 
     void Fit()
     {
+        if (cam == null) cam = GetComponent<Camera>();
         lastWidth = Screen.width;
         lastHeight = Screen.height;
 

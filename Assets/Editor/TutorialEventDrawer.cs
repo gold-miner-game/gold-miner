@@ -57,6 +57,8 @@ public class TutorialEventDrawer : PropertyDrawer
 
         foreach (string e in TutorialEvents.Known)
             menu.AddItem(new GUIContent("Game/" + e), e == current, () => set(e));
+        foreach (string e in TutorialEvents.MapEvents(Resources.Load<WorldMap>("WorldMap")))
+            menu.AddItem(new GUIContent("Map/" + e), e == current, () => set(e));
         foreach (string step in StepNames())
         {
             string start = step + ".start", end = step + ".end";
@@ -85,6 +87,7 @@ public class TutorialEventDrawer : PropertyDrawer
     static HashSet<string> AllEvents()
     {
         var all = new HashSet<string>(TutorialEvents.Known);
+        all.UnionWith(TutorialEvents.MapEvents(Resources.Load<WorldMap>("WorldMap")));
         foreach (string step in StepNames()) { all.Add(step + ".start"); all.Add(step + ".end"); }
         foreach (string e in DialogueEvents()) all.Add(e);
         return all;

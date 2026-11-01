@@ -52,6 +52,8 @@ public class TutorialDialogue : MonoBehaviour
     public Line[] lines = new Line[0];
     [Tooltip("Optional: a .txt script, one \"0. text\" per line (0 = the first character). Used instead of Lines")]
     public TextAsset scriptFile;
+    [Tooltip("Play the Lines above, even with a Script File set")]
+    public bool useLines = false;
 
     [Header("Look")]
     [Tooltip("Letters per second as a line types out (0 = all at once)")]
@@ -60,6 +62,23 @@ public class TutorialDialogue : MonoBehaviour
     public SpriteMask speakerLight;
     [Tooltip("Sorting order the spawned characters draw at, as one piece: above the arena (items, characters, the squeeze's presses at 20) and under the tutorial dark (100), so the speaker light still picks them out")]
     public int characterOrder = 50;
+    [Tooltip("Show the characters as pictures standing on the box, over everything (for a scene with no arena, like the store). Off: they appear in the arena at Spawn At. The player needs a Prefab here too")]
+    public bool onScreen = false;
+    [Tooltip("Pictures beside the box instead of on it (turns On Screen on): the others stand on its left, the player on its right, and the box fills the space between. Fits a full screen like the store's")]
+    public bool besideBox = false;
+    [Tooltip("On Screen: how tall a character's picture is (the box is 230 tall)")]
+    public float portraitHeight = 230f;
+    [Tooltip("How big the box, its text and the pictures are: 1 = the HUD's scale, 1.25 = a quarter bigger")]
+    [Range(0.5f, 2f)] public float boxScale = 1.25f;
+    [Tooltip("Where the box sits: Top keeps the bottom of the screen clear, e.g. for something a step points at there. On Screen pictures hang under a top box")]
+    public BoxPlace boxPosition = BoxPlace.Bottom;
+    public enum BoxPlace { Bottom, Top }
+
+    bool AtTop => boxPosition == BoxPlace.Top;
+
+    // The box canvas's layout: 1920x1080 like the HUD, made smaller to draw everything boxScale bigger
+    float LayoutWidth => 1920f / Mathf.Max(0.5f, boxScale);
+    float LayoutHeight => 1080f / Mathf.Max(0.5f, boxScale);
     [Tooltip("Name and border colour of each side; the player has their own")]
     public Color enemyColor = new Color(1f, 0.35f, 0.35f);
     public Color friendColor = new Color(0.4f, 0.7f, 1f);
@@ -116,6 +135,7 @@ public class TutorialDialogue : MonoBehaviour
     Transform speaker;
 
     GameObject box;
+    RectTransform panel;
     TMP_Text nameText;
     Outline border;   // round the box, in the speaker's side colour
     TMP_Text bodyText;
@@ -151,8 +171,8 @@ public class TutorialDialogue : MonoBehaviour
         if (script.Count == 0) { step.End(); return; }
 
         IsRunning = true;
-        SpawnCharacters();
         if (box == null) BuildBox();
+        SpawnCharacters();
         box.SetActive(true);
         index = -1;
         Next();
@@ -198,8 +218,12 @@ public class TutorialDialogue : MonoBehaviour
         }
     }
 
+    // Fired as each line goes (before the next line's own event): a Tutorial Pointer ends on it
+    public const string LineEvent = "story_line";
+
     void Next()
     {
+        if (index >= 0) TutorialEvents.Fire(LineEvent);
         index++;
         if (index >= script.Count) { Finish(); return; }
 
@@ -215,6 +239,7 @@ public class TutorialDialogue : MonoBehaviour
         if (border != null) { border.effectColor = color; border.enabled = who != null; }
         speaker = who != null && actors.TryGetValue(who.name, out Transform t) ? t : null;
         MoveLight();
+        DimListeners();
         TutorialEvents.Fire(line.fireEvent);
     }
 
@@ -251,7 +276,7 @@ public class TutorialDialogue : MonoBehaviour
     void BuildScript()
     {
         script.Clear();
-        if (scriptFile == null)
+        if (scriptFile == null || useLines)
         {
             foreach (Line line in lines) if (line != null && !string.IsNullOrEmpty(line.text)) script.Add(line);
             return;
@@ -260,29 +285,48 @@ public class TutorialDialogue : MonoBehaviour
         {
             string text = raw.Trim();
             if (text.Length == 0 || text.StartsWith("#")) continue;   // blank lines and # comments
-
-            // "0. text": the first character says it, "1. text" the second, ...
-            int digits = 0;
-            while (digits < text.Length && char.IsDigit(text[digits])) digits++;
-            if (digits > 0 && digits < text.Length && (text[digits] == '.' || text[digits] == ':' || text[digits] == ')'))
-            {
-                string number = text.Substring(0, digits);
-                if (FindCharacter(number) == null)
-                    Debug.LogWarning("TutorialDialogue: " + scriptFile.name + " has a line for character " + number +
-                                     ", but Characters has only " + characters.Length + " (they count from 0)", this);
-                script.Add(new Line { speaker = number, text = text.Substring(digits + 1).Trim() });
-                continue;
-            }
-
-            // "Name: text"; anything else is narration
-            int colon = text.IndexOf(':');
-            bool named = colon > 0 && FindCharacter(text.Substring(0, colon).Trim()) != null;
-            script.Add(new Line
-            {
-                speaker = named ? text.Substring(0, colon).Trim() : "",
-                text = named ? text.Substring(colon + 1).Trim() : text,
-            });
+            string fire = TakeEvent(ref text);
+            int before = script.Count;
+            AddScriptLine(text);
+            if (script.Count > before) script[before].fireEvent = fire;
         }
+    }
+
+    // "... text #show_shelf": the line fires TutorialEvents "show_shelf" when it shows (a step can
+    // light the shelf on it). The # must follow a space and the name has no spaces
+    static string TakeEvent(ref string text)
+    {
+        int hash = text.LastIndexOf(" #");
+        if (hash < 0) return "";
+        string name = text.Substring(hash + 2).Trim();
+        if (name.Length == 0 || name.IndexOf(' ') >= 0) return "";
+        text = text.Substring(0, hash).TrimEnd();
+        return name;
+    }
+
+    void AddScriptLine(string text)
+    {
+        // "0. text": the first character says it, "1. text" the second, ...
+        int digits = 0;
+        while (digits < text.Length && char.IsDigit(text[digits])) digits++;
+        if (digits > 0 && digits < text.Length && (text[digits] == '.' || text[digits] == ':' || text[digits] == ')'))
+        {
+            string number = text.Substring(0, digits);
+            if (FindCharacter(number) == null)
+                Debug.LogWarning("TutorialDialogue: " + scriptFile.name + " has a line for character " + number +
+                                 ", but Characters has only " + characters.Length + " (they count from 0)", this);
+            script.Add(new Line { speaker = number, text = text.Substring(digits + 1).Trim() });
+            return;
+        }
+
+        // "Name: text"; anything else is narration
+        int colon = text.IndexOf(':');
+        bool named = colon > 0 && FindCharacter(text.Substring(0, colon).Trim()) != null;
+        script.Add(new Line
+        {
+            speaker = named ? text.Substring(0, colon).Trim() : "",
+            text = named ? text.Substring(colon + 1).Trim() : text,
+        });
     }
 
     // A speaker is a character's name, or its number in Characters (0 = the first)
@@ -300,6 +344,8 @@ public class TutorialDialogue : MonoBehaviour
     {
         actors.Clear();
         baseScales.Clear();
+        portraitColors.Clear();
+        if (Portraits) { SpawnPortraits(); return; }
         foreach (Character c in characters)
         {
             if (c == null || string.IsNullOrEmpty(c.name)) continue;
@@ -319,6 +365,106 @@ public class TutorialDialogue : MonoBehaviour
             group.sortingOrder = characterOrder;
             spawned.Add(go);
             actors[c.name] = go.transform;
+        }
+    }
+
+    // --- On Screen: the characters as pictures standing on the box ------------------------------
+
+    // Where each character stands, as shares of the arena's width (bottom centre): the first
+    // on the right, the second on the left, then nearer the middle
+    static readonly float[] PortraitSlots = { 0.82f, 0.18f, 0.62f, 0.38f };
+    readonly Dictionary<Image, Color> portraitColors = new Dictionary<Image, Color>();
+
+    bool Portraits => onScreen || besideBox;
+
+    void SpawnPortraits()
+    {
+        float arenaWidth = LayoutWidth * (1f - HUDLayout.SidebarWidth);
+        if (besideBox) { SpawnBesideBox(); return; }
+        LayOutPanel(60f, arenaWidth - 60f);
+        int slot = 0;
+        foreach (Character c in characters)
+        {
+            if (c == null || string.IsNullOrEmpty(c.name) || c.prefab == null) continue;   // the player too needs a Prefab here
+            float x = arenaWidth * PortraitSlots[Mathf.Min(slot, PortraitSlots.Length - 1)];
+            slot++;
+            AddPortrait(c, new Vector2(x, BoxTop + 12f));
+        }
+    }
+
+    // Beside Box: the others from the left edge inwards, the player from the right edge inwards,
+    // standing on the box's bottom line; the box spans the gap. Across the whole screen when there
+    // is no arena (and so no HUD sidebar), like the store
+    void SpawnBesideBox()
+    {
+        float width = FindFirstObjectByType<LevelLayout>() != null ? LayoutWidth * (1f - HUDLayout.SidebarWidth) : LayoutWidth;
+        const float edge = 40f, gap = 24f;
+        float left = edge, right = width - edge;
+        foreach (Character c in characters)
+        {
+            if (c == null || string.IsNullOrEmpty(c.name)) continue;
+            if (c.prefab == null)
+            {
+                Debug.LogWarning("Story " + name + ": " + c.name + " has no Prefab, so no picture beside the box", this);
+                continue;
+            }
+            RectTransform portrait = AddPortrait(c, new Vector2(0f, BoxBottom));
+            float w = portrait.sizeDelta.x;
+            if (c.isPlayer) { Place(portrait, right - w * 0.5f, BoxBottom); right -= w + gap; }
+            else { Place(portrait, left + w * 0.5f, BoxBottom); left += w + gap; }
+        }
+        LayOutPanel(left, right);
+    }
+
+    RectTransform AddPortrait(Character c, Vector2 standAt)
+    {
+        RectTransform portrait = Portrait(c.prefab, standAt);
+        portrait.name = c.name;
+        spawned.Add(portrait.gameObject);
+        actors[c.name] = portrait;
+        return portrait;
+    }
+
+    // The box spanning from `left` to `right`, on its bottom margin (or its top one, Box Position Top)
+    void LayOutPanel(float left, float right)
+    {
+        panel.anchorMin = panel.anchorMax = new Vector2(0f, AtTop ? 1f : 0f);
+        panel.pivot = new Vector2(0.5f, AtTop ? 1f : 0f);
+        panel.sizeDelta = new Vector2(Mathf.Max(300f, right - left), BoxHeight);
+        panel.anchoredPosition = new Vector2((left + right) * 0.5f, AtTop ? -BoxBottom : BoxBottom);
+    }
+
+    // A picture at `x`, `y` up from the bottom edge to its feet; with the box at the top, the
+    // same seen from the top edge: `y` down to its head, hanging below
+    void Place(RectTransform portrait, float x, float y)
+    {
+        portrait.anchorMin = portrait.anchorMax = new Vector2(0f, AtTop ? 1f : 0f);
+        portrait.anchoredPosition = new Vector2(x, AtTop ? -(y + portrait.sizeDelta.y) : y);
+    }
+
+    const float BoxBottom = 30f, BoxHeight = 230f;
+    const float BoxTop = BoxBottom + BoxHeight;
+
+    // The prefab's sprites copied into UI images (UISpriteCopy), portraitHeight tall, standing with
+    // its bottom centre on `standAt`, under the box panel
+    RectTransform Portrait(GameObject prefab, Vector2 standAt)
+    {
+        RectTransform rect = UISpriteCopy.Build(prefab, box.transform, portraitHeight, portraitColors);
+        rect.SetAsFirstSibling();
+        Place(rect, standAt.x, standAt.y);
+        return rect;
+    }
+
+    // The speaker in full colour, the others dimmed
+    void DimListeners()
+    {
+        if (!Portraits) return;
+        foreach (KeyValuePair<Image, Color> part in portraitColors)
+        {
+            if (part.Key == null) continue;
+            bool talking = speaker != null && part.Key.transform.IsChildOf(speaker);
+            Color c = part.Value;
+            part.Key.color = talking ? c : new Color(c.r * 0.45f, c.g * 0.45f, c.b * 0.45f, c.a);
         }
     }
 
@@ -370,8 +516,8 @@ public class TutorialDialogue : MonoBehaviour
 
     // --- the box --------------------------------------------------------------------------------
 
-    // Built when first needed: a screen canvas above everything, laid out at 1920x1080 like the
-    // HUD, with a panel across the bottom of the arena
+    // Built when first needed: a screen canvas above everything, laid out like the HUD (1920x1080,
+    // times boxScale), with a panel across the bottom of the arena
     void BuildBox()
     {
         box = new GameObject("DialogueBox", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
@@ -380,16 +526,13 @@ public class TutorialDialogue : MonoBehaviour
         canvas.sortingOrder = SortingOrder;
         CanvasScaler scaler = box.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.referenceResolution = new Vector2(LayoutWidth, LayoutHeight);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
 
-        float arenaWidth = 1920f * (1f - HUDLayout.SidebarWidth);
-        var panel = new GameObject("Panel", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
+        float arenaWidth = LayoutWidth * (1f - HUDLayout.SidebarWidth);
+        panel = new GameObject("Panel", typeof(RectTransform), typeof(Image)).GetComponent<RectTransform>();
         panel.SetParent(box.transform, false);
-        panel.anchorMin = panel.anchorMax = new Vector2(0f, 0f);
-        panel.pivot = new Vector2(0.5f, 0f);
-        panel.sizeDelta = new Vector2(arenaWidth - 120f, 230f);
-        panel.anchoredPosition = new Vector2(arenaWidth * 0.5f, 30f);
+        LayOutPanel(60f, arenaWidth - 60f);
         Image image = panel.GetComponent<Image>();
         Texture2D rounded = WorldMapController.MakeRounded(16);
         image.sprite = Sprite.Create(rounded, new Rect(0f, 0f, rounded.width, rounded.height), new Vector2(0.5f, 0.5f),

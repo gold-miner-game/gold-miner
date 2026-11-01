@@ -1,0 +1,23 @@
+# The store's introduction: J.K. Rolling (0) shows you (1) around, the first time the store opens.
+# A line ending in #name fires that event when it shows. The store lights its parts on them:
+#   #show_wallet  the wallet      #show_shelf  the goods      #show_leave  the Leave button
+#   #show_modes   ends the lighting (the talk moves on to the ways to play)
+0. Before the next fight, let me show you my favourite place in the whole mine: the store!
+1. A store? Down here?
+0. Up there is your wallet. Every coin you take from the miners ends up in it. #show_wallet
+0. And these are the goods. Point at one to read what it does, click it to buy it. #show_shelf
+0. Whatever you buy works in your next level: faster legs, no time digesting, a shield, or a block that lasts the whole level.
+1. And when I'm done shopping?
+0. Press Leave and you're back on the map. The store stays open, so come back any time. #show_leave
+0. Now listen carefully. There are three ways to play this game. #show_modes
+0. The first is the Competing Mode. You and a miner go after the same gold.
+0. End a round with more gold than the miner, and the difference is yours to keep.
+0. End it with less, and you pay the difference out of your wallet. If your wallet ever hits zero, it's game over.
+1. So I just have to out-dig the miner, every round.
+0. Exactly. And the extra you earn is what you spend here, on things for the next level.
+0. The second is the Survival Mode: the hooks never stop coming, and you stay alive as long as you can.
+0. The third is the Attack Mode: you go after the miners themselves, like you just learned.
+0. Your first rival is the Greedy Meowmeow. His mining machine grabs as much gold as it can, every single round.
+1. Greedy, huh? Then I'll just have to be greedier.
+0. Before every round you get to scout the map first: see where the gold and the hooks are, and make your plan.
+0. When you're ready, press Start, and the round begins. Good luck!

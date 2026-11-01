@@ -45,7 +45,7 @@ public class MainMenu : MonoBehaviour
     GUIStyle bodyStyle;
     GUIStyle footStyle;
 
-    static bool HasProgress => ProgressStore.IsCompleted("tut_basics") || ProgressStore.HasPickedCharacter;
+    static bool HasProgress => ProgressStore.TutorialDone || ProgressStore.HasPickedCharacter;
 
     static bool CanQuit => Application.platform != RuntimePlatform.WebGLPlayer;
 

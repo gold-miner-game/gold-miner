@@ -19,28 +19,31 @@ public static class FlowSceneBuilder
     const string LevelDir = "Assets/Resources/Levels/";
 
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
-    // The map is a tree. The trunk is the tutorial + role pick. The Store is not on that path: the
-    // map draws it in the top-left corner (its x/y here are unused) and unlocks it from role pick,
-    // so it is reachable as soon as you have a character, not gated behind a battle. Level 1
-    // then splits into a left and a right path that merge back at Level 8, with Survive Mode after it
-    // (SurvivalLoader). Add a level = add a row
+    // The map is a tree. It starts at the Store (open once the tutorial run is over), then role
+    // pick. MapUIBuilder draws the Store card in the top-left corner (its x/y here are unused). Role
+    // pick opens three modes, one column each in the hub (world_map.json): Attack 1 -> 4 -> 7,
+    // Survival 2 -> 5 -> 8 -> Survive Mode (SurvivalLoader), Compete 3 -> 6. Add a level = add a row
     // here (and drop a level JSON); point its prereqs at whatever should unlock it.
     // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
+    // The tutorials are not on the map: GameFlow plays them back to back, in this order, before the
+    // map first opens (WorldMap.tutorialLevels).
+    static readonly string[] TutorialLevels = { "level_00_eat", "level_01a_dodge", "level_01b_block" };
+
+    // The world map you walk around in (MapHub): one portal per node below, placed in its grid
+    const string HubLevelPath = "Assets/Resources/Hub/world_map.json";
+
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
-        ("tut_basics", NodeType.Tutorial, "level_00_eat",    "Tutorial: Eat",   0.50f, 0.000f, new string[0]),
-        ("tut_dodge",  NodeType.Tutorial, "level_01a_dodge", "Tutorial: Dodge", 0.50f, 0.111f, new[]{ "tut_basics" }),
-        ("tut_block",  NodeType.Tutorial, "level_01b_block", "Tutorial: Block", 0.50f, 0.222f, new[]{ "tut_dodge" }),
-        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.333f, new[]{ "tut_block" }),
-        ("store_1",    NodeType.Store,    null,              "Store",           0.18f, 0.444f, new[]{ "role_pick" }),
+        ("store_1",    NodeType.Store,    null,              "Store",           0.50f, 0.333f, new string[0]),
+        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.444f, new[]{ "store_1" }),
         ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.444f, new[]{ "role_pick" }),
-        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.18f, 0.555f, new[]{ "battle_01" }),
-        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.82f, 0.555f, new[]{ "battle_01" }),
-        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.18f, 0.666f, new[]{ "battle_02" }),
-        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.82f, 0.666f, new[]{ "battle_03" }),
-        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.18f, 0.777f, new[]{ "battle_04" }),
-        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.82f, 0.777f, new[]{ "battle_05" }),
-        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.888f, new[]{ "battle_06", "battle_07" }),
+        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.18f, 0.555f, new[]{ "role_pick" }),
+        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.82f, 0.555f, new[]{ "role_pick" }),
+        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.18f, 0.666f, new[]{ "battle_01" }),
+        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.82f, 0.666f, new[]{ "battle_02" }),
+        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.18f, 0.777f, new[]{ "battle_03" }),
+        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.82f, 0.777f, new[]{ "battle_04" }),
+        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.888f, new[]{ "battle_05" }),
         ("survival",   NodeType.Survival, null,              "Survive Mode",    0.50f, 1.000f, new[]{ "battle_08" }),
     };
 
@@ -83,6 +86,15 @@ public static class FlowSceneBuilder
         }
 
         WorldMap map = ScriptableObject.CreateInstance<WorldMap>();
+
+        foreach (string level in TutorialLevels)
+        {
+            TextAsset asset = AssetDatabase.LoadAssetAtPath<TextAsset>(LevelDir + level + ".json");
+            if (asset == null) Debug.LogWarning("FlowSceneBuilder: missing tutorial level " + LevelDir + level + ".json");
+            map.tutorialLevels.Add(asset);
+        }
+        map.hubLevel = AssetDatabase.LoadAssetAtPath<TextAsset>(HubLevelPath);
+        if (map.hubLevel == null) Debug.LogWarning("FlowSceneBuilder: missing hub level " + HubLevelPath);
 
         for (int i = 0; i < Nodes.Length; i++)
         {
