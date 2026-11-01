@@ -63,7 +63,7 @@ public class RolePickController : MonoBehaviour
 
     void Pick(int index)
     {
-        // #12's machinery: a brand-new record for this champion, and the Game scene swaps it in.
+        // A record for this champion. Store items already bought stay with the player.
         ChampionSpawner.Chosen = index;
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(index));
         ProgressStore.SelectedCharacter = index.ToString();

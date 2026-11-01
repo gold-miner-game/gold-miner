@@ -7,7 +7,7 @@ using UnityEngine.UI;
 // Put this on an empty object in the Select ("WHO ARE U") scene. Each Select button calls Choose
 // with its number in On Click ():
 // 0 = Mr. Hyde, 1 = JK. Rolling (cat), 2 = Scrat (squirrel), 3 = Rero Rero (frog)
-// The name plates are labels. Picking starts a brand-new cross-level record (wallet, lives, skills).
+// The name plates are labels. Picking starts that champion's record. Wallet and store items stay.
 // From the world map this scene is the RolePick node, so the pick is saved and the map comes back.
 // Opened on its own (or by the old level list), it still loads the Game scene.
 public class ChampionSelect : MonoBehaviour

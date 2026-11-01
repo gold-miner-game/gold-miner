@@ -100,12 +100,13 @@ public class CrossLevelStatus : MonoBehaviour
         return go.AddComponent<T>();
     }
 
-    // A new run: throw the current record away (if any) and start a fresh one of this type.
-    // The select screen calls it when a champion is picked, after the tutorial, so nothing carries
-    // over from an earlier run. Unlike Install, nothing is copied.
+    // A new champion: throw the current record away and start one of this type.
+    // Wallet stays in PlayerPrefs. Store items are shared by every character, so a buy made
+    // before the switch is put onto the new record. Character-only stats are not copied.
     public static CrossLevelStatus StartFresh(Type type)
     {
         if (type == null || !typeof(CrossLevelStatus).IsAssignableFrom(type)) type = typeof(PigStatus);
+        List<PlayerSkill> storeItems = SnapshotStoreSkills(Active);
         if (Active != null)
         {
             CrossLevelStatus old = Active;
@@ -114,7 +115,48 @@ public class CrossLevelStatus : MonoBehaviour
         }
         preferred.Clear();
         preferred.Add(type);
-        return Create(type);
+        CrossLevelStatus created = Create(type);
+        RestoreStoreSkills(created, storeItems);
+        return created;
+    }
+
+    static List<PlayerSkill> SnapshotStoreSkills(CrossLevelStatus from)
+    {
+        var copy = new List<PlayerSkill>();
+        if (from == null) return copy;
+        IReadOnlyList<PlayerSkill> skills = from.getSkills();
+        for (int i = 0; i < skills.Count; i++)
+        {
+            PlayerSkill skill = skills[i];
+            if (skill == null || !IsStoreEffect(skill.id)) continue;
+            copy.Add(new PlayerSkill
+            {
+                id = skill.id,
+                stock = skill.stock,
+                unlocked = skill.unlocked,
+                active = skill.active,
+                armed = skill.armed,
+                secondsLeft = skill.secondsLeft,
+                power = skill.power,
+            });
+        }
+        return copy;
+    }
+
+    static void RestoreStoreSkills(CrossLevelStatus into, List<PlayerSkill> carried)
+    {
+        if (into == null || carried == null) return;
+        for (int i = 0; i < carried.Count; i++)
+        {
+            PlayerSkill saved = carried[i];
+            PlayerSkill skill = into.addSkill(saved.id);
+            skill.stock = saved.stock;
+            skill.unlocked = saved.unlocked;
+            skill.active = saved.active;
+            skill.armed = saved.armed;
+            skill.secondsLeft = saved.secondsLeft;
+            if (saved.power > 0f) skill.power = saved.power;
+        }
     }
 
     static Type ChooseType()
