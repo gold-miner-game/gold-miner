@@ -5,7 +5,8 @@ using UnityEngine;
 // exists, then its MinerAI picks every shot after that as usual. The shots are the miner's own:
 // same start delay, telegraph, hook and cooldown, so they look and pay like normal treasure shots.
 // A hook still stops at the first thing on its line, so a shot at the target can haul whatever
-// treasure is in front of it instead.
+// treasure is in front of it instead: aim several miners at treasure behind the diamond and the
+// first hook to arrive takes the diamond while the others fly on to their own targets.
 // It also sets the level's invincible time after a hit (none, by default) and makes every rock a
 // permanent wall.
 public class LevelYkOpening : MonoBehaviour
@@ -54,6 +55,7 @@ public class LevelYkOpening : MonoBehaviour
     {
         MinerAI miner = o.miner;
         yield return new WaitForSeconds(miner.startDelay);
+        bool opening = true;
 
         // Eaten or delivered treasure is destroyed, so the target turns null when it is gone
         while (Playing && o.target != null)
@@ -66,8 +68,13 @@ public class LevelYkOpening : MonoBehaviour
             Vector2 dir = toTarget.normalized;
             float length = toTarget.magnitude + miner.overshoot;
 
+            // The opening shot waits exactly telegraphMin, so miners with the same start delay fire
+            // together and the hook closest to the target arrives first. Later shots wait at random.
+            float wait = opening ? miner.telegraphMin : Random.Range(miner.telegraphMin, miner.telegraphMax);
+            opening = false;
+
             miner.telegraph.Show(origin, origin + dir * length, miner.treasureColor);
-            yield return new WaitForSeconds(Random.Range(miner.telegraphMin, miner.telegraphMax));
+            yield return new WaitForSeconds(wait);
             miner.telegraph.Hide();
             if (!Playing) break;
 
