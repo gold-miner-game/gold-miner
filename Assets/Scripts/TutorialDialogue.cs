@@ -261,6 +261,8 @@ public class TutorialDialogue : MonoBehaviour
         GameManager gm = GameManager.Instance;
         bool won = gm != null && !gm.IsPlaying && gm.PlayerWon;
         GameFlow flow = FindFirstObjectByType<GameFlow>();
+        // The character pick leaves by itself once a character is picked, never without one
+        if (gm == null && FindFirstObjectByType<ChampionSelect>() != null) { leaving = false; return; }
         if (flow != null && flow.CurrentNode != null)
         {
             if (won) flow.CompleteCurrentNode();

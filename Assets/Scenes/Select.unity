@@ -589,7 +589,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: firm hide, strong pig
+  m_text: defend and attack
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -726,7 +726,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: agile roll, hungry cat
+  m_text: rolling at faster speed
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -2848,6 +2848,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 2071324534}
+  - component: {fileID: 2071324601}
   m_Layer: 0
   m_Name: Squirrel-Tail3-Playable
   m_TagString: Untagged
@@ -3204,6 +3205,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 6644769314678435966}
+  - component: {fileID: 2154791622029303101}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -3421,6 +3423,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7300000000000000002}
   - component: {fileID: 7300000000000000003}
+  - component: {fileID: 7300000000000000101}
   m_Layer: 0
   m_Name: Mr. Hyde
   m_TagString: Untagged
@@ -4156,6 +4159,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7400000000000000002}
   - component: {fileID: 7400000000000000003}
+  - component: {fileID: 7400000000000000101}
   m_Layer: 0
   m_Name: Rero Rero
   m_TagString: Untagged
@@ -7091,6 +7095,122 @@ MonoBehaviour:
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
   m_PixelsPerUnitMultiplier: 1
+--- !u!114 &7300000000000000101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7300000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2931710da3a349e78e3fc8fa537926e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillPreview
+  skill: 0
+  mystery: 0
+  namePlate: {fileID: 1177253190}
+  remark: {fileID: 293125571}
+  selectButton: {fileID: 881001001}
+  hoverMargin: 0.2
+  rest: 0.6
+  blockTint: {r: 0.45, g: 0.75, b: 1, a: 1}
+  blockTime: 0.8
+  rollTime: 0.5
+  rollTurns: 2
+  rollDistance: 1
+  tailIdleOpacity: 0.3
+  tailSwing: 30
+  tongueReach: 1.6
+  tongueOut: 0.35
+  tongueBack: 0.45
+--- !u!114 &2154791622029303101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2154791622029303033}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2931710da3a349e78e3fc8fa537926e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillPreview
+  skill: 1
+  mystery: 0
+  namePlate: {fileID: 760858174}
+  remark: {fileID: 534623583}
+  selectButton: {fileID: 881001011}
+  hoverMargin: 0.2
+  rest: 0.6
+  blockTint: {r: 0.45, g: 0.75, b: 1, a: 1}
+  blockTime: 0.8
+  rollTime: 0.5
+  rollTurns: 2
+  rollDistance: 1
+  tailIdleOpacity: 0.3
+  tailSwing: 30
+  tongueReach: 1.6
+  tongueOut: 0.35
+  tongueBack: 0.45
+--- !u!114 &2071324601
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2071324535}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2931710da3a349e78e3fc8fa537926e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillPreview
+  skill: 2
+  mystery: 1
+  namePlate: {fileID: 1703158927}
+  remark: {fileID: 926969284}
+  selectButton: {fileID: 881001021}
+  hoverMargin: 0.2
+  rest: 0.6
+  blockTint: {r: 0.45, g: 0.75, b: 1, a: 1}
+  blockTime: 0.8
+  rollTime: 0.5
+  rollTurns: 2
+  rollDistance: 1
+  tailIdleOpacity: 0.3
+  tailSwing: 30
+  tongueReach: 1.6
+  tongueOut: 0.35
+  tongueBack: 0.45
+--- !u!114 &7400000000000000101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7400000000000000001}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2931710da3a349e78e3fc8fa537926e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SkillPreview
+  skill: 3
+  mystery: 1
+  namePlate: {fileID: 7400000000000000044}
+  remark: {fileID: 247645925}
+  selectButton: {fileID: 881001031}
+  hoverMargin: 0.2
+  rest: 0.6
+  blockTint: {r: 0.45, g: 0.75, b: 1, a: 1}
+  blockTime: 0.8
+  rollTime: 0.5
+  rollTurns: 2
+  rollDistance: 1
+  tailIdleOpacity: 0.3
+  tailSwing: 30
+  tongueReach: 1.6
+  tongueOut: 0.35
+  tongueBack: 0.45
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

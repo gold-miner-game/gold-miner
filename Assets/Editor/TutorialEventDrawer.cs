@@ -59,6 +59,8 @@ public class TutorialEventDrawer : PropertyDrawer
             menu.AddItem(new GUIContent("Game/" + e), e == current, () => set(e));
         foreach (string e in TutorialEvents.MapEvents(Resources.Load<WorldMap>("WorldMap")))
             menu.AddItem(new GUIContent("Map/" + e), e == current, () => set(e));
+        foreach (string e in TutorialEvents.RolePickEvents())
+            menu.AddItem(new GUIContent("Character pick/" + e), e == current, () => set(e));
         foreach (string step in StepNames())
         {
             string start = step + ".start", end = step + ".end";
@@ -88,6 +90,7 @@ public class TutorialEventDrawer : PropertyDrawer
     {
         var all = new HashSet<string>(TutorialEvents.Known);
         all.UnionWith(TutorialEvents.MapEvents(Resources.Load<WorldMap>("WorldMap")));
+        all.UnionWith(TutorialEvents.RolePickEvents());
         foreach (string step in StepNames()) { all.Add(step + ".start"); all.Add(step + ".end"); }
         foreach (string e in DialogueEvents()) all.Add(e);
         return all;

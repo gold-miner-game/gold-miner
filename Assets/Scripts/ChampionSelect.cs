@@ -24,10 +24,15 @@ public class ChampionSelect : MonoBehaviour
             && int.TryParse(ProgressStore.SelectedCharacter, out int picked))
             shown = picked;
         ShowSelected(shown);
+        TutorialEvents.Fire(TutorialEvents.RolePickOpen);   // the scene's TutorialSteps listen from OnEnable
     }
 
     public void Choose(int champion)
     {
+        if (leaving != null) return;                          // already picked, leaving
+        if (TutorialDialogue.Playing) return;                 // a story is on screen: read it first
+        foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
+            if (button.name == "Select " + champion && SkillPreview.IsLocked(button)) return;   // a mystery character
         ShowSelected(champion);
         if (leaving != null) StopCoroutine(leaving);
         leaving = StartCoroutine(Leave(champion));
@@ -42,6 +47,12 @@ public class ChampionSelect : MonoBehaviour
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(champion));
         ProgressStore.SelectedCharacter = champion.ToString();
         PlayAnalytics.CharacterPicked(champion);
+
+        // A story on the pick plays out before the scene moves on
+        TutorialEvents.Fire(TutorialEvents.CharacterPicked);
+        TutorialEvents.Fire(TutorialEvents.Picked(champion));
+        yield return null;
+        while (TutorialDialogue.Playing) yield return null;
 
         GameFlow flow = FindFirstObjectByType<GameFlow>();
         if (flow != null && flow.CurrentNode != null && flow.CurrentNode.type == NodeType.RolePick)
@@ -58,6 +69,7 @@ public class ChampionSelect : MonoBehaviour
         foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
         {
             if (!button.name.StartsWith("Select ")) continue;
+            if (SkillPreview.IsLocked(button)) continue;   // stays "Locked"
             TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
             if (label == null) continue;
             int index;

@@ -48,6 +48,23 @@ public static class TutorialEvents
         return list;
     }
 
+    // The character pick's events (ChampionSelect, the Select scene the Pick Character portal opens):
+    //   role_pick_open     the pick screen opens
+    //   character_picked   a character is picked (the scene waits for a story it starts, then leaves)
+    //   picked_<who>       the same, for that character: picked_mr_hyde, picked_jk_rolling, ...
+    public const string RolePickOpen = "role_pick_open";
+    public const string CharacterPicked = "character_picked";
+    static readonly string[] PickNames = { "mr_hyde", "jk_rolling", "scrat", "rero_rero" };   // ChampionSpawner order
+    public static string Picked(int champion) =>
+        "picked_" + (champion >= 0 && champion < PickNames.Length ? PickNames[champion] : champion.ToString());
+
+    public static System.Collections.Generic.List<string> RolePickEvents()
+    {
+        var list = new System.Collections.Generic.List<string> { RolePickOpen, CharacterPicked };
+        for (int i = 0; i < PickNames.Length; i++) list.Add(Picked(i));
+        return list;
+    }
+
     public static void Fire(string name)
     {
         if (string.IsNullOrEmpty(name)) return;
