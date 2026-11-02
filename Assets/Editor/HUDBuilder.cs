@@ -6,7 +6,7 @@ using UnityEngine.UI;
 // Owner: D (Hook & UI)
 // Tools > Gold Miner > Create HUD: builds the HUD canvas in the open scene and wires HUDController.
 // Layout (HUDLayout): a bar across the top (level, pig $ VS miner $, timer + Pause), a sidebar on the
-// right (Life, Wallet, Skills, Items), and the arena in the rest, which GameplayCamera draws into.
+// right (StatusSection: Wallet + Life rows, SkillsSection: Skill + Digest meters, ItemsSection: item rows), and the arena in the rest, which GameplayCamera draws into.
 // Design source: Figma "Oinky Oinky - HUD Redesign", frame "HUD / v2". Colors here match its HUD variables
 public static class HUDBuilder
 {
@@ -17,11 +17,16 @@ public static class HUDBuilder
     static readonly Color PigColor = new Color(1f, 0.72f, 0.82f);         // pink
     static readonly Color MinerColor = new Color(1f, 0.85f, 0.4f);        // gold
     static readonly Color SkillColor = new Color(0.45f, 0.65f, 1f);       // blue  (color/accent/skill)
-    static readonly Color DigestColor = new Color(1f, 0.604f, 0.239f);    // orange (color/accent/digest)
+    static readonly Color DigestColor = new Color(0.65f, 0.9f, 0.55f);    // green #A6E68C, PlayerCharacter.digestTint (color/accent/digest)
     static readonly Color BarBack = new Color(1f, 1f, 1f, 0.15f);
-    const float Margin = 8f;                                              // gap around each panel
-    const float SidebarPadding = 20f;
-    const float MeterGap = 96f;                                           // between the Skill and Digest blocks
+    // Sidebar spacing, from Figma "HUD / v2"
+    const int SidebarPaddingX = 20;                                       // left / right
+    const int SidebarPaddingY = 50;                                       // top / bottom
+    const float SectionGap = 32f;                                         // between sections and dividers
+    const float StatusRowGap = 24f;                                       // between WALLET and LIFE
+    const int MetersTop = 0;                                              // above the SKILL meter
+    const float MeterGap = 50f;                                           // between the Skill and Digest blocks
+    const float StatRowHeight = 36f;                                      // WALLET / LIFE rows
 
     [MenuItem("Tools/Gold Miner/Create HUD")]
     static void CreateHUD()
@@ -58,12 +63,14 @@ public static class HUDBuilder
 
         // Fill everything outside the arena every frame. The camera only clears its own rect,
         // so without this the old timer digits smear in the gaps between panels
-        CreateImage(canvas, "TopBackdrop", Backdrop, new Vector2(0f, top), Vector2.one, 0f, false);
-        CreateImage(canvas, "SideBackdrop", Backdrop, new Vector2(side, 0f), new Vector2(1f, top), 0f, false);
+        GameObject topBackdrop = CreateImage(canvas, "TopBackdrop", Backdrop, new Vector2(0f, top), Vector2.one, 0f, false);
+        GameObject sideBackdrop = CreateImage(canvas, "SideBackdrop", Backdrop, new Vector2(side, 0f), new Vector2(1f, top), 0f, false);
+        GameObject leftBackdrop = CreateImage(canvas, HUDController.LeftBackdropName, Backdrop, Vector2.zero, Vector2.zero, 0f, false);
+        GameObject bottomBackdrop = CreateImage(canvas, HUDController.BottomBackdropName, Backdrop, Vector2.zero, Vector2.zero, 0f, false);
 
         // Top bar: level on the left, the score in the middle, the timer and Pause on the right
         // (HUDController.PlaceMapButton puts Pause at the right edge and the timer just left of it)
-        Transform topBar = CreateImage(canvas, "TopBar", Panel, new Vector2(0f, top), Vector2.one, Margin, true).transform;
+        Transform topBar = CreateImage(canvas, "TopBar", Panel, new Vector2(0f, top), Vector2.one, 0f, true).transform;
         TMP_Text level = CreateText(topBar, "Level", "LV 1/10", new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(420f, 60f), 30f, TextAlignmentOptions.Left);
         level.color = TitleColor;
         level.fontStyle = FontStyles.Bold;
@@ -79,37 +86,42 @@ public static class HUDBuilder
         Button map = HUDController.CreateMapButton(timer);
 
         // Sidebar: sections stacked top to bottom with dividers between them
-        GameObject sidebar = CreateImage(canvas, "Sidebar", Panel, new Vector2(side, 0f), new Vector2(1f, top), Margin, true);
+        GameObject sidebar = CreateImage(canvas, "Sidebar", Panel, new Vector2(side, 0f), new Vector2(1f, top), 0f, true);
+        HUDLayout.PlaceFrame((RectTransform)topBar, (RectTransform)sidebar.transform, (RectTransform)topBackdrop.transform,
+            (RectTransform)sideBackdrop.transform, (RectTransform)leftBackdrop.transform, (RectTransform)bottomBackdrop.transform);
         VerticalLayoutGroup stack = sidebar.AddComponent<VerticalLayoutGroup>();
-        int pad = Mathf.RoundToInt(SidebarPadding);
-        stack.padding = new RectOffset(pad, pad, pad, pad);
-        SetUpStack(stack, 0f);
+        stack.padding = new RectOffset(SidebarPaddingX, SidebarPaddingX, SidebarPaddingY, SidebarPaddingY);
+        SetUpStack(stack, SectionGap);
+        stack.childAlignment = TextAnchor.UpperCenter;
 
-        GameObject lifeSection = CreateSection(sidebar.transform, "Life", "LIFE");
-        TMP_Text lives = CreateValue(lifeSection.transform, "Lives", "x3", Color.white);
-        CreateDivider(sidebar.transform);
-
-        GameObject walletSection = CreateSection(sidebar.transform, "Wallet", "WALLET");
-        TMP_Text wallet = CreateValue(walletSection.transform, "WalletValue", "$0", MinerColor);
+        // StatusSection: what the player has. WALLET and LIFE as label / value rows
+        GameObject statusSection = new GameObject("StatusSection", typeof(RectTransform));
+        statusSection.transform.SetParent(sidebar.transform, false);
+        SetUpStack(statusSection.AddComponent<VerticalLayoutGroup>(), StatusRowGap);
+        GameObject walletSection = CreateStatRow(statusSection.transform, "Wallet", "WALLET", "WalletValue", "$0", out TMP_Text wallet);
+        GameObject lifeSection = CreateStatRow(statusSection.transform, "Life", "LIFE", "Lives", "\u00D73", out TMP_Text lives);
         CreateDivider(sidebar.transform);
 
         // Skill and digest share a section: both are "can I act right now". Each is a meter:
         // a row with the title on the left and the state on the right, and a bar under it
-        GameObject skillSection = new GameObject("Skills", typeof(RectTransform));
+        // SkillsSection: what the player can do right now
+        GameObject skillSection = new GameObject("SkillsSection", typeof(RectTransform));
         skillSection.transform.SetParent(sidebar.transform, false);
-        skillSection.AddComponent<LayoutElement>().flexibleHeight = 1f;
-        SetUpStack(skillSection.AddComponent<VerticalLayoutGroup>(), MeterGap);
-        GameObject skillBlock = CreateMeter(skillSection.transform, "Skill", "SKILL", "Ready", SkillColor, out TMP_Text skill, out RectTransform skillBarFill);
+        VerticalLayoutGroup meters = skillSection.AddComponent<VerticalLayoutGroup>();
+        SetUpStack(meters, MeterGap);
+        meters.childAlignment = TextAnchor.UpperCenter;
+        meters.padding = new RectOffset(0, 0, MetersTop, 0);
+        GameObject skillBlock = CreateMeter(skillSection.transform, "Skill", "SKILL", "READY", SkillColor, out TMP_Text skill, out RectTransform skillBarFill);
         GameObject digestBlock = CreateMeter(skillSection.transform, "Digest", "DIGEST", "CAN EAT", DigestColor, out TMP_Text digest, out RectTransform digestBarFill);
         CreateDivider(sidebar.transform);
 
-        // Items: HUDController adds one row per owned store item under ItemsRoot
-        GameObject itemsSection = CreateSection(sidebar.transform, "Items", "ITEMS");
-        GameObject itemsRoot = new GameObject("ItemsRoot", typeof(RectTransform));
-        itemsRoot.transform.SetParent(itemsSection.transform, false);
-        SetUpStack(itemsRoot.AddComponent<VerticalLayoutGroup>(), 4f);
-        TMP_Text itemTemplate = CreateValue(itemsRoot.transform, "ItemRow", "shield x2", Color.white);
-        itemTemplate.gameObject.SetActive(false);
+        // ItemsSection: rows like WALLET / LIFE, one per owned store item ("SHIELD  ×2"), or
+        // "ITEMS  None". HUDController copies the hidden template row
+        GameObject itemsSection = new GameObject("ItemsSection", typeof(RectTransform));
+        itemsSection.transform.SetParent(sidebar.transform, false);
+        SetUpStack(itemsSection.AddComponent<VerticalLayoutGroup>(), StatusRowGap);
+        GameObject itemRow = CreateStatRow(itemsSection.transform, "ItemRow", "ITEMS", "ItemValue", "None", out TMP_Text itemTemplate);
+        itemRow.SetActive(false);
         // No key uses items during a round yet; the badge stays hidden until one does
         TMP_Text itemKey = CreateValue(itemsSection.transform, "ItemKey", "E", TitleColor);
         itemKey.gameObject.SetActive(false);
@@ -132,6 +144,8 @@ public static class HUDBuilder
         hud.resultText = result;
         hud.detailText = detail;
         hud.levelText = level;
+        hud.sidebar = (RectTransform)sidebar.transform;
+        hud.statusSection = statusSection;
         hud.lifeSection = lifeSection;
         hud.walletSection = walletSection;
         hud.walletText = wallet;
@@ -239,6 +253,31 @@ public static class HUDBuilder
         LayoutElement layout = go.AddComponent<LayoutElement>();
         layout.minHeight = 2f;
         layout.preferredHeight = 2f;
+    }
+
+    // "Wallet": a row with the bold title on the left and the bold value on the right
+    static GameObject CreateStatRow(Transform parent, string name, string title, string valueName, string value, out TMP_Text valueText)
+    {
+        GameObject row = new GameObject(name, typeof(RectTransform));
+        row.transform.SetParent(parent, false);
+        LayoutElement layout = row.AddComponent<LayoutElement>();
+        layout.minHeight = StatRowHeight;
+        layout.preferredHeight = StatRowHeight;
+        layout.flexibleHeight = 0f;   // else the row's layout group asks for spare height and rows spread apart
+        HorizontalLayoutGroup line = row.AddComponent<HorizontalLayoutGroup>();
+        line.childAlignment = TextAnchor.MiddleLeft;
+        line.childControlWidth = true;
+        line.childControlHeight = true;
+        line.childForceExpandWidth = true;
+        line.childForceExpandHeight = false;
+
+        TMP_Text titleText = CreateText(row.transform, name + "Title", title, Vector2.zero, Vector2.zero, Vector2.zero, 24f, TextAlignmentOptions.Left);
+        titleText.color = TitleColor;
+        titleText.fontStyle = FontStyles.Bold;
+        valueText = CreateText(row.transform, valueName, value, Vector2.zero, Vector2.zero, Vector2.zero, 24f, TextAlignmentOptions.Right);
+        valueText.color = Color.white;
+        valueText.fontStyle = FontStyles.Bold;
+        return row;
     }
 
     // "SkillBlock": a "SkillRow" (bold title left, small state right) over a "SkillBar". Returns the block
