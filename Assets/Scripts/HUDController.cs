@@ -8,6 +8,8 @@ using UnityEngine.UI;
 // Owner: D (Hook & UI)
 public class HUDController : MonoBehaviour
 {
+    public HUDVariant variant;      // which HUDTheme HUDBuilder built this HUD from (A/B playtests)
+
     public TMP_Text playerMoneyText;
     public TMP_Text minerMoneyText;
     public TMP_Text timerText;

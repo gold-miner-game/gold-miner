@@ -4,33 +4,42 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Owner: D (Hook & UI)
-// Tools > Gold Miner > Create HUD: builds the HUD canvas in the open scene and wires HUDController.
+// Tools > Gold Miner > Create HUD > Version A / B: builds the HUD canvas in the open scene from that
+// version's HUDTheme and wires HUDController.
 // Layout (HUDLayout): a bar across the top (level, pig $ VS miner $, timer + Pause), a sidebar on the
 // right (StatusSection: Wallet + Life rows, SkillsSection: Skill + Digest meters, ItemsSection: item rows), and the arena in the rest, which GameplayCamera draws into.
-// Design source: Figma "Oinky Oinky - HUD Redesign", frame "HUD / v2". Colors here match its HUD variables
+// Design source: Figma "Oinky Oinky - HUD Redesign", frames "HUD / A" and "HUD / B". The values live in HUDTheme
 public static class HUDBuilder
 {
-    static readonly Color Backdrop = new Color(0.07f, 0.09f, 0.15f);      // behind the panels, outside the arena
-    static readonly Color Panel = new Color(0.118f, 0.165f, 0.247f);      // #1E2A3F
-    static readonly Color Divider = new Color(1f, 1f, 1f, 0.12f);
-    static readonly Color TitleColor = new Color(0.68f, 0.74f, 0.85f);
-    static readonly Color PigColor = new Color(1f, 0.72f, 0.82f);         // pink
-    static readonly Color MinerColor = new Color(1f, 0.85f, 0.4f);        // gold
-    static readonly Color SkillColor = new Color(0.45f, 0.65f, 1f);       // blue  (color/accent/skill)
-    static readonly Color DigestColor = new Color(0.65f, 0.9f, 0.55f);    // green #A6E68C, PlayerCharacter.digestTint (color/accent/digest)
-    static readonly Color BarBack = new Color(1f, 1f, 1f, 0.15f);
-    // Sidebar spacing, from Figma "HUD / v2"
-    const int SidebarPaddingX = 20;                                       // left / right
-    const int SidebarPaddingY = 50;                                       // top / bottom
-    const float SectionGap = 32f;                                         // between sections and dividers
-    const float StatusRowGap = 24f;                                       // between WALLET and LIFE
-    const int MetersTop = 0;                                              // above the SKILL meter
-    const float MeterGap = 50f;                                           // between the Skill and Digest blocks
-    const float StatRowHeight = 36f;                                      // WALLET / LIFE rows
+    // The version being built; the names below read from it
+    static HUDTheme theme = new HUDTheme();
+    static Color Backdrop => theme.backdrop;
+    static Color Panel => theme.panel;
+    static Color Divider => theme.divider;
+    static Color TitleColor => theme.title;
+    static Color PigColor => theme.pig;
+    static Color MinerColor => theme.miner;
+    static Color SkillColor => theme.skill;
+    static Color DigestColor => theme.digest;
+    static Color BarBack => theme.barBack;
+    static int SidebarPaddingX => theme.sidebarPaddingX;
+    static int SidebarPaddingY => theme.sidebarPaddingY;
+    static float SectionGap => theme.sectionGap;
+    static float StatusRowGap => theme.statusRowGap;
+    static int MetersTop => theme.metersTop;
+    static float MeterGap => theme.meterGap;
+    static float StatRowHeight => theme.statRowHeight;
 
-    [MenuItem("Tools/Gold Miner/Create HUD")]
-    static void CreateHUD()
+    [MenuItem("Tools/Gold Miner/Create HUD/Version A")]
+    static void CreateHUDVersionA() { CreateHUD(HUDVariant.A); }
+
+    [MenuItem("Tools/Gold Miner/Create HUD/Version B")]
+    static void CreateHUDVersionB() { CreateHUD(HUDVariant.B); }
+
+    static void CreateHUD(HUDVariant variant)
     {
+        theme = HUDTheme.For(variant);
+
         HUDController existing = Object.FindFirstObjectByType<HUDController>();
         if (existing != null)
         {
@@ -46,7 +55,7 @@ public static class HUDBuilder
         }
 
         // Canvas that scales with the window
-        GameObject root = new GameObject("HUD", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        GameObject root = new GameObject("HUD (" + variant + ")", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
         Undo.RegisterCreatedObjectUndo(root, "Create HUD");
 
         root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
@@ -135,6 +144,7 @@ public static class HUDBuilder
         endPanel.SetActive(false);
 
         HUDController hud = root.AddComponent<HUDController>();
+        hud.variant = variant;
         hud.playerMoneyText = playerMoney;
         hud.minerMoneyText = minerMoney;
         hud.timerText = timer;
@@ -162,7 +172,7 @@ public static class HUDBuilder
 
         EditorUtility.SetDirty(hud);
         Selection.activeGameObject = root;
-        Debug.Log("HUDBuilder: HUD created. Save the scene to keep it.");
+        Debug.Log("HUDBuilder: HUD version " + variant + " created. Save the scene to keep it.");
     }
 
     // A white TMP label anchored and pivoted at the same corner, so position is the margin from it
