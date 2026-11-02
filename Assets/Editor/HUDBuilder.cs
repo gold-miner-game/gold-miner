@@ -83,15 +83,25 @@ public static class HUDBuilder
         TMP_Text level = CreateText(topBar, "Level", "LV 1/10", new Vector2(0f, 0.5f), new Vector2(24f, 0f), new Vector2(420f, 60f), 30f, TextAlignmentOptions.Left);
         level.color = TitleColor;
         level.fontStyle = FontStyles.Bold;
-        TMP_Text playerMoney = CreateText(topBar, "PlayerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(-50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Right);
-        playerMoney.rectTransform.pivot = new Vector2(1f, 0.5f);
-        playerMoney.color = PigColor;
-        TMP_Text versus = CreateText(topBar, "Versus", "VS", center, Vector2.zero, new Vector2(80f, 60f), 26f, TextAlignmentOptions.Center);
-        versus.color = TitleColor;
-        TMP_Text minerMoney = CreateText(topBar, "MinerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Left);
-        minerMoney.rectTransform.pivot = new Vector2(0f, 0.5f);
-        minerMoney.color = MinerColor;
+        TMP_Text playerMoney, minerMoney;
+        RectTransform playerBarFill = null, minerBarFill = null;
+        if (theme.moneyBar)
+        {
+            CreateMoneyBar(topBar, out playerMoney, out minerMoney, out playerBarFill, out minerBarFill);
+        }
+        else
+        {
+            playerMoney = CreateText(topBar, "PlayerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(-50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Right);
+            playerMoney.rectTransform.pivot = new Vector2(1f, 0.5f);
+            playerMoney.color = PigColor;
+            TMP_Text versus = CreateText(topBar, "Versus", "VS", center, Vector2.zero, new Vector2(80f, 60f), 26f, TextAlignmentOptions.Center);
+            versus.color = TitleColor;
+            minerMoney = CreateText(topBar, "MinerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Left);
+            minerMoney.rectTransform.pivot = new Vector2(0f, 0.5f);
+            minerMoney.color = MinerColor;
+        }
         TMP_Text timer = CreateText(topBar, "Timer", "1:30", new Vector2(1f, 0.5f), new Vector2(-24f, 0f), new Vector2(200f, 60f), 36f, TextAlignmentOptions.Right);
+        if (theme.timerBold) timer.fontStyle = FontStyles.Bold;
         Button map = HUDController.CreateMapButton(timer);
 
         // Sidebar: sections stacked top to bottom with dividers between them
@@ -146,6 +156,8 @@ public static class HUDBuilder
         HUDController hud = root.AddComponent<HUDController>();
         hud.variant = variant;
         hud.playerMoneyText = playerMoney;
+        hud.playerBarFill = playerBarFill;
+        hud.minerBarFill = minerBarFill;
         hud.minerMoneyText = minerMoney;
         hud.timerText = timer;
         hud.mapButton = map;
@@ -199,6 +211,68 @@ public static class HUDBuilder
 
     // A flat image stretched between two anchors (fractions of the parent), inset by `inset` px.
     // Rounded uses Unity's built-in rounded UI sprite, sliced so the corners keep their shape
+    // Version B score: the bar is fixed at the center of the top bar; "YOU $0" hangs off its left end
+    // and "$0 MINER" off its right end, so longer amounts grow outward and never move the bar.
+    // The bar is a rounded track that masks two fills: pink from the left, gold from the right
+    static void CreateMoneyBar(Transform topBar, out TMP_Text playerMoney, out TMP_Text minerMoney,
+        out RectTransform playerFill, out RectTransform minerFill)
+    {
+        Vector2 center = new Vector2(0.5f, 0.5f);
+        GameObject track = CreateImage(topBar, "MoneyBar", BarBack, center, center, 0f, true);
+        RectTransform trackRect = (RectTransform)track.transform;
+        trackRect.sizeDelta = new Vector2(theme.moneyBarWidth, theme.moneyBarHeight);
+        trackRect.anchoredPosition = Vector2.zero;
+        track.AddComponent<Mask>().showMaskGraphic = true;
+        playerFill = (RectTransform)CreateImage(track.transform, "PlayerFill", PigColor, Vector2.zero, new Vector2(0f, 1f), 0f, false).transform;
+        minerFill = (RectTransform)CreateImage(track.transform, "MinerFill", MinerColor, new Vector2(1f, 0f), Vector2.one, 0f, false).transform;
+
+        float edge = theme.moneyBarWidth * 0.5f + theme.moneyGap;
+        Transform playerSide = MoneySide(topBar, "PlayerSide", -edge, 1f);
+        MoneyLabel(playerSide, "YouLabel", "YOU");
+        playerMoney = MoneyAmount(playerSide, "PlayerMoney", PigColor);
+
+        Transform minerSide = MoneySide(topBar, "MinerSide", edge, 0f);
+        minerMoney = MoneyAmount(minerSide, "MinerMoney", MinerColor);
+        MoneyLabel(minerSide, "MinerLabel", "MINER");
+    }
+
+    // A row that sizes to its content and is pinned at one end (pivotX 1: its right end, 0: its left)
+    static Transform MoneySide(Transform topBar, string name, float x, float pivotX)
+    {
+        GameObject side = new GameObject(name, typeof(RectTransform));
+        RectTransform rect = (RectTransform)side.transform;
+        rect.SetParent(topBar, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(pivotX, 0.5f);
+        rect.anchoredPosition = new Vector2(x, 0f);
+        HorizontalLayoutGroup line = side.AddComponent<HorizontalLayoutGroup>();
+        line.childAlignment = pivotX > 0.5f ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
+        line.spacing = theme.moneyGap;
+        line.childControlWidth = true;
+        line.childControlHeight = true;
+        line.childForceExpandWidth = false;
+        line.childForceExpandHeight = false;
+        ContentSizeFitter fit = side.AddComponent<ContentSizeFitter>();
+        fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return side.transform;
+    }
+
+    static void MoneyLabel(Transform parent, string name, string text)
+    {
+        TMP_Text label = CreateText(parent, name, text, Vector2.zero, Vector2.zero, Vector2.zero, theme.moneyLabelSize, TextAlignmentOptions.Center);
+        label.color = TitleColor;
+        label.fontStyle = FontStyles.Bold;
+    }
+
+    static TMP_Text MoneyAmount(Transform parent, string name, Color color)
+    {
+        TMP_Text amount = CreateText(parent, name, "$0", Vector2.zero, Vector2.zero, Vector2.zero, 40f, TextAlignmentOptions.Center);
+        amount.color = color;
+        amount.fontStyle = FontStyles.Bold;
+        return amount;
+    }
+
     static GameObject CreateImage(Transform parent, string name, Color color, Vector2 anchorMin, Vector2 anchorMax, float inset, bool rounded)
     {
         GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image));

@@ -28,6 +28,15 @@ public class HUDTheme
     public float meterGap = 50f;          // between the Skill and Digest blocks
     public float statRowHeight = 36f;     // WALLET / LIFE / item rows
 
+    // Top bar score. false: "$0 VS $0" (A). true: "YOU $0 [bar] $0 MINER" (B), where the bar fills
+    // from each side with that side's share of all the gold in the level
+    public bool moneyBar = false;
+    public float moneyBarWidth = 560f;
+    public float moneyBarHeight = 16f;
+    public float moneyGap = 16f;          // between the labels, amounts and bar
+    public float moneyLabelSize = 22f;    // YOU / MINER
+    public bool timerBold = false;
+
     public static HUDTheme For(HUDVariant variant)
     {
         switch (variant)
@@ -37,10 +46,12 @@ public class HUDTheme
         }
     }
 
-    // Version B: change the values that differ from A here
+    // Version B (Figma "HUD / B"): the score is a tug bar, the timer is bold. Sidebar as in A
     static HUDTheme VersionB()
     {
         HUDTheme theme = new HUDTheme();
+        theme.moneyBar = true;
+        theme.timerBold = true;
         return theme;
     }
 }
