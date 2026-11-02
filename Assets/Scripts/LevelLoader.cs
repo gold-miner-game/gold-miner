@@ -209,7 +209,7 @@ public class LevelLoader : MonoBehaviour
         {
             LevelData data = LevelData.Parse(list[i].text);
             // Attack and survival levels have a guide too, but they are battles
-            bool battle = data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f;
+            bool battle = data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f || data.Param("compete", 0f) > 0.5f;
             if (!battle && (!string.IsNullOrEmpty(data.guide) || data.stages.Count > 0)) last = i;
         }
         return last;
@@ -277,6 +277,7 @@ public class LevelLoader : MonoBehaviour
         if (level.IsMaze) SetUpHub();
         if (Attack) SetUpAttack();
         if (Survival) SetUpSurvival();
+        if (Compete) SetUpCompete();
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
         if (player != null && player.SkillHint != "") label += "  " + player.SkillHint;
@@ -662,7 +663,63 @@ public class LevelLoader : MonoBehaviour
         t -= 1f;
         return 1f + t * t * ((s + 1f) * t + s);
     }
-    // Returns the treasure among what it spawned
+    // --- Compete levels ("compete": 1, level 3 onward) -----------------------------------------------
+    // The classic race for the gold, with survival mode's hook holes for miners, in green: each one
+    // is a hole (HookHole) run by the normal miner AI (MinerAI), so it shoots at the gold (green
+    // telegraph and rope) and now and then at the player (red), and the gold it hooks is the miners'.
+    // Time moves when the player moves (TimeMovesWithPlayer): standing still slows the whole world
+    // down to "still_time_scale".
+
+    public bool Compete => level != null && level.Param("compete", 0f) > 0.5f;
+
+    static readonly Color CompeteGreen = new Color(0.3f, 0.85f, 0.4f);
+    Sprite greenHole;
+
+    void SpawnGreenMiners()
+    {
+        if (player == null) return;
+        GameObject prefab = minerPrefab != null ? minerPrefab : Resources.Load<GameObject>(MinerPrefabPath);
+        MinerAI template = prefab != null ? prefab.GetComponent<MinerAI>() : null;
+        if (template == null || template.telegraph == null)
+        {
+            Debug.LogWarning("LevelLoader: green miners need the miner prefab (Resources/" + MinerPrefabPath + ") for its telegraph dots");
+            return;
+        }
+        if (greenHole == null) greenHole = HookHole.CreateSprite(new Color(0.03f, 0.12f, 0.05f), new Color(0.25f, 0.75f, 0.35f));
+        SpriteRenderer look = template.hook != null ? template.hook.GetComponent<SpriteRenderer>() : null;
+
+        for (int i = 0; i < level.hooks.Count; i++)
+        {
+            // Built inactive: swap the hole's survival AI for the miner AI before anything wakes up
+            SurvivalHookAI hole = HookHole.Build("Green Miner " + (i + 1), level.hooks[i], player.transform,
+                template.telegraph.dotPrefab, greenHole, look != null ? look.sharedMaterial : null,
+                template.hook.extendSpeed, template.hook.retractSpeed);
+            GameObject holeObject = hole.gameObject;
+            holeObject.transform.localScale = Vector3.one * level.Param("hole_size", 0.9f);
+            Hook hook = hole.hook;
+            TelegraphLine telegraph = hole.telegraph;
+            DestroyImmediate(hole);
+
+            hook.grabsTreasure = true;
+            hook.defaultColor = CompeteGreen;
+            MinerAI miner = holeObject.AddComponent<MinerAI>();
+            miner.hook = hook;
+            miner.telegraph = telegraph;
+            miner.hookOrigin = holeObject.transform;
+            miner.treasureColor = CompeteGreen;
+            miner.playerColor = Color.red;
+            PlaceMiner(miner, level.hooks[i], Vector3.zero);   // the level's timings and speeds (Configure)
+            holeObject.transform.parent.gameObject.SetActive(true);
+            AddHealth(holeObject, holeObject.transform.parent.gameObject);
+        }
+    }
+
+    void SetUpCompete()
+    {
+        var time = gameObject.AddComponent<TimeMovesWithPlayer>();
+        time.player = player;
+        time.stillScale = level.Param("still_time_scale", time.stillScale);
+    }    // Returns the treasure among what it spawned
     List<Treasure> Spawn(List<LevelData.Item> items)
     {
         var treasure = new List<Treasure>();
@@ -735,6 +792,17 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpMiners()
     {
+        if (Compete)
+        {
+            if (minerTemplate != null)
+            {
+                minerTemplate.gameObject.SetActive(false);
+                if (minerTemplate.hook != null) minerTemplate.hook.gameObject.SetActive(false);
+                if (minerTemplate.telegraph != null) minerTemplate.telegraph.gameObject.SetActive(false);
+            }
+            SpawnGreenMiners();
+            return;
+        }
         if (Survival)
         {
             // No miners at the start: SetUpSurvival grows hook holes as the round goes on

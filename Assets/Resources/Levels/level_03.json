@@ -46,6 +46,8 @@
     }
   ],
   "params": {
+    "compete": 1,
+    "still_time_scale": 0.12,
     "pig_speed": 6.5,
     "digest_time": 0.35,
     "digest_per_value": 0.003,
