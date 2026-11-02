@@ -8,21 +8,30 @@ using UnityEngine.UI;
 // Owner: D (Hook & UI)
 public class HUDController : MonoBehaviour
 {
+    public HUDVariant variant;      // which HUDTheme HUDBuilder built this HUD from (A/B playtests)
+
     public TMP_Text playerMoneyText;
     public TMP_Text minerMoneyText;
+    public RectTransform playerBarFill;   // version B: the score bar's fills (null on version A)
+    public RectTransform minerBarFill;
     public TMP_Text timerText;
     public Button mapButton;        // the Pause button, just left of the timer; HUDBuilder wires it, or Start makes one
     public TMP_Text livesText;      // optional
 
     [Header("Top bar and sidebar (HUDBuilder wires these; all optional)")]
     public TMP_Text levelText;
+    public RectTransform sidebar;    // v2 HUD wires it; an older HUD finds it as the Life section's parent
+    public GameObject statusSection; // v2 HUD: the Wallet + Life rows, hidden when both are
     public GameObject lifeSection;   // hidden with the Life count when the round has no Lives
     public GameObject walletSection;
     public TMP_Text walletText;
     public GameObject skillSection;
     public TMP_Text skillText;
     public RectTransform skillBarFill;
+    public GameObject skillBlock;    // v2 HUD: the SKILL row + bar, hidden together (null on an older HUD)
     public TMP_Text digestText;
+    public RectTransform digestBarFill;
+    public GameObject digestBlock;
     public GameObject itemsSection;
     public TMP_Text itemRowTemplate;
     public TMP_Text itemKeyText;
@@ -32,6 +41,8 @@ public class HUDController : MonoBehaviour
     public Color activeColor = new Color(0.45f, 0.65f, 1f);    // blue, like the block tint
     public Color waitColor = Color.white;
     public Color noneColor = new Color(0.68f, 0.74f, 0.85f);   // the section titles' gray
+    public Color skillColor = new Color(0.45f, 0.65f, 1f);     // SKILL "Ready" (Figma color/accent/skill)
+    public Color digestColor = new Color(0.65f, 0.9f, 0.55f);  // DIGEST value and bar when there is no character yet; else its digestTint
 
     [Header("Pause popup")]
     public Color popupCard = new Color(0.99f, 0.99f, 0.99f);
@@ -51,6 +62,7 @@ public class HUDController : MonoBehaviour
 
     [Header("Money")]
     public Color moneyFlashColor = new Color(1f, 0.85f, 0.2f);  // gold
+    public Color playerPopupColor = new Color(1f, 0.72f, 0.82f); // pig pink (color/accent/pig): the player's flash and "+$600"
     public float moneyFlashScale = 1.25f;
     public float moneyFlashTime = 0.3f;
     public Vector2 popupOffset = new Vector2(0f, -30f);  // "+$600" appears here, relative to the label
@@ -66,6 +78,7 @@ public class HUDController : MonoBehaviour
     private Label minerMoney;
     private Label lives;
     private Color timerBaseColor;
+    private float timerHomeX;       // where the builder put the timer: the right edge when there is no Pause
     private Vector3 timerBaseScale;
     private bool roundHasLives;
     private LevelLoader levelLoader;
@@ -86,16 +99,21 @@ public class HUDController : MonoBehaviour
     private bool mazeHudApplied;
     private TMP_Text mazeMoneyText;   // player's $ above LIFE in the sidebar (maze only)
 
+    public const string LeftBackdropName = "LeftBackdrop";
+    public const string BottomBackdropName = "BottomBackdrop";
+
     void Start()
     {
         // The arena goes in the space the top bar and sidebar leave (HUDLayout)
         GameplayCamera.Ensure(Camera.main);
+        ApplyFrame();
 
         if (endPanel != null) endPanel.SetActive(false);
         if (timerText != null)
         {
             timerBaseColor = timerText.color;
             timerBaseScale = timerText.transform.localScale;
+            timerHomeX = timerText.rectTransform.anchoredPosition.x;
         }
 
         levelLoader = FindFirstObjectByType<LevelLoader>();
@@ -121,6 +139,7 @@ public class HUDController : MonoBehaviour
         ApplyMazeHudIfNeeded();
         DetectChanges(gm);
         UpdateMoney(gm);
+        UpdateMoneyBar(gm);
         UpdateTimer(gm);
         UpdateLives(gm);
         UpdateLevel();
@@ -150,15 +169,67 @@ public class HUDController : MonoBehaviour
         roundHasLives = true;
         if (lifeSection != null) lifeSection.SetActive(true);
         else if (livesText != null) livesText.gameObject.SetActive(true);
-        EnsureMazeMoneyInLifeSection();
+        // Row sidebar: the WALLET row becomes MONEY. Older HUD: MONEY / $ above LIFE in its section
+        if (StatRows && walletText != null)
+        {
+            mazeMoneyText = walletText;
+            TMP_Text title = walletText.transform.parent.GetChild(0).GetComponent<TMP_Text>();
+            if (title != null && title != walletText) title.text = "MONEY";
+        }
+        else EnsureMazeMoneyInLifeSection();
 
         // Keep SKILL / DIGEST cooldown rows. Only hide wallet/items (no store run on the maze).
         if (itemsSection != null) itemsSection.SetActive(false);
-        if (walletSection != null) walletSection.SetActive(false);
+        if (walletSection != null) walletSection.SetActive(mazeMoneyText == walletText && walletText != null);
 
+        ApplyFrame();
         GameplayCamera cam = FindFirstObjectByType<GameplayCamera>();
         if (cam != null) cam.Fit();
     }
+
+    // Even HUDLayout.Gap spacing between the screen edge, the top bar, the sidebar and the arena.
+    // Adds the left and bottom backdrops a HUD saved by an older HUDBuilder doesn't have
+    void ApplyFrame()
+    {
+        RectTransform topBar = timerText != null ? timerText.transform.parent as RectTransform : null;
+        RectTransform sidebar = SidebarRect;
+        RectTransform topBackdrop = transform.Find("TopBackdrop") as RectTransform;
+        RectTransform sideBackdrop = transform.Find("SideBackdrop") as RectTransform;
+        Color color = new Color(0.07f, 0.09f, 0.15f);
+        Image topImage = topBackdrop != null ? topBackdrop.GetComponent<Image>() : null;
+        if (topImage != null) color = topImage.color;
+        HUDLayout.PlaceFrame(topBar, sidebar, topBackdrop, sideBackdrop,
+            Backdrop(LeftBackdropName, color), Backdrop(BottomBackdropName, color));
+    }
+
+    // A flat band behind the panels, found by name or made once, kept first so it draws underneath
+    RectTransform Backdrop(string name, Color color)
+    {
+        RectTransform rect = transform.Find(name) as RectTransform;
+        if (rect != null) return rect;
+        var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+        rect = (RectTransform)go.transform;
+        rect.SetParent(transform, false);
+        rect.SetAsFirstSibling();
+        Image image = go.GetComponent<Image>();
+        image.color = color;
+        image.raycastTarget = false;
+        return rect;
+    }
+
+    RectTransform SidebarRect => sidebar != null ? sidebar
+        : lifeSection != null ? lifeSection.transform.parent as RectTransform : null;
+
+    // StatusSection shows while either of its rows does, so its divider hides with it
+    void UpdateStatusSection()
+    {
+        if (statusSection == null) return;
+        bool any = (lifeSection != null && lifeSection.activeSelf) || (walletSection != null && walletSection.activeSelf);
+        if (statusSection.activeSelf != any) statusSection.SetActive(any);
+    }
+
+    // HUD v2 sidebar: WALLET and LIFE are label / value rows (an older HUD stacks title over value)
+    bool StatRows => lifeSection != null && lifeSection.GetComponent<HorizontalLayoutGroup>() != null;
 
     void EnsureMazeMoneyInLifeSection()
     {
@@ -198,13 +269,13 @@ public class HUDController : MonoBehaviour
         {
             if (gm.PlayerMoney != lastPlayerMoney)
             {
-                playerMoney.Flash(moneyFlashColor, moneyFlashTime);
-                SpawnPopup(playerMoneyText, gm.PlayerMoney - lastPlayerMoney);
+                playerMoney.Flash(playerPopupColor, moneyFlashTime);
+                SpawnPopup(playerMoneyText, gm.PlayerMoney - lastPlayerMoney, playerPopupColor);
             }
             if (gm.MinerMoney != lastMinerMoney)
             {
                 minerMoney.Flash(moneyFlashColor, moneyFlashTime);
-                SpawnPopup(minerMoneyText, gm.MinerMoney - lastMinerMoney);
+                SpawnPopup(minerMoneyText, gm.MinerMoney - lastMinerMoney, moneyFlashColor);
             }
             if (gm.Lives != lastLives)
             {
@@ -216,6 +287,30 @@ public class HUDController : MonoBehaviour
         lastPlayerMoney = gm.PlayerMoney;
         lastMinerMoney = gm.MinerMoney;
         lastLives = gm.Lives;
+    }
+
+    // Version B score bar: each side fills with its share of all the gold in the level, which is the
+    // treasure still out plus what both have collected. Kept at its largest so a share never jumps
+    // up when a treasure leaves without being collected. Treasures are counted 4 times a second
+    private float levelGold;
+    private float nextGoldCount;
+    private int goldOut;
+
+    void UpdateMoneyBar(GameManager gm)
+    {
+        if (playerBarFill == null && minerBarFill == null) return;
+        if (Time.unscaledTime >= nextGoldCount)
+        {
+            nextGoldCount = Time.unscaledTime + 0.25f;
+            goldOut = 0;
+            foreach (Treasure treasure in FindObjectsByType<Treasure>(FindObjectsSortMode.None))
+                goldOut += Mathf.Max(0, treasure.value);
+        }
+        levelGold = Mathf.Max(levelGold, goldOut + Mathf.Max(0, gm.PlayerMoney) + Mathf.Max(0, gm.MinerMoney));
+        float player = levelGold > 0f ? Mathf.Clamp01(gm.PlayerMoney / levelGold) : 0f;
+        float miner = levelGold > 0f ? Mathf.Clamp01(gm.MinerMoney / levelGold) : 0f;
+        if (playerBarFill != null) playerBarFill.anchorMax = new Vector2(player, 1f);
+        if (minerBarFill != null) minerBarFill.anchorMin = new Vector2(1f - miner, 0f);
     }
 
     void UpdateMoney(GameManager gm)
@@ -253,8 +348,8 @@ public class HUDController : MonoBehaviour
         PlaceMapButton();
     }
 
-    // A Pause button just left of the clock. It opens the Quit Game popup, whose Quit goes back to
-    // the map. Only when this round was opened from the map: editor N/P play of the Game scene has
+    // A Pause button at the right end of the top bar, the clock just left of it. It opens the Quit
+    // Game popup, whose Quit goes back to the map. Only when this round was opened from the map: editor N/P play of the Game scene has
     // no node to return to.
     void EnsureMapButton()
     {
@@ -287,7 +382,7 @@ public class HUDController : MonoBehaviour
         rect.SetParent(timer.rectTransform.parent, false);
         rect.anchorMin = rect.anchorMax = new Vector2(1f, 0.5f);
         rect.pivot = new Vector2(1f, 0.5f);
-        rect.sizeDelta = new Vector2(92f, 42f);
+        rect.sizeDelta = new Vector2(92f, 40f);
 
         Image image = go.GetComponent<Image>();
         image.sprite = FlatSprite();
@@ -313,7 +408,7 @@ public class HUDController : MonoBehaviour
         TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
         label.font = timer.font;
         label.text = "Pause";
-        label.fontSize = 22f;
+        label.fontSize = 24f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(0.86f, 0.90f, 0.96f, 1f);
@@ -327,13 +422,14 @@ public class HUDController : MonoBehaviour
 
         bool show = flow != null && flow.CurrentNode != null;
         if (mapButton.gameObject.activeSelf != show) mapButton.gameObject.SetActive(show);
-        if (!show) return;
 
+        // HUD v2: Pause takes the timer's old spot at the right edge; the timer (right aligned)
+        // moves left by the button's width plus a 50 px gap
         RectTransform timerRect = timerText.rectTransform;
         RectTransform rect = mapButton.GetComponent<RectTransform>();
-        float digits = Mathf.Max(72f, timerText.preferredWidth);
-        float scale = Mathf.Max(1f, timerRect.localScale.x);
-        rect.anchoredPosition = new Vector2(timerRect.anchoredPosition.x - digits * scale - 14f, timerRect.anchoredPosition.y);
+        float timerX = show ? timerHomeX - rect.sizeDelta.x - 50f : timerHomeX;
+        timerRect.anchoredPosition = new Vector2(timerX, timerRect.anchoredPosition.y);
+        if (show) rect.anchoredPosition = new Vector2(timerHomeX, timerRect.anchoredPosition.y);
     }
 
     public bool IsPaused => pausePopup != null && pausePopup.activeSelf;
@@ -490,7 +586,8 @@ public class HUDController : MonoBehaviour
         // The whole section when there is one (the sidebar), else just the label (an older HUD)
         GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
         shown.SetActive(roundHasLives);
-        livesText.text = lifeSection != null ? "x" + gm.Lives : "Life: " + gm.Lives;
+        if (lifeSection == null) livesText.text = "Life: " + gm.Lives;
+        else livesText.text = (StatRows ? "\u00D7" : "x") + gm.Lives;
         lives.Apply(moneyFlashScale);
     }
 
@@ -520,13 +617,14 @@ public class HUDController : MonoBehaviour
 
         if (mazeHudApplied)
         {
-            if (walletSection != null) walletSection.SetActive(false);
+            if (walletSection != null) walletSection.SetActive(mazeMoneyText == walletText && walletText != null);
             if (itemsSection != null) itemsSection.SetActive(false);
             if (lifeSection != null) lifeSection.SetActive(true);
             // Skill / digest cooldowns stay visible on the world map.
             bool hasSkill = UpdateSkill();
             bool hasDigest = UpdateDigest();
             if (skillSection != null) skillSection.SetActive(hasSkill || hasDigest);
+            UpdateStatusSection();
             UpdateDividers();
             return;
         }
@@ -536,6 +634,7 @@ public class HUDController : MonoBehaviour
         bool digest = UpdateDigest();
         if (skillSection != null) skillSection.SetActive(skill || digest);
         UpdateItems(record);
+        UpdateStatusSection();
         UpdateDividers();
     }
 
@@ -552,30 +651,46 @@ public class HUDController : MonoBehaviour
     {
         if (skillText == null) return false;
         bool shown = player != null && player.SkillHint != "";
-        SetRow(skillText, shown);
+        if (skillBlock != null) skillBlock.SetActive(shown);
+        else SetRow(skillText, shown);
         if (skillBarFill != null) skillBarFill.parent.gameObject.SetActive(shown);
         if (!shown) return false;
 
         float readyIn = player.SkillReadyIn;
-        if (player.SkillActive) SetValue(skillText, "Active", activeColor);
+        // HUD v2 states are all caps, like the digest's CAN EAT (seconds keep their lowercase s)
+        bool v2 = skillBlock != null;
+        if (player.SkillActive) SetValue(skillText, v2 ? "ACTIVE" : "Active", activeColor);
         else if (readyIn > 0f) SetValue(skillText, Seconds(readyIn), waitColor);
-        else SetValue(skillText, "Ready", readyColor);
+        else SetValue(skillText, v2 ? "READY" : "Ready", v2 ? skillColor : readyColor);
 
         float fill = readyIn > 0f && player.SkillWait > 0f ? 1f - readyIn / player.SkillWait : 1f;
         if (skillBarFill != null) skillBarFill.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
         return true;
     }
 
-    // Seconds left in the digest (in the digest's green tint), else "Ready". Returns whether shown
+    // Seconds left in the digest, else "CAN EAT", in the digest green. The bar is full right after eating and
+    // drains as the digest runs out, so an empty bar means the pig can eat again. An older HUD (no digestBlock) keeps "Ready" in green and the character's tint
     bool UpdateDigest()
     {
         if (digestText == null) return false;
         bool shown = player != null && player.UsesDigest;
-        SetRow(digestText, shown);
+        if (digestBlock != null) digestBlock.SetActive(shown);
+        else SetRow(digestText, shown);
         if (!shown) return false;
 
-        if (player.CanEat) SetValue(digestText, "Ready", readyColor);
-        else SetValue(digestText, Seconds(player.DigestLeft), player.digestTint);
+        // HUD v2: the same green the character's body drains in while it digests (digestTint)
+        bool v2 = digestBlock != null;
+        Color tint = player.digestTint;
+        if (player.CanEat) SetValue(digestText, v2 ? "CAN EAT" : "Ready", v2 ? tint : readyColor);
+        else SetValue(digestText, Seconds(player.DigestLeft), tint);
+        if (v2 && digestBarFill != null)
+        {
+            Image fillImage = digestBarFill.GetComponent<Image>();
+            if (fillImage != null) fillImage.color = tint;
+        }
+
+        float fill = player.IsDigesting ? 1f - player.DigestProgress01 : 0f;
+        if (digestBarFill != null) digestBarFill.anchorMax = new Vector2(Mathf.Clamp01(fill), 1f);
         return true;
     }
 
@@ -595,10 +710,27 @@ public class HUDController : MonoBehaviour
                 if (skill.armed || skill.active || skill.secondsLeft > 0f) held++;
             }
             if (held <= 0) continue;
-            SetValue(ItemRow(count++), ItemName(skill.id) + " x" + held, waitColor);
+            if (ItemStatRows) SetItemRow(ItemRow(count++), ItemName(skill.id).ToUpperInvariant(), "\u00D7" + held, waitColor);
+            else SetValue(ItemRow(count++), ItemName(skill.id) + " x" + held, waitColor);
         }
-        if (count == 0) SetValue(ItemRow(count++), "None", noneColor);
-        for (int i = count; i < itemRows.Count; i++) itemRows[i].gameObject.SetActive(false);
+        if (count == 0)
+        {
+            if (ItemStatRows) SetItemRow(ItemRow(count++), "ITEMS", "None", noneColor);
+            else SetValue(ItemRow(count++), "None", noneColor);
+        }
+        for (int i = count; i < itemRows.Count; i++) ItemRowObject(itemRows[i]).SetActive(false);
+    }
+
+    // HUD v2: the template is the value of a label / value row, and each item copies the whole row
+    bool ItemStatRows => itemRowTemplate != null && itemRowTemplate.transform.parent.GetComponent<HorizontalLayoutGroup>() != null;
+
+    GameObject ItemRowObject(TMP_Text value) => ItemStatRows ? value.transform.parent.gameObject : value.gameObject;
+
+    static void SetItemRow(TMP_Text value, string title, string text, Color color)
+    {
+        TMP_Text label = value.transform.parent.GetChild(0).GetComponent<TMP_Text>();
+        if (label != null && label != value) label.text = title;
+        SetValue(value, text, color);
     }
 
     // Rows are copies of the template, made once and reused
@@ -606,19 +738,30 @@ public class HUDController : MonoBehaviour
     {
         while (itemRows.Count <= index)
         {
-            TMP_Text row = Instantiate(itemRowTemplate, itemRowTemplate.transform.parent);
-            row.name = "Item" + itemRows.Count;
+            TMP_Text row;
+            if (ItemStatRows)
+            {
+                Transform template = itemRowTemplate.transform.parent;
+                GameObject copy = Instantiate(template.gameObject, template.parent);
+                copy.name = "Item" + itemRows.Count;
+                row = copy.transform.GetChild(itemRowTemplate.transform.GetSiblingIndex()).GetComponent<TMP_Text>();
+            }
+            else
+            {
+                row = Instantiate(itemRowTemplate, itemRowTemplate.transform.parent);
+                row.name = "Item" + itemRows.Count;
+            }
             itemRows.Add(row);
         }
-        itemRows[index].gameObject.SetActive(true);
+        ItemRowObject(itemRows[index]).SetActive(true);
         return itemRows[index];
     }
 
     // A divider shows only between two visible sections, so a hidden one never leaves two in a row
     void UpdateDividers()
     {
-        if (lifeSection == null) return;
-        Transform sidebar = lifeSection.transform.parent;
+        Transform sidebar = SidebarRect;
+        if (sidebar == null) return;
         GameObject pending = null;   // a divider under a visible section, waiting for one below it
         bool above = false;
         for (int i = 0; i < sidebar.childCount; i++)
@@ -694,19 +837,24 @@ public class HUDController : MonoBehaviour
     }
 
     // "+$600" next to a money label: a copy of the label, so it shares its font and size
-    void SpawnPopup(TMP_Text source, int delta)
+    void SpawnPopup(TMP_Text source, int delta, Color color)
     {
         if (source == null || delta == 0) return;
 
         TMP_Text text = Instantiate(source, source.transform.parent);
         text.name = source.name + "Popup";
+        // Version B's amounts sit in a layout row: keep the popup out of it, or the row would make
+        // room for it and shift everything while it floats
+        LayoutElement layout = text.GetComponent<LayoutElement>();
+        if (layout == null) layout = text.gameObject.AddComponent<LayoutElement>();
+        layout.ignoreLayout = true;
         text.text = (delta > 0 ? "+$" : "-$") + Mathf.Abs(delta).ToString("N0");
-        text.color = moneyFlashColor;
+        text.color = color;
         text.transform.localScale = Vector3.one;
 
         Vector2 start = source.rectTransform.anchoredPosition + popupOffset;
         text.rectTransform.anchoredPosition = start;
-        popups.Add(new Popup { text = text, start = start });
+        popups.Add(new Popup { text = text, start = start, color = color });
     }
 
     // Rise and fade, then remove
@@ -726,7 +874,7 @@ public class HUDController : MonoBehaviour
             }
 
             p.text.rectTransform.anchoredPosition = p.start + Vector2.up * (popupRise * t);
-            Color c = moneyFlashColor;
+            Color c = p.color;
             c.a *= 1f - t;
             p.text.color = c;
         }
@@ -736,6 +884,7 @@ public class HUDController : MonoBehaviour
     {
         public TMP_Text text;
         public Vector2 start;
+        public Color color;
         public float age;
     }
 
