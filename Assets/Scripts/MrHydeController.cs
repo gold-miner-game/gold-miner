@@ -17,8 +17,8 @@ public class MrHydeController : PlayerCharacter
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;
 
-    // After the tutorial the record decides (the store can change it); in the tutorial, the level does
-    public bool CanBlock => Record != null ? Record.getCanBlock() : canBlock;
+    // The level turns the field on. The record can too (the store). Either one is enough.
+    public bool CanBlock => canBlock || (Record != null && Record.getCanBlock());
     public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
     public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
 

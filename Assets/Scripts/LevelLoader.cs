@@ -184,8 +184,11 @@ public class LevelLoader : MonoBehaviour
         ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
         if (spawner != null)
         {
-            int champion = Tutorial ? ChampionSpawner.MrHyde : SavedChampion();
-            ChampionSpawner.Chosen = champion;
+            // level_09 / level_10 are pig-only: never swap in the cat, squirrel, or frog.
+            // The pig is champion 0, and this level's "block" skill is what makes Space block.
+            bool pigOnly = level.Param("pig_only", 0f) > 0.5f;
+            int champion = (Tutorial || pigOnly) ? ChampionSpawner.MrHyde : SavedChampion();
+            if (!pigOnly) ChampionSpawner.Chosen = champion;
             if (!Tutorial)
             {
                 // Same champion's record, so wallet and skills survive the scene change. A missing
@@ -221,7 +224,10 @@ public class LevelLoader : MonoBehaviour
     {
         var doomed = new List<GameObject>();
         foreach (Treasure t in FindObjectsByType<Treasure>(FindObjectsSortMode.None)) doomed.Add(t.gameObject);
-        foreach (Rock r in FindObjectsByType<Rock>(FindObjectsSortMode.None)) doomed.Add(r.gameObject);
+        // wall_rocks levels place the stones in the scene. Leave them there so play
+        // matches the editor. Other levels still clear the graybox rocks.
+        if (level == null || level.Param("wall_rocks", 0f) <= 0.5f)
+            foreach (Rock r in FindObjectsByType<Rock>(FindObjectsSortMode.None)) doomed.Add(r.gameObject);
         foreach (LifePickup l in FindObjectsByType<LifePickup>(FindObjectsSortMode.None)) doomed.Add(l.gameObject);
         foreach (GameObject go in doomed)
         {
@@ -276,6 +282,9 @@ public class LevelLoader : MonoBehaviour
                 Debug.LogWarning("LevelLoader: no prefab named " + item.type + " in Item Prefabs");
                 continue;
             }
+            // Stones already sitting in the scene. Spawning the JSON copies would double them.
+            if (item.type == "Rock" && level != null && level.Param("wall_rocks", 0f) > 0.5f)
+                continue;
             GameObject go = Instantiate(prefab, item.position, Quaternion.identity);
             if (item.scale > 0f) go.transform.localScale = Vector3.one * item.scale;
 
@@ -301,6 +310,10 @@ public class LevelLoader : MonoBehaviour
             Treasure t = go.GetComponent<Treasure>();
             if (t != null) treasure.Add(t);
         }
+        // Scene stones stay, but a hook must not shatter them. They only stop the hook.
+        if (level != null && level.Param("wall_rocks", 0f) > 0.5f)
+            foreach (Rock rock in FindObjectsByType<Rock>(FindObjectsSortMode.None))
+                rock.MakeWall();
         return treasure;
     }
 
@@ -398,6 +411,108 @@ public class LevelLoader : MonoBehaviour
             Configure(miner);
             miners.Add(miner);
         }
+
+        int hunter = Mathf.RoundToInt(level.Param("pig_hunter", -1f));
+        int hunterTwo = Mathf.RoundToInt(level.Param("pig_hunter_2", -1f));
+        bool IsHunter(int index) => index == hunter || index == hunterTwo;
+        bool crossPig = level.Param("cross_pig", 0f) > 0.5f;
+        if (hunter >= 0 || hunterTwo >= 0)
+        {
+            for (int i = 0; i < miners.Count; i++)
+            {
+                if (IsHunter(i))
+                {
+                    PaintHunter(miners[i]);
+                    if (level.Has("hunter_delay"))
+                        miners[i].startDelay = level.Param("hunter_delay", miners[i].startDelay);
+                }
+                else
+                {
+                    // Gold hooks stay on treasure. Only the black-red miners hunt the pig on purpose.
+                    miners[i].shootsPlayer = false;
+                    miners[i].hook.hitsPig = false;
+                }
+            }
+        }
+        if (crossPig)
+        {
+            bool kills = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
+            for (int i = 0; i < miners.Count; i++)
+            {
+                if (IsHunter(i)) continue;
+                miners[i].aimThroughPig = true;
+                // Every gold line crosses the pig, including the hook that starts out carrying
+                // the diamond. Standing there without a block costs a life.
+                if (kills) miners[i].hook.hitsPig = true;
+                if (level.Param("greedy", 0f) > 0.5f) miners[i].greedyValue = true;
+            }
+        }
+        for (int i = 0; i < miners.Count; i++)
+        {
+            string key = "hook_delay_" + i;
+            if (level.Has(key))
+                miners[i].startDelay = level.Param(key, miners[i].startDelay);
+        }
+    }
+
+    static Sprite discSprite;
+
+    static Sprite DiscSprite()
+    {
+        if (discSprite != null) return discSprite;
+        const int n = 64;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+        float radius = (n - 1) * 0.5f;
+        float cx = radius;
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
+            {
+                float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cx) * (y - cx));
+                float a = Mathf.Clamp01(radius - d + 0.75f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        }
+        tex.Apply();
+        discSprite = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), n);
+        return discSprite;
+    }
+
+    // Reference: black center, brown ring, red claw, red rope, red dashed aim.
+    void PaintHunter(MinerAI miner)
+    {
+        miner.huntPigOnly = true;
+        miner.shootsPlayer = true;
+        miner.hook.hitsPig = true;
+        miner.name = "Hostile Miner";
+        Color red = new Color(0.92f, 0.08f, 0.06f, 1f);
+        miner.playerColor = red;
+        miner.treasureColor = red;
+        miner.hook.Paint(red);
+        miner.startDelay = 0.2f;
+        miner.cooldown = 0.35f;
+        miner.telegraphMin = 0.3f;
+        miner.telegraphMax = 0.45f;
+
+        SpriteRenderer body = miner.GetComponent<SpriteRenderer>();
+        Sprite disc = DiscSprite();
+        int order = body != null ? body.sortingOrder : 0;
+
+        GameObject ring = new GameObject("HunterRing");
+        ring.transform.SetParent(miner.transform, false);
+        ring.transform.localScale = Vector3.one * 1.42f;
+        SpriteRenderer ringRenderer = ring.AddComponent<SpriteRenderer>();
+        ringRenderer.sprite = disc;
+        ringRenderer.color = new Color(0.55f, 0.34f, 0.1f, 1f);
+        ringRenderer.sortingOrder = order;
+
+        if (body != null)
+        {
+            body.sprite = disc;
+            body.color = new Color(0.04f, 0.03f, 0.03f, 1f);
+            body.sortingOrder = order + 1;
+        }
     }
 
     void Configure(MinerAI miner)
@@ -418,6 +533,7 @@ public class LevelLoader : MonoBehaviour
         miner.hook.hitsPig = kills;
         miner.hook.extendSpeed = level.Param("hook_extend", miner.hook.extendSpeed) * gameSpeed;
         miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed) * gameSpeed;
+        miner.hook.passRocks = level.Param("hooks_pass_rocks", 0f) > 0.5f;
     }
 
     // A level file's starting_lives wins when it is set above 0; 0 keeps the loader's livesPerLevel
@@ -468,7 +584,16 @@ public class LevelLoader : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (keyboard == null) return;
         if (keyboard.nKey.wasPressedThisFrame) Load(current + 1);
-        else if (keyboard.pKey.wasPressedThisFrame) Load(current - 1);
+        else if (keyboard.pKey.wasPressedThisFrame)
+        {
+            // V1: P pauses the round. Other levels still use P for the previous level.
+            if (level != null && level.Param("pause_on_p", 0f) > 0.5f)
+            {
+                HUDController hud = FindFirstObjectByType<HUDController>();
+                if (hud != null) hud.TogglePause();
+            }
+            else Load(current - 1);
+        }
     }
 
     // Tutorial stages: set the hooks up for the stage's goal and put out its items
@@ -621,6 +746,16 @@ public class LevelLoader : MonoBehaviour
     void Start()
     {
         hasHud = FindFirstObjectByType<HUDController>() != null;
+        // LevelLoader.Awake runs before the pig's record exists in some scenes. Say it again here
+        // so Space block is on before the first hook moves.
+        if (level != null && level.Param("block", 0f) > 0.5f && player is MrHydeController hyde)
+        {
+            hyde.canBlock = true;
+            if (!Tutorial && CrossLevelStatus.Active != null)
+                CrossLevelStatus.Active.setCanBlock(true);
+        }
+        if (level != null && level.Param("start_carrying", 0f) > 0.5f)
+            BeginAlreadyCarrying();
         // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
         if (level != null && level.IsMaze)
         {
@@ -628,6 +763,24 @@ public class LevelLoader : MonoBehaviour
             if (maze != null) maze.RestoreHubIfNeeded();
         }
     }
+
+        // The diamond is already on the hook when the level appears. The pig is standing on that
+        // line and has to block now. A greedy level sends this hook back out after the pull.
+        void BeginAlreadyCarrying()
+        {
+            if (miners.Count == 0) return;
+            Treasure gem = null;
+            foreach (Treasure t in FindObjectsByType<Treasure>(FindObjectsSortMode.None))
+            {
+                if (t != null && t.type == TreasureType.Diamond) { gem = t; break; }
+            }
+            if (gem == null) return;
+            MinerAI miner = miners[0];
+            miner.autoShoot = false;
+            if (level != null && level.Param("greedy", 0f) > 0.5f)
+                miner.resumeAfterScripted = true;
+            miner.hook.PullBack(miner.hookOrigin.position, gem, miner.treasureColor, 0f);
+        }
 
     // What happens next once the round is over, for the end panel. Empty while playing, or when a
     // listener (GameFlow, back to the map) handles the win

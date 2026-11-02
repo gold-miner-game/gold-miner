@@ -73,6 +73,7 @@ public class HUDController : MonoBehaviour
     private readonly List<TMP_Text> itemRows = new List<TMP_Text>();
     private GameFlow flow;
     private GameObject pausePopup;
+    private GameObject pauseBadge;
     private string endDetail;   // the result lines, set once when the round ends   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
@@ -336,7 +337,64 @@ public class HUDController : MonoBehaviour
         rect.anchoredPosition = new Vector2(timerRect.anchoredPosition.x - digits * scale - 14f, timerRect.anchoredPosition.y);
     }
 
-    public bool IsPaused => pausePopup != null && pausePopup.activeSelf;
+    public bool IsPaused =>
+        (pausePopup != null && pausePopup.activeSelf) || (pauseBadge != null && pauseBadge.activeSelf);
+
+    // V1's P key. Freezes the round and shows a small mark. Press again to continue.
+    public void TogglePause()
+    {
+        if (pauseBadge != null && pauseBadge.activeSelf) HidePauseBadge();
+        else if (pausePopup != null && pausePopup.activeSelf) ResumeFromPause();
+        else ShowPauseBadge();
+    }
+
+    void ShowPauseBadge()
+    {
+        if (timerText == null) return;
+        if (pauseBadge == null) BuildPauseBadge();
+        pauseBadge.transform.SetAsLastSibling();
+        pauseBadge.SetActive(true);
+        Time.timeScale = 0f;
+    }
+
+    void HidePauseBadge()
+    {
+        if (pauseBadge != null) pauseBadge.SetActive(false);
+        Time.timeScale = 1f;
+    }
+
+    // Two bars in a small corner chip. It does not dim or cover the arena.
+    void BuildPauseBadge()
+    {
+        pauseBadge = new GameObject("PauseBadge", typeof(RectTransform), typeof(Image));
+        RectTransform rect = (RectTransform)pauseBadge.transform;
+        rect.SetParent(timerText.canvas.transform, false);
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(16f, -70f);
+        rect.sizeDelta = new Vector2(44f, 32f);
+
+        Image plate = pauseBadge.GetComponent<Image>();
+        plate.color = new Color(0.08f, 0.08f, 0.08f, 0.82f);
+        plate.raycastTarget = false;
+
+        PauseBar(rect, -7f);
+        PauseBar(rect, 7f);
+        pauseBadge.SetActive(false);
+    }
+
+    void PauseBar(RectTransform parent, float x)
+    {
+        var go = new GameObject("Bar", typeof(RectTransform), typeof(Image));
+        RectTransform bar = (RectTransform)go.transform;
+        bar.SetParent(parent, false);
+        bar.sizeDelta = new Vector2(6f, 16f);
+        bar.anchoredPosition = new Vector2(x, 0f);
+        Image image = go.GetComponent<Image>();
+        image.color = Color.white;
+        image.raycastTarget = false;
+    }
 
     // Pause freezes the round (time scale 0: the clock, hooks and the character all stop) and asks
     // "Quit Game?". Cancel picks up where it left off; Quit goes back to the map

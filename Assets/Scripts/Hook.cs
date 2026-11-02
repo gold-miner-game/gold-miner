@@ -19,6 +19,7 @@ public class Hook : MonoBehaviour
     [Header("Collision")]
     public float hitRadius = 0.2f;
     public bool hitsPig = true;      // false: the hook passes through the pig (no-kill levels)
+    public bool passRocks;           // true: stones do not stop or break the hook
 
     [Header("Look")]
     public Color defaultColor = Color.yellow;
@@ -108,6 +109,16 @@ public class Hook : MonoBehaviour
         Fire(from, direction, length, defaultColor);
     }
 
+    // Hostile miner: black head stays put; the rope and claw switch to this color immediately.
+    public void Paint(Color fill)
+    {
+        defaultColor = fill;
+        color = fill;
+        outlineColor = new Color(fill.r * 0.4f, fill.g * 0.08f, fill.b * 0.06f, 1f);
+        UpdateRope();
+        UpdateClaw();
+    }
+
     // Called by MinerAI when the telegraph ends. Yellow = treasure shot, red = player shot.
     public void Fire(Vector2 from, Vector2 direction, float length, Color shotColor)
     {
@@ -174,10 +185,11 @@ public class Hook : MonoBehaviour
             else if (state == State.Extending)
             {
                 if (roundOver) state = State.Retracting;
-                else Extend();
+                else if (!BlockAlongRope()) Extend();
             }
             else if (state == State.Retracting && (roundOver || Time.time >= holdUntil))
             {
+                BlockAlongRope();
                 Retract(!roundOver);
             }
         }
@@ -212,8 +224,8 @@ public class Hook : MonoBehaviour
         float remaining = Vector2.Distance(pos, origin);
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
 
-        // An empty hook still reacts to what it touches on the way back. A carrying hook ignores
-        // everything except a blocking pig, which knocks the treasure loose
+        // An empty hook still reacts to what it touches on the way back. A carrying hook drops
+        // its gold on a blocking pig, and still costs a life if it hits a pig who is not blocking.
         if (react && remaining > 0.0001f)
         {
             Vector2 back = (origin - pos) / remaining;
@@ -224,9 +236,15 @@ public class Hook : MonoBehaviour
                     PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
                     if (player != null && player.IsBlocking)
                     {
-                        if (carried != null) PlayAnalytics.Steal();
+                        PlayAnalytics.Steal();
                         DropCarried();
                         player.OnTreasureKnocked();
+                    }
+                    else if (player != null && hitsPig && !player.IsInvulnerable
+                        && touched.Add(hit.collider) && GameManager.Instance != null)
+                    {
+                        // A yellow hook that is already holding gold still hurts a pig who is not blocking.
+                        GameManager.Instance.PlayerHit();
                     }
                     continue;
                 }
@@ -247,6 +265,40 @@ public class Hook : MonoBehaviour
         // Rest pointing down, ready for the next shot
         dir = Vector2.down;
         transform.rotation = Quaternion.identity;
+    }
+
+    // The pig can block by touching the rope, not only the claw. The treasure stays where the
+    // claw is holding it. Returns true when an empty hook should stop going out and head home.
+    bool BlockAlongRope()
+    {
+        Vector2 tip = transform.position;
+        Vector2 delta = tip - origin;
+        float length = delta.magnitude;
+        if (length < 0.05f) return false;
+
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, hitRadius, delta / length, length);
+        foreach (RaycastHit2D hit in hits)
+        {
+            if (hit.collider == null) continue;
+            if (hit.collider.transform.IsChildOf(transform)) continue;
+            PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
+            if (player == null || !player.IsBlocking) continue;
+            if (!touched.Add(hit.collider)) continue;
+
+            if (carried != null)
+            {
+                // Same as the original knock: leave it where the claw is holding it right now.
+                PlayAnalytics.Steal();
+                DropCarried();
+                player.OnTreasureKnocked();
+                continue;
+            }
+
+            player.OnHookBlocked();
+            state = State.Retracting;
+            return true;
+        }
+        return false;
     }
 
     // Everything the hook would touch moving this far, nearest first, excluding itself
@@ -286,6 +338,8 @@ public class Hook : MonoBehaviour
         Rock rock = col.GetComponent<Rock>();
         if (rock != null)
         {
+            // V1 cages: the hook is meant to fly through the stones. Maze walls still stop a shot.
+            if (passRocks) return false;
             // Maze walls sit on neighboring tiles; ignore them until the hook has left its spawn cell
             // so E/M are not instantly blocked by the rocks beside them.
             if (traveled < 0.25f) return false;
