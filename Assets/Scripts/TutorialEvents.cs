@@ -19,7 +19,7 @@ public static class TutorialEvents
         "stage_block", "stage_steal", "stage_destroy", "hook_damaged", "hook_destroyed",
         "round_won", "round_lost", "round_end",
         "squeeze_start", "squeeze_hook", "squeeze_rescue", "squeeze_closed", "squeeze_crushed",
-        "exit_open", "exit_reached", "story_line",
+        "exit_open", "exit_reached", "story_line", "sector_cleared", "hook_spawned",
     };
 
     // The world map's events (MapHub), one set per WorldMap node, e.g. "map_cleared_battle_01":

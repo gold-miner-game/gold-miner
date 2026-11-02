@@ -97,6 +97,8 @@ public class TutorialStep : MonoBehaviour
     // Shared by all steps: the one dark overlay, the steps on screen, and how many hold the freeze
     static SpriteRenderer dark;
     static readonly List<TutorialStep> showing = new List<TutorialStep>();
+    // True while any step is on screen (LevelLoader hides its guide box, which would cover it)
+    public static bool AnyShowing => showing.Count > 0;
     static readonly List<TutorialUIHole> uiHoleBuffer = new List<TutorialUIHole>();
     static int freezes;
 

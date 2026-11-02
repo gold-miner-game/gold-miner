@@ -12,12 +12,15 @@ public class GameManager : MonoBehaviour
     public float invincibleTime = 1.5f;   // after losing a Life
     [Tooltip("Survival mode: no clock and no running out of treasure; only the last Life ends the round")]
     public bool endless = false;
+    [Tooltip("Survival levels: still alive when the clock runs out is a win (whatever the money), and eating all the treasure doesn't end the round")]
+    public bool timeUpWins = false;
 
     public int PlayerMoney { get; private set; }
     public float TimeSurvived { get; private set; }   // endless rounds: seconds since the start
     public int MinerMoney { get; private set; }
     public int Lives { get; private set; }
     public float TimeLeft { get; private set; }
+    public float TimeElapsed => endless ? TimeSurvived : roundTime - TimeLeft;
     public bool IsPlaying { get; private set; }
     public bool PlayerWon { get; private set; }
     public string EndReason { get; private set; }
@@ -56,9 +59,10 @@ public class GameManager : MonoBehaviour
         if (TimeLeft <= 0f)
         {
             TimeLeft = 0f;
-            EndRound(false, "Time's up!");
+            if (timeUpWins) WinRound("You survived!");
+            else EndRound(false, "Time's up!");
         }
-        else if (hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
+        else if (!timeUpWins && hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
         {
             EndRound(false, "All treasure collected!");
         }

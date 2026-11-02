@@ -208,7 +208,9 @@ public class LevelLoader : MonoBehaviour
         for (int i = 0; i < list.Length; i++)
         {
             LevelData data = LevelData.Parse(list[i].text);
-            if (!string.IsNullOrEmpty(data.guide) || data.stages.Count > 0) last = i;
+            // Attack and survival levels have a guide too, but they are battles
+            bool battle = data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f;
+            if (!battle && (!string.IsNullOrEmpty(data.guide) || data.stages.Count > 0)) last = i;
         }
         return last;
     }
@@ -260,7 +262,11 @@ public class LevelLoader : MonoBehaviour
         if (minerTemplate == null) minerTemplate = FindFirstObjectByType<MinerAI>();
 
         if (clearSceneItems) ClearItems();
-        if (screenWalls) new GameObject("ArenaWalls").AddComponent<ArenaWalls>();
+        if (screenWalls)
+        {
+            ArenaWalls walls = new GameObject("ArenaWalls").AddComponent<ArenaWalls>();
+            if (BigMap) walls.SetBounds(ArenaRect);   // the sector's edges, not the screen's
+        }
         if (layout != null) layout.ShowItems();
         else SpawnItems();
         SetUpPlayer();
@@ -269,6 +275,8 @@ public class LevelLoader : MonoBehaviour
         SetUpRound();
         if (level.stages.Count > 0) StartStage(0);
         if (level.IsMaze) SetUpHub();
+        if (Attack) SetUpAttack();
+        if (Survival) SetUpSurvival();
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
         if (player != null && player.SkillHint != "") label += "  " + player.SkillHint;
@@ -332,6 +340,328 @@ public class LevelLoader : MonoBehaviour
         hub.Build(level, player, hex, grey, baked);
     }
 
+    // --- Attack mode ("attack": 1) ----------------------------------------------------------------
+    // No gold: a sector arena_width x arena_height (default twice the screen each way) with wall
+    // rocks for cover and red Life dots, laid out in the level scene. The enemies are the children of
+    // the level scene's "Enemies" object, by name:
+    //   Red Round ...   a walking red hook hole (RedRound): slow, shoots, round_hp HP
+    //   Red Square ...  a red block with no hook (RedSquare): faster, rams, square_hp HP
+    // The camera follows the player. There is no clock; destroying every enemy clears the sector and
+    // wins (plus clear_reward money), losing the last Life loses.
+
+    public const string EnemiesName = "Enemies";
+    public const string RoundName = "Red Round";
+    public const string SquareName = "Red Square";
+
+    public bool Attack => level != null && level.Param("attack", 0f) > 0.5f;
+
+    public Rect ArenaRect
+    {
+        get
+        {
+            float w = level.Param("arena_width", 35.56f), h = level.Param("arena_height", 20f);
+            return new Rect(-w * 0.5f, -h * 0.5f, w, h);
+        }
+    }
+
+    int enemies;
+    public int EnemiesLeft => Mathf.Max(0, enemies - hooksDestroyed);
+    public int EnemyCount => enemies;
+
+    Sprite redHole, redSquare;
+
+    void SetUpAttack()
+    {
+        if (player != null) GameplayCamera.Follow(player.transform, ArenaRect);
+        EnemyPathfinder.SetSector(ArenaRect);   // the enemies' A* grid
+        Transform group = layout != null ? layout.transform.Find(EnemiesName) : null;
+        if (group == null) { Debug.LogWarning("LevelLoader: attack level with no \"" + EnemiesName + "\" object in its scene"); return; }
+        foreach (Transform spot in group)
+        {
+            if (!spot.gameObject.activeSelf) continue;
+            if (spot.name.StartsWith(RoundName)) { if (AddRound(spot.position)) enemies++; }
+            else if (spot.name.StartsWith(SquareName)) { if (AddSquare(spot.position)) enemies++; }
+            else Debug.LogWarning("LevelLoader: '" + spot.name + "' under " + EnemiesName + " is neither a " + RoundName + " nor a " + SquareName, spot);
+            spot.gameObject.SetActive(false);   // only a marker
+        }
+    }
+
+    bool AddRound(Vector2 at)
+    {
+        SurvivalHookAI ai = AddHole(at, level.Param("start_delay", 1f));
+        if (ai == null) return false;
+        ai.transform.parent.name = RoundName + " " + (enemies + 1);
+        if (redHole == null) redHole = HookHole.CreateSprite(new Color(0.35f, 0.04f, 0.04f), new Color(0.9f, 0.2f, 0.18f));
+        SpriteRenderer look = ai.GetComponent<SpriteRenderer>();
+        if (look != null) { look.sprite = redHole; look.sortingOrder = 2; }
+        ai.transform.localScale = Vector3.one * level.Param("round_size", 1.1f);
+        HookHealth health = ai.GetComponent<HookHealth>();
+        if (health == null) health = ai.gameObject.AddComponent<HookHealth>();
+        health.hp = Mathf.RoundToInt(level.Param("round_hp", 4f));
+        health.parts = new[] { ai.transform.parent.gameObject };
+        RedRound walker = ai.gameObject.AddComponent<RedRound>();
+        walker.target = player != null ? player.transform : null;
+        walker.moveSpeed = level.Param("round_speed", 1.2f);
+        walker.wakeRange = level.Param("enemy_wake", walker.wakeRange);
+        walker.shootRange = level.Param("round_range", walker.shootRange);
+        walker.keepDistance = level.Param("round_keep", walker.keepDistance);
+        return true;
+    }
+
+    bool AddSquare(Vector2 at)
+    {
+        if (player == null) return false;
+        var go = new GameObject(SquareName + " " + (enemies + 1));
+        go.transform.position = at;
+        go.transform.localScale = Vector3.one * level.Param("square_size", 0.8f);
+        if (redSquare == null) redSquare = RedSquare.CreateSprite();
+        SpriteRenderer sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = redSquare;
+        sr.color = RedSquare.Red;
+        sr.sortingOrder = 2;
+        BoxCollider2D box = go.AddComponent<BoxCollider2D>();
+        box.size = Vector2.one;
+        // "square_hp": 0 makes it unkillable (survival): no HookHealth, so no HP bar and nothing hurts it
+        int squareHp = Mathf.RoundToInt(level.Param("square_hp", 2f));
+        if (squareHp > 0) go.AddComponent<HookHealth>().hp = squareHp;
+        RedSquare walker = go.AddComponent<RedSquare>();
+        walker.target = player.transform;
+        walker.moveSpeed = level.Param("square_speed", 2.64f);
+        walker.wakeRange = level.Param("enemy_wake", walker.wakeRange);
+        return true;
+    }
+
+    void UpdateAttack()
+    {
+        GameManager gm = GameManager.Instance;
+        if (!Attack || gm == null || !gm.IsPlaying || enemies == 0 || EnemiesLeft > 0) return;
+        gm.AddPlayerMoney(Mathf.RoundToInt(level.Param("clear_reward", 0f)));
+        TutorialEvents.Fire(SectorClearedEvent);
+        gm.WinRound("Sector cleared!");
+    }
+
+    public const string SectorClearedEvent = "sector_cleared";
+
+    // --- Survival levels ("survival": 1, level 2 onward) ---------------------------------------------
+    // Survival mode (SurvivalLoader) made finite, on a sector like attack mode's ("arena_width" x
+    // "arena_height", the camera following the player, the level scene's wall rocks in the way):
+    // the survival look (its dark ground and faint grid lines), Red Squares chasing from the start
+    // (the scene's Enemies markers), and survival's hook holes walking after the player (RedRound,
+    // along A* paths), more and more of them: "start_hooks", one more every "seconds_per_hook" up
+    // to "max_hooks", growing out of the ground "spawn_min".."spawn_max" from the player. They aim
+    // like survival's (TreasureInterceptAimer), their hooks get faster ("hook_speed_start" to
+    // "hook_speed_end") and their telegraphs and cooldowns shorter ("hardest_scale") as the round
+    // goes on. Still alive when the clock ("round_time") runs out is a win, and the gold eaten is
+    // the pay; eaten gold turns up again elsewhere after "gold_respawn" seconds.
+
+    public bool Survival => level != null && level.Param("survival", 0f) > 0.5f;
+
+    // Attack and survival play on a sector bigger than the screen
+    bool BigMap => Attack || Survival;
+
+    int MaxHooks => Mathf.Max(1, Mathf.RoundToInt(level.Param("max_hooks", 10f)));
+
+    readonly Dictionary<SurvivalHookAI, float> holeBorn = new Dictionary<SurvivalHookAI, float>();
+    float nextHoleAt, nextGoldAt = -1f;
+    int goldTarget;
+
+    // Survival mode's treasure mix (SurvivalLoader's weights)
+    static readonly string[] GoldTypes = { "Gold_Small", "Gold_Medium", "Gold_Large", "Diamond", "Life" };
+    static readonly float[] GoldWeights = { 40f, 28f, 14f, 10f, 3f };
+
+    // SurvivalLoader's look
+    static readonly Color SurvivalSky = new Color(0.12f, 0.16f, 0.22f);
+    static readonly Color SurvivalLines = new Color(1f, 1f, 1f, 0.06f);
+    const float SurvivalCell = 2f;
+
+    void SetUpSurvival()
+    {
+        Rect area = ArenaRect;
+        if (player != null) GameplayCamera.Follow(player.transform, area);
+        EnemyPathfinder.SetSector(area);
+        CreateSurvivalGround(area);
+
+        // The Red Squares that chase from the start
+        Transform group = layout != null ? layout.transform.Find(EnemiesName) : null;
+        if (group != null)
+            foreach (Transform spot in group)
+            {
+                if (!spot.gameObject.activeSelf) continue;
+                if (spot.name.StartsWith(SquareName)) { if (AddSquare(spot.position)) enemies++; }
+                else Debug.LogWarning("LevelLoader: survival levels only take " + SquareName + " markers under " + EnemiesName + " ('" + spot.name + "')", spot);
+                spot.gameObject.SetActive(false);   // only a marker
+            }
+
+        nextHoleAt = level.Param("start_delay", 1.5f);
+        goldTarget = Treasure.Active.Count;
+    }
+
+    // The dark survival ground with its faint grid, over the whole sector
+    void CreateSurvivalGround(Rect area)
+    {
+        Camera cam = Camera.main;
+        if (cam != null) cam.backgroundColor = SurvivalSky;
+
+        const int size = 32;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+        var pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                pixels[y * size + x] = x == 0 || y == 0 ? SurvivalLines : Color.clear;
+        texture.SetPixels(pixels);
+        texture.Apply();
+        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size / SurvivalCell, 0, SpriteMeshType.FullRect);
+
+        var go = new GameObject("Survival Ground");
+        go.transform.position = area.center;
+        SpriteRenderer ground = go.AddComponent<SpriteRenderer>();
+        ground.sprite = sprite;
+        SpriteRenderer look = player != null ? player.body : null;
+        if (look != null) ground.sharedMaterial = look.sharedMaterial;
+        ground.drawMode = SpriteDrawMode.Tiled;
+        ground.sortingOrder = -100;
+        ground.size = area.size;
+        spawned.Add(go);
+    }
+
+    int WantedHooks(float elapsed)
+    {
+        int start = Mathf.RoundToInt(level.Param("start_hooks", 1f));
+        float every = Mathf.Max(1f, level.Param("seconds_per_hook", 12f));
+        return Mathf.Min(MaxHooks, start + Mathf.FloorToInt(elapsed / every));
+    }
+
+    // 0 at the start of the round, 1 when the clock runs out
+    float SurvivalProgress(GameManager gm) => gm.roundTime > 0f ? Mathf.Clamp01(gm.TimeElapsed / gm.roundTime) : 1f;
+
+    void UpdateSurvival()
+    {
+        GameManager gm = GameManager.Instance;
+        if (!Survival || gm == null || !gm.IsPlaying || player == null) return;
+        float elapsed = gm.TimeElapsed;
+
+        // More walking hooks as the round goes on
+        if (holes.Count < WantedHooks(elapsed) && elapsed >= nextHoleAt)
+        {
+            if (FreeSpot(player.transform.position, level.Param("spawn_min", 5f), level.Param("spawn_max", 9f), level.Param("hole_spacing", 2f), out Vector2 at))
+                AddWalkingHook(at);
+            nextHoleAt = elapsed + 0.6f;
+        }
+
+        // Faster hooks and shorter waits as the round goes on, and each new hole grows out of the ground
+        float progress = SurvivalProgress(gm);
+        float speed = Mathf.Lerp(level.Param("hook_speed_start", 1f), level.Param("hook_speed_end", 1.3f), progress);
+        float pace = Mathf.Lerp(1f, level.Param("hardest_scale", 0.55f), progress);
+        float extend = level.Param("hook_extend", 18f) * gameSpeed * speed;
+        float retract = level.Param("hook_retract", 20f) * gameSpeed * speed;
+        float size = level.Param("hole_size", 0.9f), growTime = level.Param("grow_time", 1.2f);
+        foreach (SurvivalHookAI ai in holes)
+        {
+            if (ai == null || ai.hook == null) continue;
+            ai.hook.extendSpeed = extend;
+            ai.hook.retractSpeed = retract;
+            ai.telegraphMin = level.Param("telegraph_min", 1f) * pace;
+            ai.telegraphMax = level.Param("telegraph_max", 1.8f) * pace;
+            ai.cooldown = level.Param("cooldown", 0.8f) * pace;
+            if (holeBorn.TryGetValue(ai, out float born))
+            {
+                float t = growTime > 0f ? Mathf.Clamp01((Time.time - born) / growTime) : 1f;
+                ai.transform.localScale = Vector3.one * size * EaseOutBack(t);
+                if (t >= 1f) holeBorn.Remove(ai);
+            }
+        }
+
+        // Eaten gold turns up again somewhere else, a piece at a time
+        if (Treasure.Active.Count < goldTarget)
+        {
+            if (nextGoldAt < 0f) nextGoldAt = Time.time + level.Param("gold_respawn", 3f);
+            else if (Time.time >= nextGoldAt && FreeSpot(player.transform.position, 4f, 40f, 1.2f, out Vector2 spot))
+            {
+                Spawn(new List<LevelData.Item> { new LevelData.Item { type = PickGold(), position = spot } });
+                nextGoldAt = -1f;
+            }
+        }
+    }
+
+    public const string HookSpawnedEvent = "hook_spawned";
+
+    // Survival's hook hole, walking after the player and growing out of the ground
+    void AddWalkingHook(Vector2 at)
+    {
+        float grow = level.Param("grow_time", 1.2f);
+        SurvivalHookAI ai = AddHole(at, grow + Random.Range(0.2f, 0.8f));
+        if (ai == null) return;
+        ai.transform.parent.name = "Walking Hook " + holes.Count;
+        ai.transform.localScale = Vector3.zero;
+        holeBorn[ai] = Time.time;
+
+        float reach = level.Param("hook_range", 11f);
+        TreasureInterceptAimer aimer = ai.gameObject.AddComponent<TreasureInterceptAimer>();
+        aimer.lureRadius = level.Param("lure_radius", 8f);
+        aimer.intentAngle = level.Param("intent_angle", 30f);
+        aimer.maxReach = reach;
+        ai.aimer = aimer;
+
+        RedRound walker = ai.gameObject.AddComponent<RedRound>();
+        walker.target = player.transform;
+        walker.moveSpeed = level.Param("miner_speed", 1.2f);
+        walker.wakeRange = 1000f;   // hunting from the moment it is up
+        walker.WakeUp();
+        walker.shootRange = reach;
+        walker.keepDistance = level.Param("miner_keep", 5f);
+        TutorialEvents.Fire(HookSpawnedEvent);
+    }
+
+    string PickGold()
+    {
+        float total = 0f;
+        foreach (float w in GoldWeights) total += w;
+        float roll = Random.value * total;
+        for (int i = 0; i < GoldTypes.Length; i++)
+        {
+            roll -= GoldWeights[i];
+            if (roll <= 0f) return GoldTypes[i];
+        }
+        return GoldTypes[0];
+    }
+
+    // A random spot in the sector, `min`..`max` from `around`, clear of the wall rocks and at least
+    // `fromHoles` from every hook hole
+    bool FreeSpot(Vector2 around, float min, float max, float fromHoles, out Vector2 spot)
+    {
+        Rect area = ArenaRect;
+        area = new Rect(area.x + 1f, area.y + 1f, area.width - 2f, area.height - 2f);
+        for (int attempt = 0; attempt < 30; attempt++)
+        {
+            spot = max >= 30f
+                ? new Vector2(Random.Range(area.xMin, area.xMax), Random.Range(area.yMin, area.yMax))
+                : around + Random.insideUnitCircle.normalized * Random.Range(min, max);
+            if (!area.Contains(spot) || Vector2.Distance(spot, around) < min || NearWall(spot, 0.8f)) continue;
+            bool clear = true;
+            foreach (SurvivalHookAI h in holes)
+                if (h != null && Vector2.Distance(h.transform.position, spot) < fromHoles) { clear = false; break; }
+            if (clear) return true;
+        }
+        spot = Vector2.zero;
+        return false;
+    }
+
+    static bool NearWall(Vector2 at, float radius)
+    {
+        foreach (Collider2D col in Physics2D.OverlapCircleAll(at, radius))
+        {
+            Rock rock = col.GetComponentInParent<Rock>();
+            if (rock != null && rock.isWall) return true;
+        }
+        return false;
+    }
+
+    static float EaseOutBack(float t)
+    {
+        const float s = 1.7f;
+        t -= 1f;
+        return 1f + t * t * ((s + 1f) * t + s);
+    }
     // Returns the treasure among what it spawned
     List<Treasure> Spawn(List<LevelData.Item> items)
     {
@@ -405,6 +735,12 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpMiners()
     {
+        if (Survival)
+        {
+            // No miners at the start: SetUpSurvival grows hook holes as the round goes on
+            if (minerTemplate != null) minerTemplate.gameObject.SetActive(false);
+            return;
+        }
         if (level.Param("hook_holes", 0f) > 0.5f)
         {
             if (minerTemplate != null) minerTemplate.gameObject.SetActive(false);
@@ -581,7 +917,8 @@ public class LevelLoader : MonoBehaviour
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
-        gm.endless = level.IsMaze;   // the hub: no clock, nothing ends it
+        gm.endless = level.IsMaze || Attack;   // the hub: no clock, nothing ends it; attack: clearing the sector ends it
+        gm.timeUpWins = Survival;   // survival: last until the clock runs out
         gm.roundTime = level.Param("round_time", gm.roundTime);
         if (Tutorial)
         {
@@ -601,6 +938,8 @@ public class LevelLoader : MonoBehaviour
     {
         if (list == null || list.Length == 0) return;
         UpdateGoal();
+        UpdateAttack();
+        UpdateSurvival();
         UpdateAdvance();
         UpdateGuideFade();
 
@@ -787,7 +1126,9 @@ public class LevelLoader : MonoBehaviour
         ScreenFrame.BeginGUI();   // lay out in 1280x720, scaled to the 16:9 frame
 
         GameManager gm = GameManager.Instance;
-        if (gm != null && gm.IsPlaying) DrawGuide();
+        // Not under a story or a tutorial step: OnGUI draws over every canvas, so the guide box would
+        // cover the story box (TutorialDialogue, set to Top) and the steps' callouts. It comes back after
+        if (gm != null && gm.IsPlaying && !TutorialDialogue.Playing && !TutorialStep.AnyShowing) DrawGuide();
         if (hasHud) return;
         string hint = NextStepHint;
         if (hint != "") GUI.Label(new Rect(10, ScreenFrame.GuiHeight - 54, 700, 24), hint);
@@ -814,7 +1155,11 @@ public class LevelLoader : MonoBehaviour
         {
             if (string.IsNullOrEmpty(level.guide)) return;
             guide = level.guide;
-            if (level.items.Count > 0)
+            if (Attack)
+                progress = "Enemies left: " + EnemiesLeft + " / " + EnemyCount;
+            else if (Survival)
+                progress = "Hooks: " + holes.Count + " / " + MaxHooks;
+            else if (level.items.Count > 0)
                 progress = "Left: " + (Treasure.Active.Count + Treasure.OnHooks.Count);
         }
 

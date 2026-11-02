@@ -45,7 +45,10 @@ public class MinerAI : MonoBehaviour
     // Treasure each miner is going for, until its hook is home (Efficient strategy)
     private static readonly Dictionary<MinerAI, Treasure> claims = new Dictionary<MinerAI, Treasure>();
 
-    void OnDisable() { claims.Remove(this); }
+    // From the telegraph until the hook is home: the hook's origin must stay put (a walking enemy waits)
+    public bool Aiming { get; private set; }
+
+    void OnDisable() { claims.Remove(this); Aiming = false; }
 
     void Start()
     {
@@ -83,6 +86,7 @@ public class MinerAI : MonoBehaviour
                 treasureShotsLeft = Random.Range(minTreasureShots, maxTreasureShots + 1);
             }
             lastShotAtPig = aimAtPlayer;
+            Aiming = true;
 
             // 2. Lock the trajectory now, so the player can react to it
             Vector2 origin = hookOrigin.position;
@@ -95,13 +99,14 @@ public class MinerAI : MonoBehaviour
             if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.AimEvent);
             yield return new WaitForSeconds(Random.Range(telegraphMin, telegraphMax));
             telegraph.Hide();
-            if (!GameManager.Instance.IsPlaying) yield break;
+            if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
             // 4. Fire, then wait for the hook to come back
             hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
             if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.FireEvent);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
             claims.Remove(this);
+            Aiming = false;
             if (aimAtPlayer && GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(SurvivalHookAI.DodgedEvent);
 
             yield return new WaitForSeconds(cooldown);

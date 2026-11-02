@@ -170,6 +170,17 @@ public class HUDController : MonoBehaviour
     {
         if (timerText == null) return;
 
+        // No clock running out (attack mode): the time taken so far, counting up
+        if (gm.endless && !(flow != null && flow.InHub))
+        {
+            int up = Mathf.FloorToInt(gm.TimeSurvived);
+            timerText.text = (up / 60) + ":" + (up % 60).ToString("00");
+            timerText.color = timerBaseColor;
+            timerText.transform.localScale = timerBaseScale;
+            PlaceMapButton();
+            return;
+        }
+
         // Judge by the number on screen, so "0:10" is never red
         int seconds = Mathf.CeilToInt(gm.TimeLeft);
         timerText.text = flow != null && flow.InHub ? "" : (seconds / 60) + ":" + (seconds % 60).ToString("00");   // the hub has no clock

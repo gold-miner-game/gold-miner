@@ -96,11 +96,57 @@ public class LevelLayout : MonoBehaviour
     // The arena the levels are balanced for (GameplayCamera.arenaSize), around the camera at the origin
     static readonly Vector2 ArenaSize = new Vector2(17.78f, 10f);
 
+    // An attack level's sector ("arena_width" / "arena_height"), read from the level file when it changes
+    string sectorFrom;
+    Vector2 sector;
+
+    Vector2 Sector()
+    {
+        string text = levelFile != null ? levelFile.text : null;
+        if (text == sectorFrom) return sector;
+        sectorFrom = text;
+        sector = Vector2.zero;
+        if (text == null) return sector;
+        try
+        {
+            LevelData data = LevelData.Parse(text);
+            if (data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f)
+                sector = new Vector2(data.Param("arena_width", 35.56f), data.Param("arena_height", 20f));
+        }
+        catch (System.Exception) { }
+        return sector;
+    }
+
     void OnDrawGizmos()
     {
         DrawScreenLayout();
         Gizmos.color = new Color(1f, 1f, 1f, 0.35f);
         Gizmos.DrawWireCube(Vector3.zero, ArenaSize);
+
+        // Attack mode's enemy markers (LevelLoader.SetUpAttack): a red circle per Red Round, a red
+        // square per Red Square
+        Transform enemies = transform.Find("Enemies");
+        if (enemies != null)
+            foreach (Transform e in enemies)
+            {
+                if (!e.gameObject.activeSelf) continue;
+                Gizmos.color = new Color(0.95f, 0.2f, 0.18f);
+                if (e.name.StartsWith("Red Square")) { Gizmos.DrawCube(e.position, Vector3.one * 0.8f); continue; }
+                Gizmos.DrawWireSphere(e.position, 0.55f);
+                Gizmos.DrawWireSphere(e.position, 0.3f);
+            }
+
+        // Attack mode: the whole sector (the camera follows the player round it)
+        Vector2 size = Sector();
+        if (size != Vector2.zero)
+        {
+            Gizmos.color = new Color(1f, 0.35f, 0.3f, 0.9f);
+            Gizmos.DrawWireCube(Vector3.zero, size);
+#if UNITY_EDITOR
+            UnityEditor.Handles.color = new Color(1f, 0.5f, 0.45f);
+            UnityEditor.Handles.Label(new Vector3(-size.x * 0.5f + 0.2f, size.y * 0.5f + 0.6f), "Sector (the camera follows the player)");
+#endif
+        }
 
         if (playerStart != null)
         {

@@ -34,6 +34,40 @@ public class GameplayCamera : MonoBehaviour
         fit.Fit();
     }
 
+    // A level bigger than the screen (attack mode): the view keeps its size and follows `target`,
+    // never showing past `bounds` (world units)
+    public static void Follow(Transform target, Rect bounds)
+    {
+        Camera main = Camera.main;
+        if (main == null) return;
+        Ensure(main);
+        GameplayCamera fit = main.GetComponent<GameplayCamera>();
+        fit.follow = target;
+        fit.bounds = bounds;
+        fit.Track(true);
+    }
+
+    [Tooltip("Following: higher = the camera keeps up more tightly")]
+    public float followSharpness = 8f;
+
+    private Transform follow;
+    private Rect bounds;
+
+    // Toward the target (at once when snapping), kept inside the bounds
+    void Track(bool snap)
+    {
+        if (follow == null) return;
+        if (cam == null) cam = GetComponent<Camera>();   // Follow can come before this Awake
+        float halfH = cam.orthographicSize;
+        float halfW = halfH * cam.aspect;
+        Vector2 want = follow.position;
+        want.x = bounds.width > halfW * 2f ? Mathf.Clamp(want.x, bounds.xMin + halfW, bounds.xMax - halfW) : bounds.center.x;
+        want.y = bounds.height > halfH * 2f ? Mathf.Clamp(want.y, bounds.yMin + halfH, bounds.yMax - halfH) : bounds.center.y;
+        Vector3 at = transform.position;
+        Vector2 now = snap ? want : Vector2.Lerp(at, want, 1f - Mathf.Exp(-followSharpness * Time.deltaTime));
+        transform.position = new Vector3(now.x, now.y, at.z);
+    }
+
     void Awake()
     {
         cam = GetComponent<Camera>();
@@ -46,6 +80,7 @@ public class GameplayCamera : MonoBehaviour
     {
         if (!Application.isPlaying) { FitInEditor(); return; }
         if (Screen.width != lastWidth || Screen.height != lastHeight) Fit();
+        Track(false);
     }
 
     // Edit mode: the same split of a 16:9 Game view, without reading Screen (in the editor that

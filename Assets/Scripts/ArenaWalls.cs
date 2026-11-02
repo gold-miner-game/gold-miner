@@ -33,9 +33,23 @@ public class ArenaWalls : MonoBehaviour
         return go.AddComponent<BoxCollider2D>();
     }
 
+    // A level bigger than the screen (attack mode): the walls stay on these edges instead of the view's
+    private bool fixedBounds;
+
+    public void SetBounds(Rect area)
+    {
+        fixedBounds = true;
+        float t = thickness;
+        Place(left,   new Vector2(area.xMin - t * 0.5f, area.center.y), new Vector2(t, area.height + 2f * t));
+        Place(right,  new Vector2(area.xMax + t * 0.5f, area.center.y), new Vector2(t, area.height + 2f * t));
+        Place(bottom, new Vector2(area.center.x, area.yMin - t * 0.5f), new Vector2(area.width + 2f * t, t));
+        Place(top,    new Vector2(area.center.x, area.yMax + t * 0.5f), new Vector2(area.width + 2f * t, t));
+    }
+
     // LateUpdate: GameplayCamera fits the view to the screen before this reads it
     void LateUpdate()
     {
+        if (fixedBounds) return;
         if (cam == null) cam = Camera.main;
         if (cam == null || !cam.orthographic) return;
 

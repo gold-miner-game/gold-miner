@@ -33,6 +33,14 @@ public class SurvivalHookAI : MonoBehaviour
     public float range = 11f;
     public Color shotColor = Color.red;
 
+    [Tooltip("Hold every shot while on (attack mode's Red Round shoots only with a clear shot)")]
+    public bool holdFire;
+
+    // From the telegraph until the hook is home: the hook's origin must stay put (RedRound waits)
+    public bool Aiming { get; private set; }
+
+    void OnDisable() { Aiming = false; }
+
     void Start()
     {
         StartCoroutine(Loop());
@@ -45,6 +53,7 @@ public class SurvivalHookAI : MonoBehaviour
         while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
             if (target == null) yield break;
+            if (holdFire) { yield return null; continue; }
             Vector2 origin = hookOrigin.position;
             if (range > 0f && Vector2.Distance(origin, target.position) > range) { yield return null; continue; }
 
@@ -61,15 +70,17 @@ public class SurvivalHookAI : MonoBehaviour
             Vector2 dir = toTarget.normalized;
             float length = toTarget.magnitude + overshoot;
 
+            Aiming = true;
             telegraph.Show(origin, origin + dir * length, shotColor);
             TutorialEvents.Fire(AimEvent);
             yield return new WaitForSeconds(telegraphTime);
             telegraph.Hide();
-            if (!GameManager.Instance.IsPlaying) yield break;
+            if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
             hook.Fire(origin, dir, length, shotColor);
             TutorialEvents.Fire(FireEvent);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
+            Aiming = false;
             if (GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(DodgedEvent);
 
             yield return new WaitForSeconds(cooldown);

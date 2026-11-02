@@ -39,10 +39,39 @@ public class MrHydeController : PlayerCharacter
 
         blockUntil = Time.time + BlockDuration;
         blockReadyAt = blockUntil + BlockCooldown;
+        hitThisBlock.Clear();
+        AttackInReach();
+    }
 
-        // Next to a hook, the same press attacks it
-        HookHealth target = HookHealth.InReach(transform.position, attackReach);
-        if (target != null) target.Damage();
+    // Enemies already hit by the current block (each takes one hit per block)
+    private readonly System.Collections.Generic.HashSet<HookHealth> hitThisBlock = new System.Collections.Generic.HashSet<HookHealth>();
+
+    // The block attacks for as long as it is up, not only on the frame Space went down: walking into
+    // an enemy with the block raised, or a Red Square ramming the block, still lands the hit
+    protected override void Update()
+    {
+        base.Update();
+        if (Time.time < blockUntil) AttackInReach();
+    }
+
+    void AttackInReach()
+    {
+        Collider2D body = GetComponent<Collider2D>();
+        Vector2 from = body != null ? (Vector2)body.bounds.center : (Vector2)transform.position;
+        HookHealth target = HookHealth.InReach(from, attackReach);
+        if (target == null || hitThisBlock.Contains(target)) return;
+        if (target.Damage()) { hitThisBlock.Add(target); ShowHit(this, target); }
+    }
+
+    // A hit that landed: the block's white half sphere on the player's body, facing what it hit
+    public static void ShowHit(PlayerCharacter player, HookHealth target)
+    {
+        Collider2D body = player.GetComponent<Collider2D>();
+        Vector2 at = player.transform.position;
+        Vector2 toward = target.Box != null ? target.Box.ClosestPoint(at) - at : (Vector2)target.transform.position - at;
+        if (toward.sqrMagnitude < 0.0001f) toward = Vector2.up;
+        Vector2 surface = body != null ? body.ClosestPoint(at + toward.normalized * 10f) : at;
+        BlockFlash.Show(surface, toward, body != null ? body.bounds.size.x : 1f);
     }
 
     // While blocking the whole body is blue
