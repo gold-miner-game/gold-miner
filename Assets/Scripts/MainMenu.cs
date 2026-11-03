@@ -121,6 +121,8 @@ public class MainMenu : MonoBehaviour
 
     void Play()
     {
+        // Every story plays again in a new session: the Only First Time ones count from here
+        TutorialStep.ResetSeen();
         GameFlow.Instance.OpenMap();
     }
 

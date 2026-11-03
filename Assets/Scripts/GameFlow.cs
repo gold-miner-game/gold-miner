@@ -113,7 +113,20 @@ public class GameFlow : MonoBehaviour
     void NextTutorial(int finished)
     {
         if (finished + 1 < Map.tutorialLevels.Count) { PlayTutorial(finished + 1); return; }
+        FinishTutorialRun();
+    }
+
+    // The tutorials are over: saved as done, then straight on to the store (Map.afterTutorialNode), whose
+    // leaving opens the map. The last tutorial level calls this itself on its win ("win_to_store"), so
+    // it works even when that level was played straight from its scene
+    public void FinishTutorialRun()
+    {
         ProgressStore.MarkCompleted(ProgressStore.TutorialDoneId);
+        tutorialStep = -1;
+        winHandled = true;
+        MapNode next = Map != null && !string.IsNullOrEmpty(Map.afterTutorialNode) ? Map.Find(Map.afterTutorialNode) : null;
+        if (next != null) { ClearGameHooks(); EnterNode(next); return; }
+        CurrentNode = null;
         OpenMap();
     }
 

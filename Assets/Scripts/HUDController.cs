@@ -594,7 +594,8 @@ public class HUDController : MonoBehaviour
     void UpdateEndPanel(GameManager gm)
     {
         if (gm.IsPlaying || endPanel == null) return;
-        if (TutorialDialogue.HidesResult)   // a story is told instead of the result
+        // A story is told instead of the result, or the level goes straight on (to the store)
+        if (TutorialDialogue.HidesResult || (levelLoader != null && levelLoader.SkipsResult))
         {
             if (endPanel.activeSelf) endPanel.SetActive(false);
             return;

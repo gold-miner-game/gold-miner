@@ -56,6 +56,7 @@ MonoBehaviour:
     type: 1
     levelAsset: {fileID: 4900000, guid: 92542b7d19ed43da97932670b3ee1abb, type: 3}
     displayName: Level 4
+    comingSoon: 1
     mapPosition: {x: 0.18, y: 0.666}
     prerequisites:
     - battle_01
@@ -63,6 +64,7 @@ MonoBehaviour:
     type: 1
     levelAsset: {fileID: 4900000, guid: 981777666ae340d78c1d56b1cc54bc0f, type: 3}
     displayName: Level 5
+    comingSoon: 1
     mapPosition: {x: 0.82, y: 0.666}
     prerequisites:
     - battle_02
@@ -70,6 +72,7 @@ MonoBehaviour:
     type: 1
     levelAsset: {fileID: 4900000, guid: 369a132cec1f40b8aa275c26e8b6f615, type: 3}
     displayName: Level 6
+    comingSoon: 1
     mapPosition: {x: 0.18, y: 0.777}
     prerequisites:
     - battle_03
@@ -77,6 +80,7 @@ MonoBehaviour:
     type: 1
     levelAsset: {fileID: 4900000, guid: 462eebf065f04e42abc6906d20780115, type: 3}
     displayName: Level 7
+    comingSoon: 1
     mapPosition: {x: 0.82, y: 0.777}
     prerequisites:
     - battle_04
@@ -84,6 +88,7 @@ MonoBehaviour:
     type: 1
     levelAsset: {fileID: 4900000, guid: 893a8ae59bf541a2a072c654cbf4bd60, type: 3}
     displayName: Level 8
+    comingSoon: 1
     mapPosition: {x: 0.5, y: 0.888}
     prerequisites:
     - battle_05
@@ -91,6 +96,7 @@ MonoBehaviour:
     type: 4
     levelAsset: {fileID: 0}
     displayName: Survive Mode
+    comingSoon: 1
     mapPosition: {x: 0.5, y: 1}
     prerequisites:
     - battle_08

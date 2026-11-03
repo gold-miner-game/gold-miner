@@ -108,9 +108,10 @@ public abstract class RedEnemy : MonoBehaviour
         Step(to.normalized, Mathf.Min(length, to.magnitude));
     }
 
-    // `length` toward `dir`, or the nearest turn of it that isn't blocked
+    // `length` toward `dir` (bent away from the other enemies), or the nearest turn of it that isn't blocked
     protected void Step(Vector2 dir, float length)
     {
+        dir = AvoidOthers(dir);
         foreach (float turn in Turns)
         {
             Vector2 d = Quaternion.Euler(0f, 0f, turn) * dir;
@@ -120,11 +121,54 @@ public abstract class RedEnemy : MonoBehaviour
         }
     }
 
+    // --- Getting past each other ---------------------------------------------------------------------
+    // The enemies don't block each other (two walking head-on used to wedge, every way out "blocked"
+    // by the other). Instead each one is pushed away from any that come too close, and one coming
+    // straight at it steps to its own right, so the two pass on opposite sides.
+
+    static readonly List<RedEnemy> all = new List<RedEnemy>();
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { all.Clear(); }
+
+    protected virtual void OnEnable() { if (!all.Contains(this)) all.Add(this); }
+    protected virtual void OnDisable() { all.Remove(this); }
+
+    Vector2 AvoidOthers(Vector2 dir)
+    {
+        if (body == null || dir.sqrMagnitude < 0.0001f) return dir;
+        Vector2 me = body.position;
+        float r = Clearance();
+        Vector2 push = Vector2.zero;
+        Vector2 right = new Vector2(dir.y, -dir.x);
+        foreach (RedEnemy other in all)
+        {
+            if (other == null || other == this || other.body == null) continue;
+            Vector2 away = me - other.body.position;
+            float d = away.magnitude;
+            float range = r + other.Clearance() + 0.35f;
+            if (d >= range) continue;
+            // On top of each other: split by who is who, so they never pick the same side
+            Vector2 apart = d > 0.001f ? away / d : (GetInstanceID() < other.GetInstanceID() ? right : -right);
+            push += apart * (1f - d / range);
+            // Coming at each other: both step right, so they pass on opposite sides
+            if (Vector2.Dot(dir, -apart) > 0.6f) push += right * 0.8f * (1f - d / range);
+        }
+        if (push.sqrMagnitude < 0.0001f) return dir;
+        Vector2 bent = dir + push * 1.5f;
+        return bent.sqrMagnitude > 0.0001f ? bent.normalized : right;
+    }
+
     protected bool Blocked(Vector2 dir, float length)
     {
         int n = body.Cast(dir, solid, hits, length);
         for (int i = 0; i < n; i++)
-            if (hits[i].collider != null && !hits[i].collider.isTrigger && hits[i].rigidbody != body) return true;
+        {
+            Collider2D c = hits[i].collider;
+            if (c == null || c.isTrigger || hits[i].rigidbody == body) continue;
+            if (hits[i].rigidbody != null && hits[i].rigidbody.GetComponent<RedEnemy>() != null) continue;   // another enemy: steered round, not a wall
+            return true;
+        }
         return false;
     }
 

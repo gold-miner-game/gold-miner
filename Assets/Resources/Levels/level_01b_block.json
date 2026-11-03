@@ -31,7 +31,8 @@
     "telegraph_max": 2.5,
     "cooldown": 1.5,
     "round_time": 180.0,
-    "starting_lives": 3,
+    "starting_lives": 999,
+    "win_to_store": 1,
     "invincible_time": 1.5,
     "hook_kills": true,
     "hook_hp": 1

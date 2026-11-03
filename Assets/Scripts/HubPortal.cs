@@ -61,7 +61,7 @@ public class HubPortal : MonoBehaviour
 
         armed = Vector2.Distance(playerAt, transform.position) > tileSize;
 
-        isStone = hidden && !ProgressStore.WasRevealed(node.id);
+        isStone = hidden && (node.comingSoon || !ProgressStore.WasRevealed(node.id));   // coming soon: a rock, even if seen before
         if (isStone && IsUnlocked) StartCoroutine(Reveal());   // just unlocked: show it happening
         else ApplyLook();
     }

@@ -72,6 +72,8 @@ public static class ProgressStore
         PlayerPrefs.DeleteKey(CharacterKey);
         PlayerPrefs.DeleteKey(RevealedKey);
         PlayerPrefs.Save();
+        // The stories and steps that play only the first time (TutorialStep Only First Time) play again
+        TutorialStep.ResetSeen();
         CrossLevelStatus.ClearSavedWallet();
     }
 }

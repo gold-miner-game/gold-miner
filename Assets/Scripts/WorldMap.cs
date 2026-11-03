@@ -29,6 +29,8 @@ public class MapNode
     [Tooltip("Ids of the nodes that unlock this one (its parents in the tree). Empty = a start node. " +
              "Completing ANY one unlocks it, so a node can branch into two and two can merge back.")]
     public string[] prerequisites = new string[0];
+    [Tooltip("Not open yet: stays locked whatever is cleared, and a hidden portal stays a rock in the wall")]
+    public bool comingSoon;
 }
 
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]
@@ -37,6 +39,10 @@ public class WorldMap : ScriptableObject
     [Tooltip("Tutorial levels played back to back, in order, the first time the player opens the map. " +
              "They are not map nodes; finishing the last one opens the map.")]
     public List<TextAsset> tutorialLevels = new List<TextAsset>();
+
+    [Tooltip("The node the player is taken to straight after the last tutorial (the store), by its id. " +
+             "Leaving it opens the map. Empty = the map right away.")]
+    public string afterTutorialNode = "store_1";
 
     [Tooltip("The world map as a walkable level: a \"grid\" level file whose portals are the nodes below " +
              "(MapHub). Empty = the card map in the Map scene.")]
@@ -60,7 +66,7 @@ public class WorldMap : ScriptableObject
     {
         if (index < 0 || index >= nodes.Count) return false;
         MapNode node = nodes[index];
-        if (node == null) return false;
+        if (node == null || node.comingSoon) return false;
         if (ProgressStore.IsCompleted(node.id)) return true;
         if (node.prerequisites == null || node.prerequisites.Length == 0) return true;
         for (int i = 0; i < node.prerequisites.Length; i++)

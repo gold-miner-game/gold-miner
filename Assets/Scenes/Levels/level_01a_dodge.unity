@@ -287,6 +287,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -355,6 +356,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -1288,17 +1290,27 @@ MonoBehaviour:
     prefab: {fileID: 3441999243807342868, guid: 663acc62e2e97ce40b482c3a8bccd9d5, type: 3}
     spawnAt: {fileID: 929636733}
     isPlayer: 0
-    nameColor: {r: 1, g: 0.45, b: 0.45, a: 1}
+    side: 0
   - name: You
     prefab: {fileID: 0}
     spawnAt: {fileID: 0}
     isPlayer: 1
-    nameColor: {r: 1, g: 0.72, b: 0.82, a: 1}
+    side: 0
   lines: []
   scriptFile: {fileID: 4900000, guid: dd853b24f78cf854897451f95b3e63cc, type: 3}
+  useLines: 0
   lettersPerSecond: 45
   speakerLight: {fileID: 1178278255}
   characterOrder: 50
+  onScreen: 0
+  besideBox: 0
+  portraitHeight: 230
+  boxScale: 1.25
+  boxPosition: 0
+  enemyColor: {r: 1, g: 0.35, b: 0.35, a: 1}
+  friendColor: {r: 0.4, g: 0.7, b: 1, a: 1}
+  unknownColor: {r: 0.65, g: 0.65, b: 0.65, a: 1}
+  playerColor: {r: 1, g: 0.72, b: 0.82, a: 1}
   hideResult: 0
   leaveWhenDone: 0
   removeCharacters: 1
@@ -1330,6 +1342,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -1963,12 +1976,12 @@ MonoBehaviour:
     prefab: {fileID: 3441999243807342868, guid: 663acc62e2e97ce40b482c3a8bccd9d5, type: 3}
     spawnAt: {fileID: 1243306491}
     isPlayer: 0
-    nameColor: {r: 1, g: 0.45, b: 0.45, a: 1}
+    side: 0
   - name: You
     prefab: {fileID: 0}
     spawnAt: {fileID: 0}
     isPlayer: 1
-    nameColor: {r: 1, g: 0.72, b: 0.82, a: 1}
+    side: 0
   lines:
   - speaker: Evil Meowmeow
     text: So... you ate all of MY gold.
@@ -1983,9 +1996,19 @@ MonoBehaviour:
     autoNext: 0
     fireEvent: 
   scriptFile: {fileID: 4900000, guid: 78fa15a7be0e88e4a9c94ee425550923, type: 3}
+  useLines: 0
   lettersPerSecond: 45
   speakerLight: {fileID: 2063871276}
   characterOrder: 50
+  onScreen: 0
+  besideBox: 0
+  portraitHeight: 230
+  boxScale: 1.25
+  boxPosition: 0
+  enemyColor: {r: 1, g: 0.35, b: 0.35, a: 1}
+  friendColor: {r: 0.4, g: 0.7, b: 1, a: 1}
+  unknownColor: {r: 0.65, g: 0.65, b: 0.65, a: 1}
+  playerColor: {r: 1, g: 0.72, b: 0.82, a: 1}
   hideResult: 1
   leaveWhenDone: 1
   removeCharacters: 1
@@ -2017,6 +2040,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -2305,12 +2329,12 @@ MonoBehaviour:
     prefab: {fileID: 4310000000000000001, guid: 961e788c3a70421298d40ea942b421b6, type: 3}
     spawnAt: {fileID: 831947068}
     isPlayer: 0
-    nameColor: {r: 1, g: 0.45, b: 0.45, a: 1}
+    side: 2
   - name: You
     prefab: {fileID: 0}
     spawnAt: {fileID: 0}
     isPlayer: 1
-    nameColor: {r: 1, g: 0.72, b: 0.82, a: 1}
+    side: 0
   lines:
   - speaker: Evil Meowmeow
     text: So... you ate all of MY gold.
@@ -2325,9 +2349,19 @@ MonoBehaviour:
     autoNext: 0
     fireEvent: 
   scriptFile: {fileID: 4900000, guid: 6f99cd6e6e22b534fb9ce82a6aa91a37, type: 3}
+  useLines: 0
   lettersPerSecond: 45
   speakerLight: {fileID: 458744232}
   characterOrder: 50
+  onScreen: 0
+  besideBox: 0
+  portraitHeight: 230
+  boxScale: 1.25
+  boxPosition: 0
+  enemyColor: {r: 1, g: 0.35, b: 0.35, a: 1}
+  friendColor: {r: 0.4, g: 0.7, b: 1, a: 1}
+  unknownColor: {r: 0.65, g: 0.65, b: 0.65, a: 1}
+  playerColor: {r: 1, g: 0.72, b: 0.82, a: 1}
   hideResult: 1
   leaveWhenDone: 1
   removeCharacters: 1
@@ -2359,6 +2393,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []

@@ -470,7 +470,7 @@ MonoBehaviour:
     prefab: {fileID: 4310000000000000001, guid: 961e788c3a70421298d40ea942b421b6, type: 3}
     spawnAt: {fileID: 1271940334}
     isPlayer: 0
-    side: 0
+    side: 1
   - name: You
     prefab: {fileID: 0}
     spawnAt: {fileID: 0}
@@ -490,9 +490,15 @@ MonoBehaviour:
     autoNext: 0
     fireEvent: 
   scriptFile: {fileID: 4900000, guid: 273f71ff45ee24244a7d0473933a9a65, type: 3}
+  useLines: 0
   lettersPerSecond: 45
   speakerLight: {fileID: 1500251079}
   characterOrder: 50
+  onScreen: 0
+  besideBox: 0
+  portraitHeight: 230
+  boxScale: 1.25
+  boxPosition: 0
   enemyColor: {r: 1, g: 0.35, b: 0.35, a: 1}
   friendColor: {r: 0.4, g: 0.7, b: 1, a: 1}
   unknownColor: {r: 0.65, g: 0.65, b: 0.65, a: 1}
@@ -528,6 +534,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -939,6 +946,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -1223,6 +1231,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -1401,6 +1410,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []

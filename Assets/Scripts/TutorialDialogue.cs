@@ -88,7 +88,7 @@ public class TutorialDialogue : MonoBehaviour
     [Header("Round")]
     [Tooltip("No \"YOU WIN\" / \"YOU LOSE\" panel while it plays (and after, with Leave When Done)")]
     public bool hideResult = true;
-    [Tooltip("When the last line is read, end the level: back to the map (cleared if the round was won)")]
+    [Tooltip("When the last line is read after the round is over, end the level: back to the map (cleared if the round was won). A story told while the round is still being played just ends")]
     public bool leaveWhenDone = true;
     [Tooltip("Remove the spawned characters when it ends")]
     public bool removeCharacters = true;
@@ -156,6 +156,9 @@ public class TutorialDialogue : MonoBehaviour
     bool AboutToPlay()
     {
         if (step == null || step.TimesPlayed > 0 || step.startOn != TutorialStep.StartTrigger.Event) return false;
+        // Used up (Only First Time and already seen, or played its Max Times): it never starts, so
+        // nothing should wait for it (the level would never move on)
+        if (step.Current == TutorialStep.State.Done || !step.isActiveAndEnabled) return false;
         GameManager gm = GameManager.Instance;
         if (gm == null || gm.IsPlaying) return false;
         string e = step.startEvent;
@@ -259,6 +262,9 @@ public class TutorialDialogue : MonoBehaviour
     {
         leaving = true;
         GameManager gm = GameManager.Instance;
+        // Only once the round is over: a story told while the level is still being played (an
+        // introduction at the start) just ends, and the level goes on
+        if (gm != null && gm.IsPlaying) { leaving = false; return; }
         bool won = gm != null && !gm.IsPlaying && gm.PlayerWon;
         GameFlow flow = FindFirstObjectByType<GameFlow>();
         // The character pick leaves by itself once a character is picked, never without one

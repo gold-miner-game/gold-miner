@@ -476,7 +476,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
-  onlyFirstTime: 0
+  onlyFirstTime: 1
   onStart:
     m_PersistentCalls:
       m_Calls: []

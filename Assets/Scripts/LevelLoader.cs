@@ -245,13 +245,19 @@ public class LevelLoader : MonoBehaviour
         ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
         if (spawner != null)
         {
-            int champion = Tutorial ? ChampionSpawner.MrHyde : SavedChampion();
+            // The world map walks as the character picked on the role-pick screen (Mr. Hyde until
+            // then); it still counts as a tutorial, so no run record is touched there
+            // Attack mode always plays as Mr. Hyde (his block is the attack), whoever was picked; the
+            // picked character's record stays, so the wallet and the store's upgrades carry on
+            int picked = SavedChampion();
+            int champion = level.IsMaze ? (ProgressStore.HasPickedCharacter ? picked : ChampionSpawner.MrHyde)
+                         : Tutorial || Attack ? ChampionSpawner.MrHyde : picked;
             ChampionSpawner.Chosen = champion;
             if (!Tutorial)
             {
                 // Same champion's record, so wallet and skills survive the scene change. A missing
                 // or wrong record (after a domain-reload-off restart) is rebuilt from the save.
-                System.Type want = ChampionSpawner.RecordType(champion);
+                System.Type want = ChampionSpawner.RecordType(picked);
                 if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
                     CrossLevelStatus.StartFresh(want);
             }
@@ -1113,6 +1119,13 @@ public class LevelLoader : MonoBehaviour
         if (!gm.PlayerWon) return;
         if (TutorialDialogue.Playing) { advanceAt = -1f; return; }   // a story after the win: wait for it
 
+        // "win_to_store" (the last tutorial): no result, straight on to the store
+        if (WinsToStore)
+        {
+            if (!leftForStore) { leftForStore = true; GameFlow.Instance.FinishTutorialRun(); }
+            return;
+        }
+
         if (advanceAt < 0f)
             advanceAt = Time.time + advanceDelay;
         if (!autoAdvance || IsLastLevel || WaitToAdvance) return;
@@ -1147,6 +1160,12 @@ public class LevelLoader : MonoBehaviour
             ? list[current].name
             : CurrentLevel.ToString();
     }
+
+    bool WinsToStore => level != null && level.Param("win_to_store", 0f) > 0.5f;
+    bool leftForStore;
+
+    // The round result (YOU WIN) stays hidden: a won "win_to_store" level goes straight to the store
+    public bool SkipsResult => WinsToStore && GameManager.Instance != null && GameManager.Instance.PlayerWon;
 
     bool IsLastLevel => current >= list.Length - 1;
 
