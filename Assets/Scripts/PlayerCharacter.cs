@@ -108,6 +108,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         Body.sleepMode = RigidbodySleepMode2D.NeverSleep;
 
         if (body == null) body = GetComponent<SpriteRenderer>();
+        if (GetComponent<PlayerLifeBar>() == null) gameObject.AddComponent<PlayerLifeBar>();   // the Lives over the head
         if (body != null)
         {
             BaseColor = body.color;

@@ -523,7 +523,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: You
+  m_text: WASD to MOVE
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -728,6 +728,7 @@ MonoBehaviour:
   delay: 0
   afterStep: {fileID: 853543805}
   startEvent: 
+  startEventCount: 1
   endOn: 0
   seconds: 3
   endEvent: 
@@ -739,6 +740,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -1034,7 +1036,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TutorialFollow
   followPlayer: 1
   target: {fileID: 0}
-  offset: {x: 0, y: 0}
 --- !u!331 &545728103
 SpriteMask:
   m_ObjectHideFlags: 0
@@ -1410,6 +1411,7 @@ MonoBehaviour:
   delay: 0
   afterStep: {fileID: 0}
   startEvent: 
+  startEventCount: 1
   endOn: 0
   seconds: 3
   endEvent: 
@@ -1421,6 +1423,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -1565,7 +1568,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TutorialFollow
   followPlayer: 1
   target: {fileID: 0}
-  offset: {x: 0, y: 0}
 --- !u!331 &958181459
 SpriteMask:
   m_ObjectHideFlags: 0
@@ -1918,7 +1920,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TutorialFollow
   followPlayer: 1
   target: {fileID: 0}
-  offset: {x: 0, y: 0}
 --- !u!331 &1119525789
 SpriteMask:
   m_ObjectHideFlags: 0
@@ -2434,12 +2435,12 @@ MonoBehaviour:
     prefab: {fileID: 3441999243807342868, guid: 663acc62e2e97ce40b482c3a8bccd9d5, type: 3}
     spawnAt: {fileID: 527995790}
     isPlayer: 0
-    nameColor: {r: 1, g: 0.45, b: 0.45, a: 1}
+    side: 0
   - name: You
     prefab: {fileID: 0}
     spawnAt: {fileID: 0}
     isPlayer: 1
-    nameColor: {r: 1, g: 0.72, b: 0.82, a: 1}
+    side: 0
   lines:
   - speaker: Evil Meowmeow
     text: So... you ate all of MY gold.
@@ -2454,8 +2455,19 @@ MonoBehaviour:
     autoNext: 0
     fireEvent: 
   scriptFile: {fileID: 0}
+  useLines: 0
   lettersPerSecond: 45
   speakerLight: {fileID: 939112267}
+  characterOrder: 50
+  onScreen: 0
+  besideBox: 0
+  portraitHeight: 230
+  boxScale: 1.25
+  boxPosition: 0
+  enemyColor: {r: 1, g: 0.35, b: 0.35, a: 1}
+  friendColor: {r: 0.4, g: 0.7, b: 1, a: 1}
+  unknownColor: {r: 0.65, g: 0.65, b: 0.65, a: 1}
+  playerColor: {r: 1, g: 0.72, b: 0.82, a: 1}
   hideResult: 1
   leaveWhenDone: 1
   removeCharacters: 1
@@ -2475,6 +2487,7 @@ MonoBehaviour:
   delay: 0
   afterStep: {fileID: 0}
   startEvent: round_won
+  startEventCount: 1
   endOn: 6
   seconds: 3
   endEvent: 
@@ -2813,7 +2826,7 @@ Transform:
   m_GameObject: {fileID: 1610064325}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 5.4, y: -3.41, z: 0}
+  m_LocalPosition: {x: 5.25, y: -0.06, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2836,6 +2849,7 @@ MonoBehaviour:
   delay: 0
   afterStep: {fileID: 1742734112}
   startEvent: 
+  startEventCount: 1
   endOn: 0
   seconds: 3
   endEvent: 
@@ -2847,6 +2861,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []
@@ -3084,6 +3099,7 @@ MonoBehaviour:
   delay: 0
   afterStep: {fileID: 853543805}
   startEvent: 
+  startEventCount: 1
   endOn: 0
   seconds: 3
   endEvent: 
@@ -3095,6 +3111,7 @@ MonoBehaviour:
   darkness: 0.8
   fadeTime: 0.4
   maxTimes: 1
+  onlyFirstTime: 0
   onStart:
     m_PersistentCalls:
       m_Calls: []

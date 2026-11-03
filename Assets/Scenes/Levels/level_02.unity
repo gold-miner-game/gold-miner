@@ -423,7 +423,7 @@ MonoBehaviour:
     side: 0
   lines:
   - speaker: Cat
-    text: In this mode, you should survive for 2 minutes and get as much money as
+    text: In this mode, you should survive for 1 minute and get as much money as
       you can
     autoNext: 0
     fireEvent: 

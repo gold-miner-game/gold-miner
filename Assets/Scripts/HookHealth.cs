@@ -87,6 +87,21 @@ public class HookHealth : MonoBehaviour
         return best;
     }
 
+    // Every living hook whose box is within `reach` of `from` and within `halfAngle` degrees of `dir`
+    // (an attack's sweep). Close enough to touch counts whatever the angle
+    public static void InArc(Vector2 from, float reach, Vector2 dir, float halfAngle, List<HookHealth> into)
+    {
+        into.Clear();
+        foreach (HookHealth h in all)
+        {
+            if (h == null || !h.Alive || h.Box == null) continue;
+            Vector2 to = h.Box.ClosestPoint(from) - from;
+            float d = to.magnitude;
+            if (d > reach) continue;
+            if (d < 0.15f || Vector2.Angle(dir, to) <= halfAngle) into.Add(h);
+        }
+    }
+
     // One hit; true if it landed. Ignored while it still blinks from the last one
     public bool Damage(int amount = 1)
     {

@@ -34,6 +34,7 @@ public class RedSquare : RedEnemy
 
     void FixedUpdate()
     {
+        if (Pushed()) return;
         if (!Ready(out float distance)) return;
         if (player == null)
         {

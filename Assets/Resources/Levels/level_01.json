@@ -1,5 +1,5 @@
 {
-  "guide": "ATTACK: clear the sector\nRed Rounds walk slowly and shoot hooks. Red Squares run at you and ram: hold Space (Mr. Hyde) to bounce them off. Hit enemies with Space up close, or roll into them (JK. Rolling). Red dots are Lives.",
+  "guide": "ATTACK: clear the sector\nRed Rounds walk slowly and shoot hooks. Red Squares run at you and ram: hold Space (Mr. Hyde) to bounce them off. Left click to attack enemies up close, or roll into them (JK. Rolling). Red hearts are Lives.",
   "pig_start": [-14.0, -7.0],
   "hooks": [],
   "items": [

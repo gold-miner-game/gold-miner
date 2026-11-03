@@ -15,7 +15,7 @@ public static class TutorialEvents
     // The events the game fires, for the Inspector's event dropdown. Add new ones here
     public static readonly string[] Known =
     {
-        "hook_aim", "hook_fire", "hook_dodged", "hook_blocked", "treasure_stolen", "player_hit", "life_lost",
+        "hook_aim", "hook_fire", "hook_shot", "hook_dodged", "hook_blocked", "treasure_stolen", "player_hit", "life_lost",
         "stage_block", "stage_steal", "stage_destroy", "hook_damaged", "hook_destroyed",
         "round_won", "round_lost", "round_end",
         "squeeze_start", "squeeze_hook", "squeeze_rescue", "squeeze_closed", "squeeze_crushed",

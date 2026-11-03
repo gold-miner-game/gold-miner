@@ -26,6 +26,7 @@ public class RedRound : RedEnemy
     void FixedUpdate()
     {
         if (ai == null) return;
+        if (Pushed()) return;
         if (!Ready(out float distance)) { ai.holdFire = true; return; }
 
         bool canShoot = Hunting && distance <= shootRange && ClearLine(body.position);

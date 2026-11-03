@@ -148,6 +148,7 @@ public class MinerAI : MonoBehaviour
             // 4. Fire, then wait for the hook to come back
             hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
             if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.FireEvent);
+            TutorialEvents.Fire(SurvivalHookAI.ShotEvent);   // every shot, the gold ones too
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
             claims.Remove(this);
             Aiming = false;

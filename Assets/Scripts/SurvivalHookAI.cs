@@ -12,6 +12,7 @@ public class SurvivalHookAI : MonoBehaviour
     // TutorialEvents for the tutorial steps (the dodge tutorial uses these holes too)
     public const string AimEvent = "hook_aim";        // the red dotted line appears; the aim is locked
     public const string FireEvent = "hook_fire";      // the hook leaves the hole
+    public const string ShotEvent = "hook_shot";      // any hook leaves its hole, at the player or at gold (MinerAI)
     public const string DodgedEvent = "hook_dodged";  // it came back without hitting the player
 
 
@@ -79,6 +80,7 @@ public class SurvivalHookAI : MonoBehaviour
 
             hook.Fire(origin, dir, length, shotColor);
             TutorialEvents.Fire(FireEvent);
+            TutorialEvents.Fire(ShotEvent);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
             Aiming = false;
             if (GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(DodgedEvent);

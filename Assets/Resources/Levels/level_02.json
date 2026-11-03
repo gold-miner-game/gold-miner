@@ -1,11 +1,11 @@
 {
-  "guide": "SURVIVE for 2 minutes\nRed Squares chase you, and more and more hooks crawl out of the ground after you. Dodge everything (Mr. Hyde: hold Space to block). The gold is all yours.",
+  "guide": "SURVIVE for 1 minute\nRed Squares chase you, and more and more hooks crawl out of the ground after you. Dodge everything (Mr. Hyde: hold Space to block). The gold is all yours.",
   "pig_start": [0.0, -1.0],
   "hooks": [],
   "items": [],
   "params": {
     "survival": 1,
-    "round_time": 120.0,
+    "round_time": 60.0,
     "arena_width": 35.56,
     "arena_height": 20.0,
     "pig_speed": 6.5,
@@ -15,7 +15,7 @@
     "invincible_time": 1.5,
     "hook_kills": true,
     "start_hooks": 1,
-    "seconds_per_hook": 12.0,
+    "seconds_per_hook": 6.0,
     "max_hooks": 10,
     "spawn_min": 5.0,
     "spawn_max": 9.0,

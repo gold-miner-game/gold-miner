@@ -121,6 +121,31 @@ public abstract class RedEnemy : MonoBehaviour
         }
     }
 
+    // --- Pushed back (the pig's attack) --------------------------------------------------------------
+    Vector2 pushDir;
+    float pushSpeed, pushUntil = -1f;
+
+    // Slide `distance` world units along `away` over `time` seconds, stopped by walls; it doesn't
+    // chase meanwhile
+    public void PushBack(Vector2 away, float distance, float time)
+    {
+        if (away.sqrMagnitude < 0.0001f) return;
+        pushDir = away.normalized;
+        pushSpeed = distance / Mathf.Max(0.01f, time);
+        pushUntil = Time.time + time;
+        replanAt = 0f;   // it was moved: a fresh path afterwards
+    }
+
+    // True while being pushed (and moves it): FixedUpdate does nothing else then
+    protected bool Pushed()
+    {
+        if (body == null || Time.time >= pushUntil) return false;
+        float step = pushSpeed * Time.fixedDeltaTime;
+        if (Blocked(pushDir, step + 0.05f)) { pushUntil = -1f; return false; }
+        body.MovePosition(body.position + pushDir * step);
+        return true;
+    }
+
     // --- Getting past each other ---------------------------------------------------------------------
     // The enemies don't block each other (two walking head-on used to wedge, every way out "blocked"
     // by the other). Instead each one is pushed away from any that come too close, and one coming

@@ -2,8 +2,9 @@ using UnityEngine;
 
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
-// its skill is the block: Space bounces a hook off, or knocks treasure off a passing hook. Next to a
-// hook (HookHealth: a miner or a hook hole) the same press also hits it.
+// its skill is the block: Space bounces a hook off, or knocks treasure off a passing hook (it never
+// hits). The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
+// enemies with HookHealth (miners, hook holes, Red Rounds and Squares).
 public class MrHydeController : PlayerCharacter
 {
     [Header("Block (Space)")]
@@ -11,11 +12,9 @@ public class MrHydeController : PlayerCharacter
     public float blockDuration = 0.8f;  // how long one block lasts
     public float blockCooldown = 1f;    // wait after a block ends before the next one
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
-    [Tooltip("A block this close to a hook (a miner or a hook hole, with HookHealth) also hits it, in world units from the pig's centre to the hook's box")]
-    public float attackReach = 1.3f;
 
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
-    public override string SkillHint => CanBlock ? "[Space] block" : "";
+    public override string SkillHint => (CanBlock ? "[Space] block  " : "") + "[Click] attack";
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;
@@ -44,29 +43,13 @@ public class MrHydeController : PlayerCharacter
         if (!CanBlock || Time.time < blockReadyAt) return false;
         blockUntil = Time.time + BlockDuration;
         blockReadyAt = blockUntil + BlockCooldown;
-        hitThisBlock.Clear();
-        AttackInReach();
         return true;
     }
 
-    // Enemies already hit by the current block (each takes one hit per block)
-    private readonly System.Collections.Generic.HashSet<HookHealth> hitThisBlock = new System.Collections.Generic.HashSet<HookHealth>();
-
-    // The block attacks for as long as it is up, not only on the frame Space went down: walking into
-    // an enemy with the block raised, or a Red Square ramming the block, still lands the hit
     protected override void Update()
     {
         base.Update();
-        if (Time.time < blockUntil) AttackInReach();
-    }
-
-    void AttackInReach()
-    {
-        Collider2D body = GetComponent<Collider2D>();
-        Vector2 from = body != null ? (Vector2)body.bounds.center : (Vector2)transform.position;
-        HookHealth target = HookHealth.InReach(from, attackReach);
-        if (target == null || hitThisBlock.Contains(target)) return;
-        if (target.Damage()) { hitThisBlock.Add(target); ShowHit(this, target); }
+        ReadAttack();
     }
 
     // A hit that landed: the block's white half sphere on the player's body, facing what it hit
@@ -78,6 +61,70 @@ public class MrHydeController : PlayerCharacter
         if (toward.sqrMagnitude < 0.0001f) toward = Vector2.up;
         Vector2 surface = body != null ? body.ClosestPoint(at + toward.normalized * 10f) : at;
         BlockFlash.Show(surface, toward, body != null ? body.bounds.size.x : 1f);
+    }
+
+    // --- Attack (left click, any level) -------------------------------------------------------------
+    // A fast sweep of a sixth of a circle round the pig (AttackSwing). It points right, or at the
+    // closest enemy when one is in reach, and hits every enemy in reach inside the sweep, pushing it away (Knockback)
+
+    [Header("Attack (left click)")]
+    [Tooltip("An enemy this close (world units from the pig's centre to its box) is aimed at and can be hit")]
+    public float attackReach = 1.3f;
+    [Tooltip("How long the sweep takes, in seconds")]
+    public float attackSwingTime = 0.12f;
+    [Tooltip("Wait after a swing starts before the next one")]
+    public float attackCooldown = 0.35f;
+    [Tooltip("The sweep, in degrees (60 = a sixth of a circle)")]
+    public float attackArc = 60f;
+    [Tooltip("How far past the pig's body the slash reaches (its outer edge), in world units")]
+    public float attackRingGap = 0.45f;
+    [Tooltip("How far a hit pushes the enemy away from the pig, in world units")]
+    public float attackPush = 1.2f;
+    [Tooltip("Seconds the push takes")]
+    public float attackPushTime = 0.18f;
+
+    private float attackReadyAt;
+    private readonly System.Collections.Generic.List<HookHealth> swingTargets = new System.Collections.Generic.List<HookHealth>();
+
+    void ReadAttack()
+    {
+        if (Time.time < attackReadyAt || Time.timeScale == 0f) return;   // not while paused or frozen
+        UnityEngine.InputSystem.Mouse mouse = UnityEngine.InputSystem.Mouse.current;
+        if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return;
+        if (TutorialDialogue.Playing) return;   // that click turns the story's page
+        // A click on the HUD (Pause, Map) is not an attack
+        UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
+        if (events != null && events.IsPointerOverGameObject()) return;
+        Attack();
+    }
+
+    public void Attack()
+    {
+        attackReadyAt = Time.time + attackCooldown;
+        Collider2D body = GetComponent<Collider2D>();
+        Vector2 from = body != null ? (Vector2)body.bounds.center : (Vector2)transform.position;
+        float bodyRadius = body != null ? Mathf.Max(body.bounds.extents.x, body.bounds.extents.y) : 0.5f;
+
+        // Right by default; at the closest enemy when one is close enough to hit
+        Vector2 dir = Vector2.right;
+        HookHealth closest = HookHealth.InReach(from, attackReach);
+        if (closest != null)
+        {
+            Vector2 to = (Vector2)closest.Box.bounds.center - from;
+            if (to.sqrMagnitude > 0.0001f) dir = to.normalized;
+        }
+
+        AttackSwing.Show(transform, dir, bodyRadius + attackRingGap, attackSwingTime, attackArc);
+
+        HookHealth.InArc(from, attackReach, dir, attackArc * 0.5f + 15f, swingTargets);
+        if (closest != null && !swingTargets.Contains(closest)) swingTargets.Add(closest);
+        foreach (HookHealth target in swingTargets)
+        {
+            target.Damage();
+            // Pushed straight away from the pig
+            Vector2 away = (Vector2)target.Box.bounds.center - from;
+            Knockback.Push(target, away.sqrMagnitude > 0.0001f ? away : dir, attackPush, attackPushTime);
+        }
     }
 
     // While blocking the whole body is blue
