@@ -103,6 +103,7 @@ public class LevelLoader : MonoBehaviour
 
     public static int CurrentLevel => current + 1;
     public int LevelCount => list != null ? list.Length : 0;   // 1 when a map node requested the level
+    public bool IsMazeLevel => level != null && level.IsMaze;
 
     // The tutorial: every level up to the last one with a guide or stages (level_01b_block), so the
     // normal level between the two tutorials counts too. It is always played as Mr. Hyde, and the
@@ -267,6 +268,7 @@ public class LevelLoader : MonoBehaviour
         if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
         if (minerTemplate == null) minerTemplate = FindFirstObjectByType<MinerAI>();
 
+        if (!level.IsMaze) HUDLayout.HideTopBar = false;
         if (clearSceneItems) ClearItems();
         if (screenWalls)
         {
@@ -725,13 +727,18 @@ public class LevelLoader : MonoBehaviour
         var time = gameObject.AddComponent<TimeMovesWithPlayer>();
         time.player = player;
         time.stillScale = level.Param("still_time_scale", time.stillScale);
-    }    // Returns the treasure among what it spawned
+    }
+
+    // Returns the treasure among what it spawned
     List<Treasure> Spawn(List<LevelData.Item> items)
     {
         var treasure = new List<Treasure>();
         var byName = new Dictionary<string, GameObject>();
         foreach (GameObject p in itemPrefabs)
             if (p != null) byName[p.name] = p;
+
+        bool maze = level != null && level.IsMaze;
+        float tile = level != null ? level.TileSize : 1f;
 
         foreach (LevelData.Item item in items)
         {
@@ -741,6 +748,26 @@ public class LevelLoader : MonoBehaviour
                 continue;
             }
             GameObject go = Instantiate(prefab, item.position, Quaternion.identity);
+            if (item.scale > 0f) go.transform.localScale = Vector3.one * item.scale;
+
+            if (maze)
+            {
+                // Battle gold (0.7) is wider than a maze corridor (tile 0.4); shrink to fit the cell.
+                if (item.type.StartsWith("Gold"))
+                    go.transform.localScale = Vector3.one * (tile * 0.85f);
+                else if (item.type == "Diamond")
+                    go.transform.localScale = Vector3.one * (tile * 0.75f);
+
+                Rock rock = go.GetComponent<Rock>();
+                if (rock != null)
+                {
+                    // Slightly smaller than the cell so a hook sitting on a floor tile does not
+                    // instantly collide with the four neighboring wall rocks.
+                    go.transform.localScale = Vector3.one * (tile * 0.88f);
+                    rock.MakeWall();
+                }
+            }
+
             spawned.Add(go);
             Treasure t = go.GetComponent<Treasure>();
             if (t != null) treasure.Add(t);
@@ -755,6 +782,9 @@ public class LevelLoader : MonoBehaviour
         player.transform.position = level.pigStart;
         var body = player.GetComponent<Rigidbody2D>();
         if (body != null) body.position = level.pigStart;
+        // Battle pig (~0.8) is wider than a maze corridor (tile 0.4); shrink so it fits the ASCII paths.
+        if (level.IsMaze)
+            player.transform.localScale = Vector3.one * (level.TileSize * 0.9f);
 
         levelSpeed = level.Param("pig_speed", player.moveSpeed);
         if (Tutorial)
@@ -835,8 +865,10 @@ public class LevelLoader : MonoBehaviour
             return;
         }
 
-        // The template's body sits this far from its hook origin; copies keep the same offset
-        Vector3 bodyOffset = minerTemplate.transform.position - minerTemplate.hookOrigin.position;
+        // Battle miners sit above the hook; maze miners sit on their grid cell so S/H/E/M match the ASCII.
+        Vector3 bodyOffset = level.IsMaze
+            ? Vector3.zero
+            : minerTemplate.transform.position - minerTemplate.hookOrigin.position;
 
         for (int i = 0; i < level.hooks.Count; i++)
         {
@@ -1188,6 +1220,12 @@ public class LevelLoader : MonoBehaviour
     void Start()
     {
         hasHud = FindFirstObjectByType<HUDController>() != null;
+        // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
+        if (level != null && level.IsMaze)
+        {
+            MazeRuntime maze = GetComponent<MazeRuntime>();
+            if (maze != null) maze.RestoreHubIfNeeded();
+        }
     }
 
     // What happens next once the round is over, for the end panel. Empty while playing, or when a
@@ -1227,6 +1265,8 @@ public class LevelLoader : MonoBehaviour
     void DrawGuide()
     {
         if (level == null) return;
+        // Maze world map: zone hints only — the big guide banner covers the grid.
+        if (level.IsMaze) return;
         string guide;
         string progress = "";
         if (stage >= 0)

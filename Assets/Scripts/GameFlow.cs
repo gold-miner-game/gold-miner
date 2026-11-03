@@ -130,6 +130,20 @@ public class GameFlow : MonoBehaviour
         OpenMap();
     }
 
+    // Maze level portal → battle Game scene. Snapshot the hub first so return restores it.
+    public void EnterBattleFromMaze(string nodeId)
+    {
+        if (Map == null || string.IsNullOrEmpty(nodeId)) return;
+        MapNode node = Map.Find(nodeId);
+        if (node == null || node.type != NodeType.Battle)
+        {
+            Debug.LogWarning("GameFlow: no battle node '" + nodeId + "'");
+            return;
+        }
+        MazeHubState.CaptureFromScene();
+        EnterNode(node);
+    }
+
     // Called by the map when the player clicks an unlocked node.
     public void EnterNode(MapNode node)
     {
@@ -182,7 +196,28 @@ public class GameFlow : MonoBehaviour
     // Game levels reach it by themselves once the win result has shown.
     public void CompleteCurrentNode()
     {
-        if (CurrentNode != null) ProgressStore.MarkCompleted(CurrentNode.id);
+        MapNode node = CurrentNode;
+        if (node != null)
+        {
+            // Battles: bank each level's best (player−miner) margin. World-map MONEY =
+            // maze bank (pre-battle eats) + sum of those best margins — never the battle's raw $.
+            if (node.type == NodeType.Battle)
+            {
+                GameManager gm = GameManager.Instance;
+                if (gm != null && gm.PlayerWon)
+                {
+                    int margin = gm.PlayerMoney - gm.MinerMoney;
+                    // One key per map node — recording asset name too would double MapMoney.
+                    ProgressStore.RecordBestMargin(node.id, margin);
+                    Debug.Log("GameFlow: best margin for " + node.id + " = " + margin
+                              + " (margins sum $" + ProgressStore.MapMoney
+                              + ", hub display $" + MazeHubState.DisplayMoney + ")");
+                }
+            }
+            // Maze hub stays replayable; do not treat it as a cleared tree node that opens LEVELS.
+            if (node.id != "tut_maze")
+                ProgressStore.MarkCompleted(node.id);
+        }
         OpenMap();
     }
 

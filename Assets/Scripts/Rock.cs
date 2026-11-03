@@ -1,8 +1,8 @@
 using UnityEngine;
 
 // Owner: B (Player & Rocks)
-// The hook still stops on this rock. OnHookBlocked then breaks it, so that shot is blocked
-// and the rock cannot be pushed into the path again.
+// Solid obstacle. Maze walls set MakeWall() so the hook stops without breaking the rock and the
+// pig cannot shove it. Battle rocks still shatter after they block a shot.
 public class Rock : MonoBehaviour
 {
     public Color blockedColor = Color.white;
@@ -15,17 +15,22 @@ public class Rock : MonoBehaviour
     public bool isWall;
 
     private bool shattered;
+    private bool indestructible;
 
     void Awake()
     {
         sr = GetComponent<SpriteRenderer>();
+        // Prefab ships Dynamic; that lets the pig shove rocks into corridors. Keep them planted.
+        Rigidbody2D body = GetComponent<Rigidbody2D>();
+        if (body != null) body.bodyType = RigidbodyType2D.Static;
         if (isWall) MakeWall();
     }
 
-    // The world-map hub's maze walls: planted, and they never break
+    // Maze walls (the world map, '#' tiles): planted, and they never break
     public void MakeWall()
     {
         isWall = true;
+        indestructible = true;
         Rigidbody2D body = GetComponent<Rigidbody2D>();
         if (body != null) body.bodyType = RigidbodyType2D.Static;
     }
@@ -33,7 +38,7 @@ public class Rock : MonoBehaviour
     // Called by Hook when this rock blocks it
     public void OnHookBlocked()
     {
-        if (shattered || isWall) return;
+        if (indestructible || shattered || isWall) return;
         shattered = true;
 
         SpawnPieces();

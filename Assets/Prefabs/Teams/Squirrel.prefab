@@ -169,7 +169,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SquirrelTailHeading
   tailPivot: {fileID: 8001}
   horizontalLean: 35
-  followSpeed: 10
   stoppedSpeed: 0.05
   returnUprightWhenStopped: 1
   idleAngle: 83.5

@@ -32,6 +32,7 @@ public class LevelData
     {
         public string type;   // prefab name: Gold_Small, Gold_Medium, Gold_Large, Diamond, Rock, Life
         public Vector2 position;
+        public float scale;   // 0 = leave the prefab's scale (grid rocks use tile_size)
     }
 
     public class Stage
@@ -43,6 +44,36 @@ public class LevelData
         public readonly List<Item> items = new List<Item>();
     }
 
+    // One placed thing in a grid maze (pig, gold, miner, gate, one-way).
+    public class MazeEntity
+    {
+        public string id = "";
+        public string type = "";
+        public string hook = "";      // Red = attack pig, Yellow = grab treasure
+        public string dir = "";       // OneWay: Left / Right / Up / Down
+        public string target = "";    // Gate / LevelPortal → WorldMap node id (battle_01)
+        public string requires = "";  // LevelPortal: previous battle id that reveals this stone
+        public int unlockCost;        // LevelPortal: MapMoney threshold (not spent)
+        public bool autoFire;
+        public float hookSpeed;
+        public float windup;
+        public int gridX;
+        public int gridY;
+        public Vector2 worldPos;
+    }
+
+    // A trigger rectangle in a grid maze (hint, miner zone, gate check, QTEs).
+    public class MazeTrigger
+    {
+        public string id = "";
+        public string type = "";
+        public string text = "";
+        public float param;
+        public string[] targets = new string[0];
+        public Vector2 worldCenter;
+        public Vector2 worldSize;
+    }
+
     public Vector2 pigStart = new Vector2(0f, -1f);
     public readonly List<Vector2> hooks = new List<Vector2>();
     public readonly List<Item> items = new List<Item>();
@@ -50,14 +81,19 @@ public class LevelData
     public readonly Dictionary<string, object> info = new Dictionary<string, object>();   // the "level" summary
     public string guide = "";
     public readonly List<Stage> stages = new List<Stage>();
+    public readonly List<MazeEntity> mazeEntities = new List<MazeEntity>();
+    public readonly List<MazeTrigger> mazeTriggers = new List<MazeTrigger>();
+    public readonly List<string> creditSources = new List<string>();
+    public bool IsMaze;
+    public float TileSize = 1f;
+    public int GridRows;
+    public int EntryCredit;
 
     // Grid maze (the world-map hub)
     public struct Portal { public string target; public Vector2 position; public bool hidden; public char stone; }
     public struct ColoredWall { public Vector2 position; public char color; }   // R red, Y yellow, G green
     public struct Label { public string text; public Vector2 position; }
     public struct OneWay { public Vector2 position; public Vector2 dir; }
-    public bool IsMaze;
-    public float TileSize = 1f;
     public Vector2 MazeSize;   // world units
     public readonly List<Vector2> walls = new List<Vector2>();
     public readonly List<ColoredWall> coloredWalls = new List<ColoredWall>();
@@ -71,15 +107,19 @@ public class LevelData
         if (root == null) throw new System.FormatException("A level file must be a JSON object");
 
         var level = new LevelData();
+        if (root.TryGetValue("params", out object ps)) level.AddParameters(ps);
+        if (root.TryGetValue("skills", out object skills)) level.AddParameters(skills);
+        if (root.TryGetValue("guide", out object guide) && guide is string text) level.guide = text;
+        if (root.TryGetValue("pigSpeed", out object pigSpeed) && pigSpeed is double spd)
+            level.parameters["pig_speed"] = spd;
+        if (root.TryGetValue("tileSize", out object tileSize) && tileSize is double ts && !level.Has("tile_size"))
+            level.parameters["tile_size"] = ts;
         if (root.TryGetValue("pig_start", out object pig)) level.pigStart = ToVector(pig);
         // No "hooks" key: one default hook. An empty list: no miner at all (the eat tutorial)
         if (root.TryGetValue("hooks", out object hooks))
             foreach (object h in (List<object>)hooks) level.hooks.Add(ToVector(h));
         else level.hooks.Add(new Vector2(0f, 3.4f));
         if (root.TryGetValue("items", out object items)) ReadItems(items, level.items);
-        if (root.TryGetValue("params", out object ps)) level.AddParameters(ps);
-        if (root.TryGetValue("skills", out object skills)) level.AddParameters(skills);
-        if (root.TryGetValue("guide", out object guide) && guide is string text) level.guide = text;
         if (root.TryGetValue("grid", out object grid) && grid is List<object> rows)
         {
             ReadGrid(level, rows, root);
@@ -177,6 +217,7 @@ public class LevelData
             {
                 type = (string)it["type"],
                 position = new Vector2(ToFloat(it["x"]), ToFloat(it["y"])),
+                scale = it.TryGetValue("scale", out object sc) ? ToFloat(sc) : 0f,
             });
         }
     }

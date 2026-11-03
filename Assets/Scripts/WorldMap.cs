@@ -31,6 +31,8 @@ public class MapNode
     public string[] prerequisites = new string[0];
     [Tooltip("Not open yet: stays locked whatever is cleared, and a hidden portal stays a rock in the wall")]
     public bool comingSoon;
+    [Tooltip("World-map money (sum of best win margins) required to enter. Unlock does not spend money.")]
+    public int unlockCost;
 }
 
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]

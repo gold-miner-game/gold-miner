@@ -13,7 +13,7 @@ public class TimeMovesWithPlayer : MonoBehaviour
 {
     public PlayerCharacter player;
     [Tooltip("Time's speed while the player stands still (1 = normal)")]
-    [Range(0.01f, 1f)] public float stillScale = 0.12f;
+    [Range(0.01f, 1f)] public float stillScale = 0.06f;
     [Tooltip("How fast time comes back up when the player moves, in time scale per real second")]
     public float speedUp = 8f;
     [Tooltip("How fast time winds down when the player stops")]

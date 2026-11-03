@@ -13,6 +13,20 @@ public class OneWayDoor : MonoBehaviour
     Rigidbody2D playerBody;
     PlayerCharacter player;
 
+    // Main's maze runtime (MazeRuntime) names the way: "left", "right", "up", "down"
+    public void Init(string dir, float tileSize) { Init(ParseDir(dir), tileSize); }
+
+    static Vector2 ParseDir(string dir)
+    {
+        switch ((dir ?? "").ToLowerInvariant())
+        {
+            case "right": return Vector2.right;
+            case "up": return Vector2.up;
+            case "down": return Vector2.down;
+            default: return Vector2.left;
+        }
+    }
+
     // Also for a door placed in the world map scene: it keeps its Allowed Dir and adds what is missing
     public void Init(Vector2 dir, float tileSize)
     {

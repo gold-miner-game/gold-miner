@@ -95,7 +95,7 @@ public class GameplayCamera : MonoBehaviour
         if (!Mathf.Approximately(cam.orthographicSize, size)) cam.orthographicSize = size;
     }
 
-    void Fit()
+    public void Fit()
     {
         if (cam == null) cam = GetComponent<Camera>();
         lastWidth = Screen.width;
