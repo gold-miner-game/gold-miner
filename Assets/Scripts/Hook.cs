@@ -36,6 +36,10 @@ public class Hook : MonoBehaviour
     public float clawClosedAngle = 12f;
     public float clawCloseSpeed = 10f;   // how fast it opens/closes
 
+    [Header("Cut")]
+    public float cutReach = 0.3f;     // a blocking pig this close to the rope cuts it
+    public float cutFadeTime = 0.8f;  // seconds the claw's half takes to fade out
+
     public bool IsBusy => state != State.Idle;
     public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
 
@@ -64,6 +68,10 @@ public class Hook : MonoBehaviour
     private Stroke clawRight;
     private float clawAngle;
     private Color color;
+    private bool cut;   // the rope was cut: only the miner's half winds home, with no claw
+    private Material strokeMaterial;
+    private int strokeLayer;
+    private int strokeOrder;
 
     // Colliders this shot has already reacted to, so nothing is handled twice
     private readonly HashSet<Collider2D> touched = new HashSet<Collider2D>();
@@ -95,6 +103,10 @@ public class Hook : MonoBehaviour
             if (Application.isPlaying) Destroy(child);
             else DestroyImmediate(child);
         }
+
+        strokeMaterial = material;
+        strokeLayer = sortingLayer;
+        strokeOrder = sortingOrder;
 
         // Back to front: rope outline, rope, claw outlines, claws (all above treasure at 0)
         rope = new Stroke(transform, "Rope", 2, material, sortingLayer, sortingOrder - 3);
@@ -136,6 +148,7 @@ public class Hook : MonoBehaviour
         touched.Clear();
         HitPlayer = false;
         stallUntil = 0f;
+        cut = false;
         ShotCount++;
 
         transform.position = origin;
@@ -200,12 +213,11 @@ public class Hook : MonoBehaviour
             else if (state == State.Extending)
             {
                 if (roundOver) state = State.Retracting;
-                else if (!BlockAlongRope()) Extend();
+                else if (!CutAlongRope()) Extend();
             }
             else if (state == State.Retracting && (roundOver || Time.time >= holdUntil))
             {
-                BlockAlongRope();
-                Retract(!roundOver);
+                if (roundOver || !CutAlongRope()) Retract(!roundOver);
             }
         }
 
@@ -240,8 +252,8 @@ public class Hook : MonoBehaviour
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
 
         // An empty hook still reacts to what it touches on the way back. A carrying hook ignores
-        // everything except a blocking pig, which knocks the treasure loose
-        if (react && remaining > 0.0001f)
+        // everything except a blocking pig, which cuts the rope. A cut rope's stub touches nothing
+        if (react && !cut && remaining > 0.0001f)
         {
             Vector2 back = (origin - pos) / remaining;
             foreach (RaycastHit2D hit in CastAhead(back, step))
@@ -249,11 +261,13 @@ public class Hook : MonoBehaviour
                 if (carried != null)
                 {
                     PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
-                    if (player != null && player.IsBlocking)
+                    if (player != null && player.IsBlocking && touched.Add(hit.collider))
                     {
-                        if (carried != null) PlayAnalytics.Steal();
+                        PlayAnalytics.Steal();
                         DropCarried();
                         player.OnTreasureKnocked();
+                        CutRope(ClosestOnRope(player.transform.position), player);
+                        return;
                     }
                     else if (player != null && hitsPig && !player.IsInvulnerable
                         && touched.Add(hit.collider) && GameManager.Instance != null)
@@ -275,6 +289,7 @@ public class Hook : MonoBehaviour
         // Back at the miner: now the treasure counts
         if (carried != null) carried.DeliverToMiner();
         carried = null;
+        cut = false;
         state = State.Idle;
 
         // Rest pointing down, ready for the next shot
@@ -282,16 +297,20 @@ public class Hook : MonoBehaviour
         transform.rotation = Quaternion.identity;
     }
 
-    // The pig can block by touching the rope, not only the claw. The treasure stays where the
-    // claw is holding it. Returns true when an empty hook should stop going out and head home.
-    bool BlockAlongRope()
+    // A blocking pig near the rope or head. With a = miner to hook head and b = hook head to pig:
+    // a·b > 0 (the pig is in front of the head) blocks, the half sphere and a bounce home;
+    // a·b < 0 (the pig is beside the rope, behind the head) cuts the rope where it touches;
+    // close to 0 (or the pig right on the head) shows both. Treasure in the claw falls where the
+    // claw holds it. Returns true when the hook reacted this frame.
+    bool CutAlongRope()
     {
+        if (cut) return false;
         Vector2 tip = transform.position;
         Vector2 delta = tip - origin;
         float length = delta.magnitude;
         if (length < 0.05f) return false;
 
-        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, hitRadius, delta / length, length);
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, cutReach, delta / length, length);
         foreach (RaycastHit2D hit in hits)
         {
             if (hit.collider == null) continue;
@@ -300,20 +319,60 @@ public class Hook : MonoBehaviour
             if (player == null || !player.IsBlocking) continue;
             if (!touched.Add(hit.collider)) continue;
 
+            Vector2 toPig = (Vector2)player.transform.position - tip;
+            float facing = toPig.sqrMagnitude < 0.0001f ? 0f : Vector2.Dot(delta / length, toPig.normalized);
+            bool block = facing > -BothBand;
+            bool slice = facing < BothBand;
+
             if (carried != null)
             {
                 PlayAnalytics.Steal();
                 DropCarried();
                 player.OnTreasureKnocked();
-                continue;
             }
+            else player.OnHookBlocked();
 
-            player.OnHookBlocked();
-            ShowBlock(hit.collider);
-            state = State.Retracting;
+            if (block) ShowBlock(hit.collider);
+            if (slice) CutRope(ClosestOnRope(player.transform.position), player);
+            else state = State.Retracting;
             return true;
         }
         return false;
+    }
+
+    // |cos| below this between the hook's way and the way to the pig counts as both block and cut
+    const float BothBand = 0.15f;
+
+    Vector2 ClosestOnRope(Vector2 point)
+    {
+        Vector2 delta = (Vector2)transform.position - origin;
+        if (delta.sqrMagnitude < 0.0001f) return origin;
+        float t = Mathf.Clamp01(Vector2.Dot(point - origin, delta) / delta.sqrMagnitude);
+        return origin + delta * t;
+    }
+
+    // The pig slashes (the attack's sweep) toward the cut, the claw's half stays behind to fade
+    // out, and the miner's half winds home from the cut. Drop the treasure first: it rides the
+    // hook's transform
+    void CutRope(Vector2 at, PlayerCharacter by)
+    {
+        if (Application.isPlaying)
+        {
+            new GameObject("CutRope").AddComponent<CutPiece>().Init(this, at, transform.position);
+            if (by != null)
+            {
+                Collider2D body = by.GetComponent<Collider2D>();
+                Vector2 centre = body != null ? (Vector2)body.bounds.center : (Vector2)by.transform.position;
+                float radius = body != null ? Mathf.Max(body.bounds.extents.x, body.bounds.extents.y) : 0.5f;
+                Vector2 toward = at - centre;
+                if (toward.sqrMagnitude < 0.0001f) toward = new Vector2(-dir.y, dir.x);
+                AttackSwing.Show(by.transform, toward, Mathf.Max(radius + 0.45f, toward.magnitude + 0.3f), 0.12f, 90f);
+            }
+        }
+        cut = true;
+        transform.position = at;
+        holdUntil = 0f;
+        state = State.Retracting;
     }
 
     // Everything the hook would touch moving this far, nearest first, excluding itself
@@ -430,6 +489,7 @@ public class Hook : MonoBehaviour
     // Put the treasure in front of the claw so the closed tips grip its near edge
     void DropCarried()
     {
+        if (carried == null) return;
         carried.DropFromHook();
         carried = null;
     }
@@ -469,12 +529,20 @@ public class Hook : MonoBehaviour
             ? Mathf.Lerp(clawAngle, target, 1f - Mathf.Exp(-clawCloseSpeed * Time.deltaTime))
             : target;
 
+        clawLeft.SetVisible(!cut);
+        clawRight.SetVisible(!cut);
         DrawArm(clawLeft, 1f);
         DrawArm(clawRight, -1f);
     }
 
-    // One arm: out from the pivot at clawAngle, then bent back toward the center line
     void DrawArm(Stroke arm, float side)
+    {
+        arm.SetStyle(clawWidth, clawWidth * 0.6f, outlineWidth, color, outlineColor);
+        PlaceArm(arm, side);
+    }
+
+    // One arm: out from the pivot at clawAngle, then bent back toward the center line
+    void PlaceArm(Stroke arm, float side)
     {
         Vector2 pivot = transform.position;
         Vector2 outward = Rotate(dir, side * clawAngle);
@@ -483,7 +551,6 @@ public class Hook : MonoBehaviour
         Vector2 elbow = pivot + outward * (clawLength * 0.6f);
         Vector2 tip = elbow + inward * (clawLength * 0.5f);
 
-        arm.SetStyle(clawWidth, clawWidth * 0.6f, outlineWidth, color, outlineColor);
         arm.SetPosition(0, pivot);
         arm.SetPosition(1, elbow);
         arm.SetPosition(2, tip);
@@ -492,6 +559,82 @@ public class Hook : MonoBehaviour
     static Vector2 Rotate(Vector2 v, float degrees)
     {
         return Quaternion.Euler(0f, 0f, degrees) * v;
+    }
+
+    // The claw's half of a cut rope: frozen where it was cut, fading out, then gone. A white
+    // slash flashes across the rope at the cut
+    class CutPiece : MonoBehaviour
+    {
+        const float Gap = 0.12f;          // space between the two halves at the cut
+        const float SlashLength = 0.7f;
+        const float SlashTime = 0.25f;
+
+        private Stroke rope;
+        private Stroke clawLeft;
+        private Stroke clawRight;
+        private Stroke slash;
+        private Hook hook;
+        private Color fill;
+        private Color border;
+        private float born;
+
+        public void Init(Hook source, Vector2 from, Vector2 tip)
+        {
+            hook = source;
+            fill = source.color;
+            border = source.outlineColor;
+            born = Time.time;
+
+            rope = new Stroke(transform, "Rope", 2, source.strokeMaterial, source.strokeLayer, source.strokeOrder - 3);
+            clawLeft = new Stroke(transform, "ClawLeft", 3, source.strokeMaterial, source.strokeLayer, source.strokeOrder - 1);
+            clawRight = new Stroke(transform, "ClawRight", 3, source.strokeMaterial, source.strokeLayer, source.strokeOrder - 1);
+            slash = new Stroke(transform, "Slash", 2, source.strokeMaterial, source.strokeLayer, source.strokeOrder + 2);
+
+            Vector2 along = tip - from;
+            Vector2 forward = along.sqrMagnitude > 0.0001f ? along.normalized : source.dir;
+            Vector2 start = along.magnitude > Gap ? from + forward * Gap : from;
+            rope.SetPosition(0, start);
+            rope.SetPosition(1, tip);
+            source.PlaceArm(clawLeft, 1f);
+            source.PlaceArm(clawRight, -1f);
+
+            // Slanted across the rope, like a blade stroke
+            Vector2 across = Rotate(forward, 65f) * (SlashLength * 0.5f);
+            slash.SetPosition(0, from - across);
+            slash.SetPosition(1, from + across);
+            Paint(1f);
+        }
+
+        void Update()
+        {
+            float alpha = 1f - (Time.time - born) / Mathf.Max(0.01f, hook != null ? hook.cutFadeTime : 0.8f);
+            if (alpha <= 0f) { Destroy(gameObject); return; }
+            Paint(alpha);
+        }
+
+        void PaintSlash()
+        {
+            float k = Mathf.Clamp01((Time.time - born) / SlashTime);
+            slash.SetVisible(k < 1f);
+            if (k >= 1f) return;
+            Color white = new Color(1f, 1f, 1f, 1f - k);
+            Color edge = new Color(0.1f, 0.1f, 0.1f, 0.6f * (1f - k));
+            float width = Mathf.Lerp(0.12f, 0.02f, k);
+            slash.SetStyle(width, width * 0.3f, 0.02f, white, edge);
+        }
+
+        void Paint(float alpha)
+        {
+            Color f = new Color(fill.r, fill.g, fill.b, fill.a * alpha);
+            Color b = new Color(border.r, border.g, border.b, border.a * alpha);
+            float rw = hook != null ? hook.ropeWidth : 0.05f;
+            float cw = hook != null ? hook.clawWidth : 0.06f;
+            float ow = hook != null ? hook.outlineWidth : 0.03f;
+            rope.SetStyle(rw, rw, ow, f, b);
+            clawLeft.SetStyle(cw, cw * 0.6f, ow, f, b);
+            clawRight.SetStyle(cw, cw * 0.6f, ow, f, b);
+            PaintSlash();
+        }
     }
 
     // A colored line drawn over a slightly wider dark line, so it reads on any background
