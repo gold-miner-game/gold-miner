@@ -1,41 +1,367 @@
 {
-  "guide": "ATTACK: clear the sector\nRed Rounds walk slowly and shoot hooks. Red Squares run at you and ram: hold Space (Mr. Hyde) to bounce them off. Left click to attack enemies up close, or roll into them (JK. Rolling). Red hearts are Lives.",
-  "pig_start": [-14.0, -7.0],
-  "hooks": [],
+  "pig_start": [
+    0.0,
+    0.0
+  ],
+  "hooks": [
+    [
+      -8.0,
+      0.0
+    ],
+    [
+      -4.13,
+      3.7
+    ],
+    [
+      -5.55,
+      -1.78
+    ],
+    [
+      5.49,
+      1.91
+    ]
+  ],
   "items": [
-    { "type": "Life", "x": -15.5, "y": 7.5 },
-    { "type": "Life", "x": 3.0, "y": 7.5 },
-    { "type": "Life", "x": 15.5, "y": -0.5 },
-    { "type": "Life", "x": -2.0, "y": -8.0 },
-    { "type": "Life", "x": 9.5, "y": -8.0 }
+    {
+      "type": "Rock",
+      "x": 6.35,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.35,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.63,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.63,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.91,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.91,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 7.19,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 7.19,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 7.47,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 7.47,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 7.75,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 7.75,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.03,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.03,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.31,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.31,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.59,
+      "y": -0.6,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.59,
+      "y": 0.65,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.35,
+      "y": -0.32,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.65,
+      "y": -0.32,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.35,
+      "y": -0.04,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.65,
+      "y": -0.04,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.35,
+      "y": 0.24,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.65,
+      "y": 0.24,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 6.35,
+      "y": 0.52,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 8.65,
+      "y": 0.52,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 1.7,
+      "y": -3.33,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 1.7,
+      "y": -1.28,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 2.11,
+      "y": -3.33,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 2.11,
+      "y": -1.28,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 2.49,
+      "y": -3.33,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 2.49,
+      "y": -1.28,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 2.9,
+      "y": -3.33,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 2.9,
+      "y": -1.28,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 3.35,
+      "y": -3.33,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 3.35,
+      "y": -1.28,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 1.7,
+      "y": -2.87,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 3.5,
+      "y": -2.87,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 1.7,
+      "y": -2.41,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 3.5,
+      "y": -2.41,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 1.7,
+      "y": -1.95,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 3.5,
+      "y": -1.95,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 1.7,
+      "y": -1.48,
+      "scale": 0.4
+    },
+    {
+      "type": "Rock",
+      "x": 3.5,
+      "y": -1.48,
+      "scale": 0.4
+    },
+    {
+      "type": "Diamond",
+      "x": 7.5,
+      "y": 0.0
+    },
+    {
+      "type": "Gold_Large",
+      "x": 2.6,
+      "y": -2.31
+    },
+    {
+      "type": "Gold_Small",
+      "x": -4.01,
+      "y": 1.65
+    },
+    {
+      "type": "Gold_Small",
+      "x": -4.19,
+      "y": 0.4
+    },
+    {
+      "type": "Gold_Small",
+      "x": -3.72,
+      "y": -0.66
+    },
+    {
+      "type": "Gold_Small",
+      "x": -6.43,
+      "y": -2.97
+    },
+    {
+      "type": "Gold_Small",
+      "x": -6.49,
+      "y": -0.33
+    },
+    {
+      "type": "Gold_Small",
+      "x": 6.43,
+      "y": 3.1
+    }
   ],
   "params": {
-    "attack": 1,
-    "arena_width": 35.56,
-    "arena_height": 20.0,
-    "pig_speed": 7.0,
+    "pig_speed": 5.2,
     "digest_time": 0.15,
-    "digest_per_value": 0.002,
-    "block": 1,
-    "enemy_wake": 11.0,
-    "round_hp": 4,
-    "round_speed": 1.2,
-    "round_range": 7.0,
-    "round_keep": 4.0,
-    "round_size": 1.1,
-    "square_hp": 2,
-    "square_speed": 2.64,
-    "square_size": 0.8,
-    "hook_extend": 4.5,
-    "hook_retract": 5.5,
-    "overshoot": 0.5,
-    "start_delay": 1.0,
-    "telegraph_min": 1.4,
-    "telegraph_max": 2.0,
-    "cooldown": 2.0,
+    "digest_per_value": 0.0,
+    "hook_extend": 8.0,
+    "hook_retract": 8.0,
+    "overshoot": 0.25,
+    "start_delay": 0.5,
+    "telegraph_min": 0.45,
+    "telegraph_max": 0.65,
+    "pig_shot_chance": 0.0,
+    "cooldown": 0.45,
+    "min_treasure_shots": 8,
+    "max_treasure_shots": 8,
+    "round_time": 75.0,
     "starting_lives": 3,
-    "invincible_time": 2.0,
+    "invincible_time": 0.2,
     "hook_kills": true,
-    "clear_reward": 400
+    "pig_only": true,
+    "wall_rocks": true,
+    "hooks_pass_rocks": true,
+    "cross_pig": true,
+    "greedy": true,
+    "start_carrying": true,
+    "pig_hunter": 2,
+    "pig_hunter_2": 3,
+    "hunter_delay": 0.08,
+    "hook_delay_1": 4.8,
+    "pause_on_p": true,
+    "compete": 1,
+    "classic_hooks": 1
+  },
+  "skills": {
+    "block": true,
+    "block_duration": 1.5,
+    "block_cooldown": 0.25
   }
 }

@@ -4,10 +4,6 @@
       "goal": "block",
       "count": 2,
       "pig_speed": 0.0
-    },
-    {
-      "goal": "destroy",
-      "count": 1
     }
   ],
   "pig_start": [
@@ -34,8 +30,7 @@
     "starting_lives": 999,
     "win_to_store": 1,
     "invincible_time": 1.5,
-    "hook_kills": true,
-    "hook_hp": 1
+    "hook_kills": true
   },
   "skills": {
     "block": true,

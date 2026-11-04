@@ -251,8 +251,9 @@ public class LevelLoader : MonoBehaviour
             // Attack mode always plays as Mr. Hyde (his block is the attack), whoever was picked; the
             // picked character's record stays, so the wallet and the store's upgrades carry on
             int picked = SavedChampion();
+            bool pigOnly = level.Param("pig_only", 0f) > 0.5f;
             int champion = level.IsMaze ? (ProgressStore.HasPickedCharacter ? picked : ChampionSpawner.MrHyde)
-                         : Tutorial || Attack ? ChampionSpawner.MrHyde : picked;
+                         : Tutorial || Attack || pigOnly ? ChampionSpawner.MrHyde : picked;
             ChampionSpawner.Chosen = champion;
             if (!Tutorial)
             {
@@ -285,7 +286,8 @@ public class LevelLoader : MonoBehaviour
         if (level.IsMaze) SetUpHub();
         if (Attack) SetUpAttack();
         if (Survival) SetUpSurvival();
-        if (Compete) SetUpCompete();
+        if (Compete && level.Param("classic_hooks", 0f) <= 0.5f) SetUpCompete();
+        if (level.Param("wall_rocks", 0f) > 0.5f) SealWallRocks();
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
         if (player != null && player.SkillHint != "") label += "  " + player.SkillHint;
@@ -828,7 +830,7 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpMiners()
     {
-        if (Compete)
+        if (Compete && level.Param("classic_hooks", 0f) <= 0.5f)
         {
             if (minerTemplate != null)
             {
@@ -854,6 +856,7 @@ public class LevelLoader : MonoBehaviour
         if (minerTemplate == null)
         {
             SpawnMiners();
+            ApplyLaneHooks();
             return;
         }
         // A level without hooks has no miner: hide the scene's one before its Start runs
@@ -885,6 +888,117 @@ public class LevelLoader : MonoBehaviour
             PlaceMiner(miner, level.hooks[i], bodyOffset);
             if (miner.pig == null) miner.pig = minerTemplate.pig;
         }
+        ApplyLaneHooks();
+    }
+
+    // V1: two hostile hooks hunt the pig, the others pull gold through the pig's start,
+    // and a per-hook delay keeps the caged gold from leaving with the opening diamond.
+    void ApplyLaneHooks()
+    {
+        int hunter = Mathf.RoundToInt(level.Param("pig_hunter", -1f));
+        int hunterTwo = Mathf.RoundToInt(level.Param("pig_hunter_2", -1f));
+        bool IsHunter(int index) => index == hunter || index == hunterTwo;
+        bool crossPig = level.Param("cross_pig", 0f) > 0.5f;
+        if (hunter >= 0 || hunterTwo >= 0)
+        {
+            for (int i = 0; i < miners.Count; i++)
+            {
+                if (IsHunter(i))
+                {
+                    PaintHunter(miners[i]);
+                    if (level.Has("hunter_delay"))
+                        miners[i].startDelay = level.Param("hunter_delay", miners[i].startDelay);
+                }
+                else
+                {
+                    miners[i].shootsPlayer = false;
+                    miners[i].hook.hitsPig = false;
+                }
+            }
+        }
+        if (crossPig)
+        {
+            bool kills = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
+            for (int i = 0; i < miners.Count; i++)
+            {
+                if (IsHunter(i)) continue;
+                miners[i].aimThroughPig = true;
+                if (kills) miners[i].hook.hitsPig = true;
+                if (level.Param("greedy", 0f) > 0.5f) miners[i].greedyValue = true;
+            }
+        }
+        for (int i = 0; i < miners.Count; i++)
+        {
+            string key = "hook_delay_" + i;
+            if (level.Has(key))
+                miners[i].startDelay = level.Param(key, miners[i].startDelay);
+        }
+    }
+
+    static Sprite discSprite;
+
+    static Sprite DiscSprite()
+    {
+        if (discSprite != null) return discSprite;
+        const int n = 64;
+        Texture2D tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+        float radius = (n - 1) * 0.5f;
+        float cx = radius;
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
+            {
+                float d = Mathf.Sqrt((x - cx) * (x - cx) + (y - cx) * (y - cx));
+                float a = Mathf.Clamp01(radius - d + 0.75f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        }
+        tex.Apply();
+        discSprite = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), n);
+        return discSprite;
+    }
+
+    // Black center, brown ring, red claw, red rope, red dashed aim.
+    void PaintHunter(MinerAI miner)
+    {
+        miner.huntPigOnly = true;
+        miner.shootsPlayer = true;
+        miner.hook.hitsPig = true;
+        miner.name = "Hostile Miner";
+        Color red = new Color(0.92f, 0.08f, 0.06f, 1f);
+        miner.playerColor = red;
+        miner.treasureColor = red;
+        miner.hook.Paint(red);
+        miner.startDelay = 0.2f;
+        miner.cooldown = 0.35f;
+        miner.telegraphMin = 0.3f;
+        miner.telegraphMax = 0.45f;
+
+        SpriteRenderer body = miner.GetComponent<SpriteRenderer>();
+        Sprite disc = DiscSprite();
+        int order = body != null ? body.sortingOrder : 0;
+
+        GameObject ring = new GameObject("HunterRing");
+        ring.transform.SetParent(miner.transform, false);
+        ring.transform.localScale = Vector3.one * 1.42f;
+        SpriteRenderer ringRenderer = ring.AddComponent<SpriteRenderer>();
+        ringRenderer.sprite = disc;
+        ringRenderer.color = new Color(0.55f, 0.34f, 0.1f, 1f);
+        ringRenderer.sortingOrder = order;
+
+        if (body != null)
+        {
+            body.sprite = disc;
+            body.color = new Color(0.04f, 0.03f, 0.03f, 1f);
+            body.sortingOrder = order + 1;
+        }
+    }
+
+    void SealWallRocks()
+    {
+        foreach (Rock rock in FindObjectsByType<Rock>(FindObjectsSortMode.None))
+            if (rock != null) rock.MakeWall();
     }
 
     // No miner in the scene: one copy of the miner prefab (body, hook origin, hook and telegraph)
@@ -1007,6 +1121,7 @@ public class LevelLoader : MonoBehaviour
         miner.hook.hitsPig = kills;
         miner.hook.extendSpeed = level.Param("hook_extend", miner.hook.extendSpeed) * gameSpeed;
         miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed) * gameSpeed;
+        miner.hook.passRocks = level.Param("hooks_pass_rocks", 0f) > 0.5f;
     }
 
     // A level file's starting_lives wins when it is set above 0; 0 keeps the loader's livesPerLevel
@@ -1026,6 +1141,7 @@ public class LevelLoader : MonoBehaviour
         gm.endless = level.IsMaze || Attack;   // the hub: no clock, nothing ends it; attack: clearing the sector ends it
         gm.timeUpWins = Survival;   // survival: last until the clock runs out
         gm.roundTime = level.Param("round_time", gm.roundTime);
+        if (level.stages.Count > 0) gm.EndWhenTreasureGone = false;
         if (Tutorial)
         {
             gm.startingLives = BaseLives(gm);
@@ -1066,11 +1182,12 @@ public class LevelLoader : MonoBehaviour
         // Blocking: the miners shoot at the pig as usual. Stealing: they stop shooting and
         // UpdateSteal hands each hook a treasure it has already caught, to pull back past the pig
         bool steal = s.goal == "steal";
+        bool quiet = s.goal == "eat";
         foreach (MinerAI miner in miners)
         {
-            miner.autoShoot = !steal;
-            miner.shootsPlayer = !steal;
-            miner.hook.hitsPig = !steal;
+            miner.autoShoot = !steal && !quiet;
+            miner.shootsPlayer = !steal && !quiet;
+            miner.hook.hitsPig = !steal && !quiet;
         }
         if (player != null)
             player.moveSpeed = (s.pigSpeed >= 0f ? s.pigSpeed : levelSpeed) * gameSpeed * player.speedScale;
@@ -1086,6 +1203,7 @@ public class LevelLoader : MonoBehaviour
         if (goal == "survive") return Mathf.FloorToInt(Mathf.Max(0f, Time.time - stageTime));
         if (player == null) return 0;
         if (goal == "destroy") return hooksDestroyed;
+        if (goal == "eat") return player.Eaten;
         return goal == "steal" ? player.TreasureStolen : goal == "block" ? player.HooksBlocked : 0;
     }
 
@@ -1220,12 +1338,38 @@ public class LevelLoader : MonoBehaviour
     void Start()
     {
         hasHud = FindFirstObjectByType<HUDController>() != null;
+        if (level != null && level.Param("block", 0f) > 0.5f && player is MrHydeController hyde)
+        {
+            hyde.canBlock = true;
+            if (!Tutorial && CrossLevelStatus.Active != null)
+                CrossLevelStatus.Active.setCanBlock(true);
+        }
+        if (level != null && level.Param("start_carrying", 0f) > 0.5f)
+            BeginAlreadyCarrying();
         // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
         if (level != null && level.IsMaze)
         {
             MazeRuntime maze = GetComponent<MazeRuntime>();
             if (maze != null) maze.RestoreHubIfNeeded();
         }
+    }
+
+    // The diamond is already on the hook when the level appears. The pig is standing on that
+    // line and has to block. A greedy level sends this hook back out after the pull.
+    void BeginAlreadyCarrying()
+    {
+        if (miners.Count == 0) return;
+        Treasure gem = null;
+        foreach (Treasure t in FindObjectsByType<Treasure>(FindObjectsSortMode.None))
+        {
+            if (t != null && t.type == TreasureType.Diamond) { gem = t; break; }
+        }
+        if (gem == null) return;
+        MinerAI miner = miners[0];
+        miner.autoShoot = false;
+        if (level.Param("greedy", 0f) > 0.5f)
+            miner.resumeAfterScripted = true;
+        miner.hook.PullBack(miner.hookOrigin.position, gem, miner.treasureColor, 0f);
     }
 
     // What happens next once the round is over, for the end panel. Empty while playing, or when a

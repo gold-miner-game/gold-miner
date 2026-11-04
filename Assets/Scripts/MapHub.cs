@@ -128,6 +128,27 @@ public class MapHub : MonoBehaviour
             foreach (MapNode node in map.nodes)
                 if (node != null && !portals.Exists(p => p.Node == node))
                     Debug.LogWarning("MapHub: WorldMap node '" + node.id + "' has no portal in the hub level");
+
+        if (baked != null) HideRetiredModes(baked);
+    }
+
+    // Attack and survival are out of this build. Their walls and floor labels stay in the baked
+    // map until it is rebaked; hide them so only the green compete area is left to walk.
+    static void HideRetiredModes(Transform baked)
+    {
+        foreach (SpriteRenderer sprite in baked.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            if (sprite.GetComponentInParent<HubPortal>() != null) continue;
+            Color c = sprite.color;
+            bool red = c.r > 0.6f && c.g < 0.35f && c.b < 0.35f;
+            bool yellow = c.r > 0.7f && c.g > 0.55f && c.g < 0.9f && c.b < 0.35f;
+            if (red || yellow) sprite.gameObject.SetActive(false);
+        }
+        foreach (TMPro.TextMeshPro text in baked.GetComponentsInChildren<TMPro.TextMeshPro>(true))
+        {
+            if (text.text == "ATTACK" || text.text == "SURVIVAL")
+                text.gameObject.SetActive(false);
+        }
     }
 
     // Words on the floor (an area's name), sized to the tiles

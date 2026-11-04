@@ -20,6 +20,7 @@ public class Hook : MonoBehaviour
     public float hitRadius = 0.2f;
     public bool hitsPig = true;      // false: the hook passes through the pig (no-kill levels)
     public bool grabsTreasure = true;   // false: the hook passes through treasure (survival hunts only the player)
+    public bool passRocks;           // true: stones do not stop or break the hook
 
     [Header("Look")]
     public Color defaultColor = Color.yellow;
@@ -146,6 +147,16 @@ public class Hook : MonoBehaviour
         state = State.Extending;
     }
 
+    // Hostile miner: black head stays put; the rope and claw switch to this color immediately.
+    public void Paint(Color fill)
+    {
+        defaultColor = fill;
+        color = fill;
+        outlineColor = new Color(fill.r * 0.4f, fill.g * 0.08f, fill.b * 0.06f, 1f);
+        UpdateRope();
+        UpdateClaw();
+    }
+
     // Start a shot that has already caught `treasure`: the hook appears on it, holds still for
     // `hold` seconds with the rope out, then pulls it home (the steal tutorial)
     public void PullBack(Vector2 from, Treasure treasure, Color shotColor, float hold)
@@ -189,10 +200,11 @@ public class Hook : MonoBehaviour
             else if (state == State.Extending)
             {
                 if (roundOver) state = State.Retracting;
-                else Extend();
+                else if (!BlockAlongRope()) Extend();
             }
             else if (state == State.Retracting && (roundOver || Time.time >= holdUntil))
             {
+                BlockAlongRope();
                 Retract(!roundOver);
             }
         }
@@ -243,6 +255,12 @@ public class Hook : MonoBehaviour
                         DropCarried();
                         player.OnTreasureKnocked();
                     }
+                    else if (player != null && hitsPig && !player.IsInvulnerable
+                        && touched.Add(hit.collider) && GameManager.Instance != null)
+                    {
+                        // A hook that is already holding gold still hurts a pig who is not blocking.
+                        GameManager.Instance.PlayerHit();
+                    }
                     continue;
                 }
                 HandleHit(hit.collider);
@@ -262,6 +280,40 @@ public class Hook : MonoBehaviour
         // Rest pointing down, ready for the next shot
         dir = Vector2.down;
         transform.rotation = Quaternion.identity;
+    }
+
+    // The pig can block by touching the rope, not only the claw. The treasure stays where the
+    // claw is holding it. Returns true when an empty hook should stop going out and head home.
+    bool BlockAlongRope()
+    {
+        Vector2 tip = transform.position;
+        Vector2 delta = tip - origin;
+        float length = delta.magnitude;
+        if (length < 0.05f) return false;
+
+        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, hitRadius, delta / length, length);
+        foreach (RaycastHit2D hit in hits)
+        {
+            if (hit.collider == null) continue;
+            if (hit.collider.transform.IsChildOf(transform)) continue;
+            PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
+            if (player == null || !player.IsBlocking) continue;
+            if (!touched.Add(hit.collider)) continue;
+
+            if (carried != null)
+            {
+                PlayAnalytics.Steal();
+                DropCarried();
+                player.OnTreasureKnocked();
+                continue;
+            }
+
+            player.OnHookBlocked();
+            ShowBlock(hit.collider);
+            state = State.Retracting;
+            return true;
+        }
+        return false;
     }
 
     // Everything the hook would touch moving this far, nearest first, excluding itself
@@ -301,6 +353,8 @@ public class Hook : MonoBehaviour
         Rock rock = col.GetComponent<Rock>();
         if (rock != null)
         {
+            // Stone cages: the hook flies through. Maze walls still stop a shot.
+            if (passRocks) return false;
             // Maze walls sit on neighboring tiles; ignore them until the hook has left its spawn cell
             // so E/M are not instantly blocked by the rocks beside them.
             if (traveled < 0.25f) return false;

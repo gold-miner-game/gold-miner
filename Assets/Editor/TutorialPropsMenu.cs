@@ -309,7 +309,7 @@ public static class TutorialPropsMenu
 
         // Attack: when the destroy stage starts, the miner to walk up to and hit (SPACE next to it)
         TutorialStep attack = CreateLessonStep("Attack", "stage_destroy", null);
-        attack.seconds = 3f;
+        attack.seconds = 1f;
         if (layout != null && layout.hooks != null)
             foreach (Transform h in layout.hooks)
             {
@@ -447,7 +447,7 @@ public static class TutorialPropsMenu
         step.startOn = TutorialStep.StartTrigger.Event;
         step.startEvent = startEvent;
         step.endOn = TutorialStep.EndTrigger.Seconds;
-        step.seconds = 2.5f;
+        step.seconds = 1f;
         step.darkness = 0.55f;   // the red line still shows across the dark
         step.maxTimes = 1;
 
@@ -522,7 +522,7 @@ public static class TutorialPropsMenu
         step.startOn = TutorialStep.StartTrigger.Event;
         step.startEvent = SurvivalHookAI.AimEvent;
         step.endOn = TutorialStep.EndTrigger.Seconds;
-        step.seconds = 2.5f;
+        step.seconds = 1f;
         step.darkness = 0.55f;   // light enough that the red line still shows across the dark
         step.maxTimes = 1;
 
@@ -555,7 +555,7 @@ public static class TutorialPropsMenu
         step.startOn = TutorialStep.StartTrigger.Event;
         step.startEvent = "life_lost";
         step.endOn = TutorialStep.EndTrigger.Seconds;
-        step.seconds = 2.5f;
+        step.seconds = 1f;
         step.maxTimes = 1;
 
         GameObject hole = CreateHoleObject(go.transform, PlayerStart());

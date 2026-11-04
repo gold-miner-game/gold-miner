@@ -171,7 +171,7 @@ MonoBehaviour:
   startEvent: point_picking
   startEventCount: 1
   endOn: 0
-  seconds: 3
+  seconds: 1
   endEvent: 
   area: {fileID: 0}
   areaSize: {x: 2, y: 2}
@@ -1153,19 +1153,11 @@ MonoBehaviour:
     side: 0
   lines:
   - speaker: Cat
-    text: To get our mines back, we need to finish several tasks
+    text: To get our mines back, beat the miner to the gold
     autoNext: 0
     fireEvent: 
   - speaker: Cat
-    text: Like attack enemy basement
-    autoNext: 0
-    fireEvent: point_attack
-  - speaker: Cat
-    text: Survive from enemy chase
-    autoNext: 0
-    fireEvent: point_survive
-  - speaker: Cat
-    text: Gathering resources
+    text: Compete with the miner for the gold
     autoNext: 0
     fireEvent: point_competing
   - speaker: Cat
@@ -18031,7 +18023,7 @@ MonoBehaviour:
   startEvent: point_survive
   startEventCount: 1
   endOn: 0
-  seconds: 3
+  seconds: 1
   endEvent: point_competing
   area: {fileID: 0}
   areaSize: {x: 2, y: 2}
@@ -19360,7 +19352,7 @@ MonoBehaviour:
   startEvent: point_attack
   startEventCount: 1
   endOn: 0
-  seconds: 2
+  seconds: 1
   endEvent: point_survive
   area: {fileID: 0}
   areaSize: {x: 2, y: 2}
@@ -24701,7 +24693,7 @@ MonoBehaviour:
   startEvent: point_competing
   startEventCount: 1
   endOn: 0
-  seconds: 3
+  seconds: 1
   endEvent: point_picking
   area: {fileID: 0}
   areaSize: {x: 2, y: 2}
@@ -35322,7 +35314,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Level 3
+  m_text: Level 1
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -41685,7 +41677,7 @@ MonoBehaviour:
   startEvent: point_picking
   startEventCount: 2
   endOn: 0
-  seconds: 3
+  seconds: 1
   endEvent: 
   area: {fileID: 0}
   areaSize: {x: 2, y: 2}

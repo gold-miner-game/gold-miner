@@ -55,7 +55,7 @@ public class TutorialStep : MonoBehaviour
     [Header("End")]
     public EndTrigger endOn = EndTrigger.Seconds;
     [Tooltip("Seconds: how long the step shows")]
-    public float seconds = 3f;
+    public float seconds = 1f;
     [Tooltip("Event: the TutorialEvents name that ends this step")]
     [TutorialEvent] public string endEvent;
 

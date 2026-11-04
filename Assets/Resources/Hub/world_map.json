@@ -8,46 +8,52 @@
     "digest_per_value": 0.0
   },
   "grid": [
-    "RRRRRRRRRRRRYYYYYYYYYYYYGGGGGGGGGGGG",
-    "RRRRRRRRRRRRYYYYY.YYYYYYGGGGGGGGGGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRR....RRRRRYYY.....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRR....RRRRRYYYY.....YYYGGGGG....GGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRR....RRRRRYYY.....YYYYGGGGG....GGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR...RRRRRYYYY....YYYYGGGGG...GGGG",
-    "RRRR............................GGGG",
-    "RRRR............................GGGG",
-    "RRRR............................GGGG",
-    "RRRRRRRRRRRR............GGGGGGGGGGGG",
-    "RRRRRRRRRRRR.....P......GGGGGGGGGGGG",
-    "RRRRRRRRRRRR............GGGGGGGGGGGG",
-    "RRRRRRRRRRRR............GGGGGGGGGGGG",
-    "RRRRRRRRRRRR############GGGGGGGGGGGG"
+    "........................GGGGGGGGGGGG",
+    "........................GGGGGGGGGGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG....GGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG....GGG",
+    "........................GGGGG...GGGG",
+    "........................GGGGG...GGGG",
+    "................................GGGG",
+    "................................GGGG",
+    "................................GGGG",
+    "........................GGGGGGGGGGGG",
+    ".................P......GGGGGGGGGGGG",
+    "........................GGGGGGGGGGGG",
+    "........................GGGGGGGGGGGG",
+    "............############GGGGGGGGGGGG"
   ],
   "portals": [
-    {"target": "store_1", "x": 12, "y": 21},
-    {"target": "role_pick", "x": 23, "y": 21},
-    {"target": "battle_01", "x": 3, "y": 12},
-    {"target": "battle_04", "x": 3, "y": 8, "hidden": true},
-    {"target": "battle_07", "x": 3, "y": 4, "hidden": true},
-    {"target": "battle_02", "x": 15, "y": 12},
-    {"target": "battle_05", "x": 20, "y": 8, "hidden": true},
-    {"target": "battle_08", "x": 15, "y": 4, "hidden": true},
-    {"target": "survival", "x": 17, "y": 1, "hidden": true},
-    {"target": "battle_03", "x": 32, "y": 12},
-    {"target": "battle_06", "x": 32, "y": 8, "hidden": true}
+    {
+      "target": "store_1",
+      "x": 12,
+      "y": 21
+    },
+    {
+      "target": "role_pick",
+      "x": 23,
+      "y": 21
+    },
+    {
+      "target": "battle_03",
+      "x": 32,
+      "y": 12
+    }
   ],
   "labels": [
-    {"text": "ATTACK", "x": 5, "y": 16},
-    {"text": "SURVIVAL", "x": 17.5, "y": 16},
-    {"text": "COMPETE", "x": 30, "y": 16}
+    {
+      "text": "COMPETE",
+      "x": 30,
+      "y": 16
+    }
   ]
 }

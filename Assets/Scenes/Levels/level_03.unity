@@ -727,7 +727,7 @@ MonoBehaviour:
   startEvent: hook_shot
   startEventCount: 1
   endOn: 0
-  seconds: 3
+  seconds: 1
   endEvent: 
   area: {fileID: 0}
   areaSize: {x: 2, y: 2}
