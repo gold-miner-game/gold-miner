@@ -286,7 +286,7 @@ public class LevelLoader : MonoBehaviour
         if (level.IsMaze) SetUpHub();
         if (Attack) SetUpAttack();
         if (Survival) SetUpSurvival();
-        if (Compete && level.Param("classic_hooks", 0f) <= 0.5f) SetUpCompete();
+        if (Compete) SetUpCompete();
         if (level.Param("wall_rocks", 0f) > 0.5f) SealWallRocks();
 
         label = $"Level {current + 1}/{list.Length}: {level.items.Count} gold, {level.hooks.Count} hook(s)";
@@ -924,9 +924,11 @@ public class LevelLoader : MonoBehaviour
                 if (IsHunter(i)) continue;
                 miners[i].aimThroughPig = true;
                 if (kills) miners[i].hook.hitsPig = true;
-                if (level.Param("greedy", 0f) > 0.5f) miners[i].greedyValue = true;
             }
         }
+        if (level.Param("greedy", 0f) > 0.5f)
+            for (int i = 0; i < miners.Count; i++)
+                if (!IsHunter(i)) miners[i].greedyValue = true;
         for (int i = 0; i < miners.Count; i++)
         {
             string key = "hook_delay_" + i;
