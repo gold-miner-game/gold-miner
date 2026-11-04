@@ -19,6 +19,10 @@ public class GameManager : MonoBehaviour
     public float TimeSurvived { get; private set; }   // endless rounds: seconds since the start
     public int MinerMoney { get; private set; }
     public int Lives { get; private set; }
+    // Bonus lives from Brace this round (orange on the HUD / over-head bar).
+    public int BonusLives { get; private set; }
+    // Set on settle when this round beats the level's best (player − miner) margin.
+    public string NewRecordLine { get; private set; }
     public float TimeLeft { get; private set; }
     public float TimeElapsed => endless ? TimeSurvived : roundTime - TimeLeft;
     public bool IsPlaying { get; private set; }
@@ -45,8 +49,26 @@ public class GameManager : MonoBehaviour
         Instance = this;
         TimeLeft = roundTime;
         Lives = startingLives;
+        BonusLives = 0;
+        NewRecordLine = "";
         IsPlaying = true;
         PlayAnalytics.BeginLevel();
+    }
+
+    public void SetBonusLives(int bonus)
+    {
+        BonusLives = Mathf.Max(0, bonus);
+    }
+
+    // LevelLoader sets startingLives after Awake; call this so Lives matches the braced total.
+    public void SyncLivesFromStart()
+    {
+        Lives = startingLives;
+    }
+
+    public void SetNewRecordLine(string line)
+    {
+        NewRecordLine = line ?? "";
     }
 
     void OnDestroy()
@@ -116,6 +138,8 @@ public class GameManager : MonoBehaviour
         if (Lives > 1)
         {
             Lives--;
+            // Brace bonus pips are lost first (orange count drops with the hit).
+            if (BonusLives > 0) BonusLives--;
             invincibleUntil = Time.time + invincibleTime;
             TutorialEvents.Fire("life_lost");   // still alive (the last Life ends the round instead)
         }

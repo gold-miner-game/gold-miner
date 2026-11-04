@@ -3,7 +3,7 @@ using UnityEngine;
 
 // Owner: Penny (Level map & tutorial)
 // Meta progression that survives app restarts (PlayerPrefs): cleared nodes, chosen character,
-// and world-map unlock money (sum of each battle's best win margin: player − miner).
+// and per-battle best win margins (used only to credit wallet on a new record — not a second currency).
 public static class ProgressStore
 {
     const string CompletedKey = "gm.progress.completed";   // ';'-separated node ids
@@ -63,14 +63,14 @@ public static class ProgressStore
         PlayerPrefs.Save();
     }
 
-    // Best (player − miner) margin ever recorded for this battle. Used for world-map unlock money.
+    // Best (player − miner) margin ever recorded for this battle. Used only for new-record credits.
     public static int GetBestMargin(string levelId)
     {
         if (string.IsNullOrEmpty(levelId)) return 0;
         return BestMargins().TryGetValue(levelId, out int m) ? m : 0;
     }
 
-    // Keep only the historical max per level. Map money rises by the improvement, never falls on unlock.
+    // Keep only the historical max per level. Does not touch the wallet.
     public static void RecordBestMargin(string levelId, int margin)
     {
         if (string.IsNullOrEmpty(levelId) || margin <= 0) return;
@@ -80,26 +80,41 @@ public static class ProgressStore
         SaveMargins();
     }
 
-    // Sum of each battle node's best win margin — unlocks later world-map levels (not spent).
-    // Prefer battle_* keys so older saves that also stored level-asset names do not double-count.
-    public static int MapMoney
+    // One-shot: dual-ledger saves often kept high best-margins with wallet still $0. Seed the
+    // wallet from those bests once so Basic / Level 1 wins are not stuck at gain=0 forever.
+    const string SingleWalletMigratedKey = "gm.progress.singleWalletMigrated";
+
+    public static void EnsureSingleWalletMigration()
     {
-        get
-        {
-            int sum = 0;
-            bool anyBattle = false;
-            foreach (var kv in BestMargins())
-            {
-                if (kv.Value <= 0) continue;
-                if (!kv.Key.StartsWith("battle_")) continue;
-                anyBattle = true;
-                sum += kv.Value;
-            }
-            if (anyBattle) return sum;
-            foreach (var kv in BestMargins())
-                if (kv.Value > 0) sum += kv.Value;
-            return sum;
-        }
+        if (PlayerPrefs.HasKey(SingleWalletMigratedKey)) return;
+        PlayerPrefs.SetInt(SingleWalletMigratedKey, 1);
+
+        int sum = 0;
+        foreach (var kv in BestMargins())
+            if (kv.Value > 0) sum += kv.Value;
+
+        // Only repair the classic "map showed $X / store $0" case — never top up a spent wallet.
+        CrossLevelStatus record = CrossLevelStatus.Ensure();
+        if (sum > 0 && record.getWallet() == 0)
+            record.addWallet(sum);
+
+        PlayerPrefs.DeleteKey("gm.progress.marginsCredited");
+        PlayerPrefs.Save();
+    }
+
+    // If margin beats the saved best for this battle, raise the best and credit the wallet by the
+    // improvement. Returns the $ added (0 if no new record). Idempotent for the same margin.
+    public static int TryCreditBestMargin(string levelId, int margin)
+    {
+        EnsureSingleWalletMigration();
+        if (string.IsNullOrEmpty(levelId) || margin <= 0) return 0;
+        int prev = GetBestMargin(levelId);
+        int gain = margin - prev;
+        if (gain <= 0) return 0;
+        BestMargins()[levelId] = margin;
+        SaveMargins();
+        CrossLevelStatus.Ensure().addWallet(gain);
+        return gain;
     }
 
     public static string SelectedCharacter
@@ -140,6 +155,8 @@ public static class ProgressStore
         PlayerPrefs.DeleteKey(CharacterKey);
         PlayerPrefs.DeleteKey(RevealedKey);
         PlayerPrefs.DeleteKey(MarginsKey);
+        PlayerPrefs.DeleteKey("gm.progress.marginsCredited"); // legacy dual-ledger key
+        PlayerPrefs.DeleteKey(SingleWalletMigratedKey);
         PlayerPrefs.Save();
         // The stories and steps that play only the first time (TutorialStep Only First Time) play again
         TutorialStep.ResetSeen();

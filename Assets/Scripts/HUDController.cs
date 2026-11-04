@@ -324,7 +324,11 @@ public class HUDController : MonoBehaviour
         if (playerMoneyText != null) playerMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
         if (minerMoneyText != null) minerMoneyText.text = "$" + gm.MinerMoney.ToString("N0");
         if (mazeMoneyText != null)
-            mazeMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
+        {
+            // World map: same wallet the store spends.
+            int show = (flow != null && flow.InHub) ? MazeHubState.DisplayMoney : gm.PlayerMoney;
+            mazeMoneyText.text = "$" + show.ToString("N0");
+        }
 
         playerMoney.Apply(moneyFlashScale);
         minerMoney.Apply(moneyFlashScale);
@@ -598,9 +602,26 @@ public class HUDController : MonoBehaviour
         // The whole section when there is one (the sidebar), else just the label (an older HUD)
         GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
         shown.SetActive(roundHasLives);
-        if (lifeSection == null) livesText.text = "Life: " + gm.Lives;
-        else livesText.text = (StatRows ? "\u00D7" : "x") + gm.Lives;
-        lives.Apply(moneyFlashScale);
+        int bonus = gm.BonusLives;
+        if (bonus <= 0 && ((flow != null && flow.InHub) || MazeRuntime.Active != null))
+            bonus = LevelLoader.PendingBraceBonusLives();
+        // If Brace is only armed (not yet written into gm.Lives), still show core+bonus.
+        int shownLives = gm.Lives;
+        if (bonus > 0 && gm.BonusLives <= 0) shownLives = gm.Lives + bonus;
+        int baseLives = Mathf.Max(0, shownLives - bonus);
+        // Brace bonus: orange +N (matches the orange pip on the over-head life bar).
+        if (bonus > 0 && shownLives > 0)
+        {
+            string mark = StatRows || lifeSection != null ? "\u00D7" : "x";
+            livesText.richText = true;
+            // Keep face color white so TMP <color=#FF8C14> stays orange (Label.Apply multiplies tint).
+            livesText.color = Color.white;
+            livesText.text = lifeSection == null
+                ? "Life: <color=#FFFFFF>" + baseLives + "</color> <color=#FF8C14>+" + bonus + "</color>"
+                : "<color=#FFFFFF>" + mark + baseLives + "</color> <color=#FF8C14>+" + bonus + "</color>";
+        }
+        else if (lifeSection == null) { livesText.text = "Life: " + gm.Lives; lives.Apply(moneyFlashScale); }
+        else { livesText.text = (StatRows ? "\u00D7" : "x") + gm.Lives; lives.Apply(moneyFlashScale); }
     }
 
     // The map node's name ("LEVEL 4") when the map sent us here, else "LV 4/10" for editor N/P play;
@@ -842,8 +863,14 @@ public class HUDController : MonoBehaviour
             if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) endDetail += "\nTie - the miner wins ties";
         }
 
+        // NewRecordLine is set in SettleWallet after the round ends — often one frame after this
+        // panel first opens — so append it every frame, not only when the panel activates.
+        string detail = endDetail;
+        if (!string.IsNullOrEmpty(gm.NewRecordLine))
+            detail += "\n" + gm.NewRecordLine;
+
         // Every frame: the next-level countdown ticks
-        if (detailText != null) detailText.text = endDetail + "\n" + NextStep(gm);
+        if (detailText != null) detailText.text = detail + "\n" + NextStep(gm);
     }
 
     // The one place that says what happens next (LevelLoader no longer draws it under the arena)

@@ -53,7 +53,7 @@ public class LevelData
         public string dir = "";       // OneWay: Left / Right / Up / Down
         public string target = "";    // Gate / LevelPortal → WorldMap node id (battle_01)
         public string requires = "";  // LevelPortal: previous battle id that reveals this stone
-        public int unlockCost;        // LevelPortal: MapMoney threshold (not spent)
+        public int unlockCost;        // Deprecated: portals unlock via ProgressStore completed nodes
         public bool autoFire;
         public float hookSpeed;
         public float windup;

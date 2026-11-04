@@ -323,9 +323,8 @@ public static class TutorialPropsMenu
     }
 
     // The store's introduction (open the Store scene first, with its UI built: Tools > Gold Miner >
-    // Build Store UI). The first time the store opens, J.K. Rolling and the pig stand on the
-    // dialogue box and talk through Assets/Story/StoreIntro.txt; lines ending in #show_wallet,
-    // #show_shelf and #show_leave light that part of the store until the next one
+    // Build Store UI). First visit: compact DEN talk in Assets/Story/storeIntroduction.txt;
+    // #point_wallet / #point_goods / #point_leave light the store; #choice / #if branch the buy dare.
     [MenuItem("Tools/Gold Miner/Tutorial Store Intro", false, 111)]
     [MenuItem("GameObject/Gold Miner/Tutorial Store Intro", false, 21)]
     static void CreateStoreIntro(MenuCommand command)
@@ -336,24 +335,25 @@ public static class TutorialPropsMenu
         story.onlyFirstTime = true;
         story.freezeGame = false;   // nothing to freeze, and the store keeps working
         story.darkness = 0.7f;
-        dialogue.scriptFile = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/StoreIntro.txt");
+        dialogue.scriptFile = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Story/storeIntroduction.txt");
+        dialogue.useLines = false;
         dialogue.onScreen = true;
         dialogue.besideBox = true;
         dialogue.hideResult = false;
         dialogue.leaveWhenDone = false;
-        TutorialDialogue.Character professor = dialogue.characters[0];
-        professor.name = "J.K. Rolling";
-        professor.prefab = FindPrefab("Cat");
-        professor.side = TutorialDialogue.Side.Friend;
+        TutorialDialogue.Character host = dialogue.characters[0];
+        host.name = "Evil Meowmeow";
+        host.prefab = FindPrefab("EvilMeowmeow");
+        host.side = TutorialDialogue.Side.Enemy;
         dialogue.characters[1].prefab = FindPrefab("MrHyde");   // On Screen: the player needs a picture too
         // In the arena only: no arena here
-        Object.DestroyImmediate(professor.spawnAt.gameObject);
+        Object.DestroyImmediate(host.spawnAt.gameObject);
         Object.DestroyImmediate(dialogue.speakerLight.gameObject);
         dialogue.speakerLight = null;
 
-        CreateSpotlightStep("ShowWallet", "show_wallet", "show_shelf", "Wallet");
-        CreateSpotlightStep("ShowShelf", "show_shelf", "show_leave", "Counter");
-        CreateSpotlightStep("ShowLeave", "show_leave", "show_modes", "Leave");
+        CreateSpotlightStep("ShowWallet", "point_wallet", "story_line", "Wallet");
+        CreateSpotlightStep("ShowShelf", "point_goods", "story_line", "Counter");
+        CreateSpotlightStep("ShowLeave", "point_leave", "story_line", "Leave");
 
         Selection.activeGameObject = story.gameObject;
     }
