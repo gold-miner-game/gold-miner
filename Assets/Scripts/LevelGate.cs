@@ -1,9 +1,10 @@
 using UnityEngine;
 
 // Maze gate "X" (world-map level node). Hexagon + star, not a gold-looking square.
-// Touching it with enough entry credit wins the round; otherwise a hint is shown.
+// Touching it wins the round — no money threshold (single currency is spend-only at the store).
 public class LevelGate : MonoBehaviour
 {
+    // Deprecated: kept for Init signature / old data; unlock no longer reads it.
     public int entryCredit;
     public string lockedHint = "Not enough money yet";
 
@@ -39,14 +40,8 @@ public class LevelGate : MonoBehaviour
     void OnTriggerEnter2D(Collider2D other)
     {
         if (other.GetComponent<PlayerCharacter>() == null) return;
-        int money = GameManager.Instance != null ? GameManager.Instance.PlayerMoney : 0;
-        if (money >= entryCredit)
-        {
-            if (GameManager.Instance != null && GameManager.Instance.IsPlaying)
-                GameManager.Instance.WinRound("Gate cleared!");
-            return;
-        }
-        if (maze != null) maze.ShowHint(lockedHint + " (need $" + entryCredit + ")");
+        if (GameManager.Instance != null && GameManager.Instance.IsPlaying)
+            GameManager.Instance.WinRound("Gate cleared!");
     }
 
     static Sprite HexSprite()

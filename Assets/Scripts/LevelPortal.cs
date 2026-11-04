@@ -2,16 +2,17 @@ using System.Collections;
 using UnityEngine;
 
 // World-map level marker on the maze.
-// Level 1 (X): purple portal from the start; needs $900 maze gold this visit.
-// Level 2: IS the first wall-rock on Level 1's row to the left. Stays a normal grey rock
-// until Level 1 is cleared, then morphs into a purple portal (never pops in already purple).
+// Level 1: purple portal from the start when WorldMap.IsUnlocked.
+// Level 2: wall rock until its prerequisite node is cleared, then morphs into a purple portal.
+// Unlock is ProgressStore completed nodes only — no money threshold.
 public class LevelPortal : MonoBehaviour
 {
     public string nodeId = "battle_01";
+    // Deprecated: kept so old scene/JSON data still deserializes; unlock no longer reads these.
     public int unlockCost;
     public int entryCredit;
     public string requiresCompleted;
-    public string lockedHint = "Need more money";
+    public string lockedHint = "Clear the previous level first";
 
     MazeRuntime maze;
     SpriteRenderer hex;
@@ -92,21 +93,23 @@ public class LevelPortal : MonoBehaviour
 
     bool IsLevel1 => string.IsNullOrEmpty(requiresCompleted) || nodeId == "battle_01";
 
-    int RoundMoney => GameManager.Instance != null ? GameManager.Instance.PlayerMoney : 0;
+    bool NodeUnlocked
+    {
+        get
+        {
+            if (GameFlow.Instance == null || GameFlow.Instance.Map == null) return IsRevealed;
+            MapNode node = GameFlow.Instance.Map.Find(nodeId);
+            if (node != null) return GameFlow.Instance.Map.IsUnlocked(node);
+            return IsRevealed;
+        }
+    }
 
     public bool CanEnter
     {
         get
         {
             if (!IsLevel1 && !morphDone) return false;
-            if (!IsRevealed) return false;
-            if (IsLevel1)
-            {
-                int need = entryCredit > 0 ? entryCredit : 900;
-                return RoundMoney >= need;
-            }
-            // Same total as the MONEY sidebar: maze bank + best margins.
-            return RoundMoney >= unlockCost;
+            return NodeUnlocked;
         }
     }
 
@@ -205,20 +208,9 @@ public class LevelPortal : MonoBehaviour
         // Returning from a battle: ignore portals briefly so standing on the gate doesn't re-enter.
         if (Time.unscaledTime < MazeHubState.PortalIgnoreUntil) return;
 
-        if (IsLevel1)
+        if (!CanEnter)
         {
-            int need = entryCredit > 0 ? entryCredit : 900;
-            if (RoundMoney < need)
-            {
-                if (maze != null)
-                    maze.ShowHint("Level 1 needs $" + need + " (have $" + RoundMoney + ")");
-                return;
-            }
-        }
-        else if (RoundMoney < unlockCost)
-        {
-            if (maze != null)
-                maze.ShowHint(lockedHint + " (need $" + unlockCost + ", have $" + RoundMoney + ")");
+            if (maze != null) maze.ShowHint(lockedHint);
             return;
         }
 

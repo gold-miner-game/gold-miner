@@ -111,10 +111,15 @@ public class LevelLoader : MonoBehaviour
     // champion is picked on the select screen
     public static bool Tutorial { get; private set; }
 
-    // Wallet and recorded round money start at Level 1. The three tutorials
-    // (eat, dodge, block) and the character pick do not pay or charge.
+    // Wallet: every map Battle (Basic / Level 1 / …) pays and charges. Tutorials in the
+    // intro run (eat, dodge, block) and character pick do not — unless the level asset is a
+    // plain level_N battle file (N >= 1), e.g. editor N/P without a GameFlow node.
     public static bool CountsMoney(string levelName)
     {
+        if (GameFlow.Instance != null && GameFlow.Instance.CurrentNode != null
+            && GameFlow.Instance.CurrentNode.type == NodeType.Battle)
+            return true;
+
         if (string.IsNullOrEmpty(levelName) || !levelName.StartsWith("level_")) return false;
         string tail = levelName.Substring("level_".Length);
         if (tail.Length == 0) return false;
@@ -674,16 +679,14 @@ public class LevelLoader : MonoBehaviour
         return 1f + t * t * ((s + 1f) * t + s);
     }
     // --- Compete levels ("compete": 1, level 3 onward) -----------------------------------------------
-    // The classic race for the gold, with survival mode's hook holes for miners, in green: each one
-    // is a hole (HookHole) run by the normal miner AI (MinerAI), so it shoots at the gold (green
-    // telegraph and rope) and now and then at the player (red), and the gold it hooks is the miners'.
+    // Race for the gold with HookHole circle miners (Level 1 dodge-hole look: dark rim, not green).
+    // MinerAI: yellow telegraph/rope at treasure, red at the player. Gold hooked goes to the miners.
     // Time moves when the player moves (TimeMovesWithPlayer): standing still slows the whole world
     // down to "still_time_scale".
 
     public bool Compete => level != null && level.Param("compete", 0f) > 0.5f;
 
-    static readonly Color CompeteGreen = new Color(0.3f, 0.85f, 0.4f);
-    Sprite greenHole;
+    Sprite competeHole;
 
     void SpawnGreenMiners()
     {
@@ -692,17 +695,18 @@ public class LevelLoader : MonoBehaviour
         MinerAI template = prefab != null ? prefab.GetComponent<MinerAI>() : null;
         if (template == null || template.telegraph == null)
         {
-            Debug.LogWarning("LevelLoader: green miners need the miner prefab (Resources/" + MinerPrefabPath + ") for its telegraph dots");
+            Debug.LogWarning("LevelLoader: compete miners need the miner prefab (Resources/" + MinerPrefabPath + ") for its telegraph dots");
             return;
         }
-        if (greenHole == null) greenHole = HookHole.CreateSprite(new Color(0.03f, 0.12f, 0.05f), new Color(0.25f, 0.75f, 0.35f));
+        // Same hole colours as the dodge tutorial / HookHole defaults (not green).
+        if (competeHole == null) competeHole = HookHole.CreateSprite(HookHole.HoleColor, HookHole.RimColor);
         SpriteRenderer look = template.hook != null ? template.hook.GetComponent<SpriteRenderer>() : null;
 
         for (int i = 0; i < level.hooks.Count; i++)
         {
             // Built inactive: swap the hole's survival AI for the miner AI before anything wakes up
-            SurvivalHookAI hole = HookHole.Build("Green Miner " + (i + 1), level.hooks[i], player.transform,
-                template.telegraph.dotPrefab, greenHole, look != null ? look.sharedMaterial : null,
+            SurvivalHookAI hole = HookHole.Build("Compete Miner " + (i + 1), level.hooks[i], player.transform,
+                template.telegraph.dotPrefab, competeHole, look != null ? look.sharedMaterial : null,
                 template.hook.extendSpeed, template.hook.retractSpeed);
             GameObject holeObject = hole.gameObject;
             holeObject.transform.localScale = Vector3.one * level.Param("hole_size", 0.9f);
@@ -711,12 +715,12 @@ public class LevelLoader : MonoBehaviour
             DestroyImmediate(hole);
 
             hook.grabsTreasure = true;
-            hook.defaultColor = CompeteGreen;
+            hook.defaultColor = Color.yellow;   // treasure aim (yellow); player aim stays red via MinerAI
             MinerAI miner = holeObject.AddComponent<MinerAI>();
             miner.hook = hook;
             miner.telegraph = telegraph;
             miner.hookOrigin = holeObject.transform;
-            miner.treasureColor = CompeteGreen;
+            miner.treasureColor = Color.yellow;
             miner.playerColor = Color.red;
             PlaceMiner(miner, level.hooks[i], Vector3.zero);   // the level's timings and speeds (Configure)
             holeObject.transform.parent.gameObject.SetActive(true);
@@ -1136,6 +1140,36 @@ public class LevelLoader : MonoBehaviour
         return gm.startingLives;
     }
 
+    // Brace +1 already applied this battle, or armed in the store for the next battle (hub preview).
+    public static int PendingBraceBonusLives()
+    {
+        CrossLevelStatus record = CrossLevelStatus.Active;
+        if (record == null) return 0;
+        int active = record.getBraceBonusLives();
+        if (active > 0) return active;
+        PlayerSkill brace = record.getSkill("brace");
+        return brace != null && brace.armed ? 1 : 0;
+    }
+
+    // Hub LIFE bar: core lives from the maze save + orange Brace pip when Brace is armed.
+    // Does not consume the item — onLevelStarted still does that when a real battle begins.
+    public void ApplyHubBracePreview()
+    {
+        if (level == null || !level.IsMaze) return;
+        GameManager gm = GameManager.Instance;
+        if (gm == null) return;
+
+        int core = BaseLives(gm);
+        MazeHubState.ReadPrefsIfNeeded();
+        if (MazeHubState.HasSave && MazeHubState.Lives > 0)
+            core = MazeHubState.Lives;
+
+        int pending = PendingBraceBonusLives();
+        gm.SetBonusLives(pending);
+        gm.startingLives = core + pending;
+        gm.SyncLivesFromStart();
+    }
+
     void SetUpRound()
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
@@ -1146,15 +1180,26 @@ public class LevelLoader : MonoBehaviour
         if (level.stages.Count > 0) gm.EndWhenTreasureGone = false;
         if (Tutorial)
         {
-            gm.startingLives = BaseLives(gm);
+            // World-map hub is Tutorial=true, so Brace never runs onLevelStarted here — still show
+            // an armed Brace as a pending orange life on the LIFE bar / over-head pips.
+            if (level.IsMaze) ApplyHubBracePreview();
+            else
+            {
+                gm.startingLives = BaseLives(gm);
+                gm.SetBonusLives(0);
+                gm.SyncLivesFromStart();
+            }
             gm.invincibleTime = level.Param("invincible_time", gm.invincibleTime);
             return;
         }
         CrossLevelStatus player = CrossLevelStatus.Ensure();
         int levelLives = BaseLives(gm);
+        int bonus = player.getBraceBonusLives();
         player.setLives(levelLives + player.getExtraLives());
         player.setInvincibleTime(level.Param("invincible_time", player.getInvincibleTime()));
         gm.startingLives = player.getLives();
+        gm.SetBonusLives(bonus);
+        gm.SyncLivesFromStart();
         gm.invincibleTime = player.getInvincibleTime();
     }
 
@@ -1288,8 +1333,8 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    // Level 1 onward: a win pays how much you beat the miner by. A loss subtracts that same gap.
-    // The wallet may go negative. Tutorials and character pick do not move it.
+    // Single wallet: a win credits only the improvement over this battle's best margin; a loss
+    // subtracts the gap. Tutorials and character pick do not move it.
     void SettleWallet(GameManager gm)
     {
         string name = LevelName();
@@ -1299,10 +1344,20 @@ public class LevelLoader : MonoBehaviour
         int delta = gm.PlayerMoney - gm.MinerMoney;
         if (gm.PlayerWon)
         {
-            record.bank(name, delta);
+            // Prefer the map node id (battle_*) so replays share one best-margin key.
+            string creditId = name;
+            if (GameFlow.Instance != null && GameFlow.Instance.CurrentNode != null
+                && !string.IsNullOrEmpty(GameFlow.Instance.CurrentNode.id))
+                creditId = GameFlow.Instance.CurrentNode.id;
+
+            int gain = ProgressStore.TryCreditBestMargin(creditId, delta);
+            if (gain > 0) gm.SetNewRecordLine("New record! You earned $" + gain + ".");
+            else gm.SetNewRecordLine("");
+
             if (!Tutorial && LevelWon != null) LevelWon();
             return;
         }
+        gm.SetNewRecordLine("");
         record.addWallet(-Mathf.Abs(delta));
     }
 
@@ -1349,10 +1404,19 @@ public class LevelLoader : MonoBehaviour
         if (level != null && level.Param("start_carrying", 0f) > 0.5f)
             BeginAlreadyCarrying();
         // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
+        // MapHub (grid world map) has no MazeRuntime — still push DisplayMoney onto GameManager.
         if (level != null && level.IsMaze)
         {
             MazeRuntime maze = GetComponent<MazeRuntime>();
             if (maze != null) maze.RestoreHubIfNeeded();
+            else
+            {
+                MazeHubState.ReadPrefsIfNeeded();
+                if (MazeHubState.HasSave) MazeHubState.ApplyToScene(null, player, GameManager.Instance);
+                else MazeHubState.ApplyDisplayMoney(GameManager.Instance);
+            }
+            // Restore overwrites Lives; re-apply armed Brace so the map LIFE bar shows the orange +1.
+            ApplyHubBracePreview();
         }
     }
 

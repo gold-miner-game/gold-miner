@@ -1,7 +1,10 @@
+using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.UI;
 using UnityEngine.Rendering;
 using UnityEngine.UI;
 
@@ -14,7 +17,9 @@ using UnityEngine.UI;
 //   Lines        the script: Speaker (a character's number in Characters, 0 = the first, or its
 //                name; empty = narrator) and Text. Or write it
 //                in a .txt file, one "0. text" (or "Name: text") per line, and put it in Script File.
-//                Lines go by number, so swapping a character's Prefab or Name changes who appears
+//                Lines go by number, so swapping a character's Prefab or Name changes who appears.
+//                Script extras: "… #event", "#choice id:Label|id:Label", "#if id" / "#endif",
+//                and fireEvent "storm_off" (crush + slide the first non-player portrait right).
 // Lines type out in a box over the bottom of the screen; a key or click shows the rest, then moves
 // on. While it plays the round result waits (no "YOU WIN", no leaving for the map), and with
 // Leave When Done the level ends as soon as the last line is read.
@@ -46,6 +51,12 @@ public class TutorialDialogue : MonoBehaviour
         public float autoNext;
         [Tooltip("Fired (TutorialEvents) when this line shows, so other steps can react")]
         [TutorialEvent(true)] public string fireEvent;
+        // Script-file only: show this line only after that choice id was picked.
+        [System.NonSerialized] public string onlyIf;
+        // Script-file only: a choice prompt (Buy anyway / Not buying, …).
+        [System.NonSerialized] public string[] choiceIds;
+        [System.NonSerialized] public string[] choiceLabels;
+        public bool IsChoice => choiceIds != null && choiceIds.Length > 0;
     }
 
     public Character[] characters = new Character[0];
@@ -133,6 +144,10 @@ public class TutorialDialogue : MonoBehaviour
     float lineStart;
     bool typing;
     Transform speaker;
+    string chosenId;          // last #choice pick (buy / skip / …)
+    bool awaitingChoice;
+    GameObject choiceRow;
+    bool stormingOff;
 
     GameObject box;
     RectTransform panel;
@@ -174,6 +189,9 @@ public class TutorialDialogue : MonoBehaviour
         if (script.Count == 0) { step.End(); return; }
 
         IsRunning = true;
+        chosenId = null;
+        awaitingChoice = false;
+        stormingOff = false;
         if (box == null) BuildBox();
         SpawnCharacters();
         box.SetActive(true);
@@ -185,17 +203,37 @@ public class TutorialDialogue : MonoBehaviour
     void Update()
     {
         if (!IsRunning) return;
+        if (awaitingChoice)
+        {
+            // Fallback if EventSystem / GraphicRaycaster miss the buttons: 1/2 or left/right click halves.
+            if (Keyboard.current != null)
+            {
+                if (Keyboard.current.digit1Key.wasPressedThisFrame || Keyboard.current.numpad1Key.wasPressedThisFrame)
+                    PickChoiceAt(0);
+                else if (Keyboard.current.digit2Key.wasPressedThisFrame || Keyboard.current.numpad2Key.wasPressedThisFrame)
+                    PickChoiceAt(1);
+            }
+            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame
+                && index >= 0 && index < script.Count && script[index].IsChoice)
+            {
+                float x = Mouse.current.position.ReadValue().x;
+                PickChoiceAt(x < Screen.width * 0.5f ? 0 : 1);
+            }
+            return;
+        }
+        if (index < 0 || index >= script.Count) return;
         Line line = script[index];
+        if (line.IsChoice) return;
         float t = Time.unscaledTime - lineStart;
 
         int shown = lettersPerSecond > 0f ? Mathf.Min(line.text.Length, Mathf.FloorToInt(t * lettersPerSecond)) : line.text.Length;
         typing = shown < line.text.Length;
         bodyText.maxVisibleCharacters = shown;
-        hintImage.enabled = !typing && line.autoNext <= 0f;
+        hintImage.enabled = !typing && line.autoNext <= 0f && !stormingOff;
 
         bool pressed = (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
                     || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
-        if (pressed && t > 0.15f)
+        if (pressed && t > 0.15f && !stormingOff)
         {
             if (typing) lineStart = Time.unscaledTime - line.text.Length / Mathf.Max(1f, lettersPerSecond);   // show it all
             else Next();
@@ -227,13 +265,28 @@ public class TutorialDialogue : MonoBehaviour
     void Next()
     {
         if (index >= 0) TutorialEvents.Fire(LineEvent);
+        HideChoices();
         index++;
+        while (index < script.Count)
+        {
+            Line skip = script[index];
+            if (string.IsNullOrEmpty(skip.onlyIf) || skip.onlyIf == chosenId) break;
+            index++;
+        }
         if (index >= script.Count) { Finish(); return; }
 
         Line line = script[index];
         lineStart = Time.unscaledTime;
+
+        if (line.IsChoice)
+        {
+            ShowChoices(line);
+            return;
+        }
+
         bodyText.text = line.text;
         bodyText.maxVisibleCharacters = 0;
+        bodyText.color = Color.white;
 
         Character who = FindCharacter(line.speaker);
         nameText.text = who != null ? who.name : int.TryParse(line.speaker, out _) ? "" : (line.speaker ?? "");
@@ -244,11 +297,402 @@ public class TutorialDialogue : MonoBehaviour
         MoveLight();
         DimListeners();
         TutorialEvents.Fire(line.fireEvent);
+        if (line.fireEvent == "storm_off")
+        {
+            // Show the swear in full, then slide JK off and continue.
+            bodyText.maxVisibleCharacters = int.MaxValue;
+            typing = false;
+            hintImage.enabled = false;
+            StartCoroutine(StormOffThenNext());
+        }
+    }
+
+    void ShowChoices(Line line)
+    {
+        awaitingChoice = true;
+        typing = false;
+        nameText.text = "Your move";
+        nameText.color = new Color(1f, 0.85f, 0.35f);
+        if (border != null)
+        {
+            border.enabled = true;
+            border.effectColor = new Color(1f, 0.75f, 0.2f);
+        }
+        bodyText.text = "";
+        bodyText.maxVisibleCharacters = int.MaxValue;
+        hintImage.enabled = false;
+        speaker = null;
+        DimListeners();
+
+        if (choiceRow != null) Destroy(choiceRow);
+        choiceRow = new GameObject("Choices", typeof(RectTransform), typeof(VerticalLayoutGroup));
+        RectTransform row = (RectTransform)choiceRow.transform;
+        row.SetParent(panel, false);
+        row.anchorMin = new Vector2(0f, 0f);
+        row.anchorMax = new Vector2(1f, 1f);
+        row.offsetMin = new Vector2(28f, 20f);
+        row.offsetMax = new Vector2(-28f, -58f);
+        var layout = choiceRow.GetComponent<VerticalLayoutGroup>();
+        layout.spacing = 14f;
+        layout.childAlignment = TextAnchor.MiddleCenter;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        layout.padding = new RectOffset(0, 0, 8, 0);
+
+        var buttons = new GameObject("Buttons", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        RectTransform btnRow = (RectTransform)buttons.transform;
+        btnRow.SetParent(row, false);
+        var h = buttons.GetComponent<HorizontalLayoutGroup>();
+        h.spacing = 20f;
+        h.childAlignment = TextAnchor.MiddleCenter;
+        h.childControlWidth = true;
+        h.childControlHeight = true;
+        h.childForceExpandWidth = true;
+        h.childForceExpandHeight = false;
+
+        for (int i = 0; i < line.choiceIds.Length; i++)
+        {
+            string id = line.choiceIds[i];
+            string label = i < line.choiceLabels.Length ? line.choiceLabels[i] : id;
+            MakeChoiceButton(btnRow, id, label);
+        }
+        row.SetAsLastSibling();
+        EnsureUiInput();
+    }
+
+    // Dialogue box needs a GraphicRaycaster; the Store scene needs an Input System UI module.
+    void EnsureUiInput()
+    {
+        if (box != null && box.GetComponent<GraphicRaycaster>() == null)
+            box.AddComponent<GraphicRaycaster>();
+        EventSystem events = EventSystem.current != null
+            ? EventSystem.current
+            : FindFirstObjectByType<EventSystem>();
+        if (events == null)
+        {
+            var go = new GameObject("DialogueEventSystem");
+            events = go.AddComponent<EventSystem>();
+        }
+        var legacy = events.GetComponent<StandaloneInputModule>();
+        var modern = events.GetComponent<InputSystemUIInputModule>();
+        if (modern == null)
+        {
+            if (legacy != null) Destroy(legacy);
+            modern = events.gameObject.AddComponent<InputSystemUIInputModule>();
+            modern.AssignDefaultActions();
+        }
+        else if (legacy != null)
+        {
+            legacy.enabled = false;
+            modern.enabled = true;
+        }
+    }
+
+    void MakeChoiceButton(RectTransform parent, string id, string label)
+    {
+        var go = new GameObject("Choice_" + id, typeof(RectTransform), typeof(Image), typeof(Button), typeof(Outline));
+        RectTransform rect = (RectTransform)go.transform;
+        rect.SetParent(parent, false);
+        rect.sizeDelta = new Vector2(0f, 88f);
+        Image bg = go.GetComponent<Image>();
+        bg.color = new Color(0.95f, 0.72f, 0.18f, 1f);
+        Outline outline = go.GetComponent<Outline>();
+        outline.effectColor = new Color(1f, 0.95f, 0.55f, 1f);
+        outline.effectDistance = new Vector2(4f, -4f);
+        Button btn = go.GetComponent<Button>();
+        ColorBlock colors = btn.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 0.92f, 0.55f, 1f);
+        colors.pressedColor = new Color(0.85f, 0.55f, 0.1f, 1f);
+        colors.selectedColor = colors.highlightedColor;
+        btn.colors = colors;
+
+        TMP_Text text = Text(rect, "Label", Vector2.zero, Vector2.zero, 32f, FontStyles.Bold);
+        text.alignment = TextAlignmentOptions.Center;
+        text.text = label;
+        text.color = new Color(0.12f, 0.08f, 0.02f);
+        RectTransform tr = text.rectTransform;
+        tr.anchorMin = Vector2.zero;
+        tr.anchorMax = Vector2.one;
+        tr.offsetMin = new Vector2(8f, 8f);
+        tr.offsetMax = new Vector2(-8f, -8f);
+
+        go.AddComponent<ChoiceButtonPulse>();
+
+        string pick = id;
+        btn.onClick.AddListener(() => PickChoice(pick));
+    }
+
+    // Soft scale pulse so choice buttons read as clickable.
+    class ChoiceButtonPulse : MonoBehaviour
+    {
+        RectTransform rect;
+        void Awake() { rect = transform as RectTransform; }
+        void Update()
+        {
+            if (rect == null) return;
+            float s = 1f + 0.04f * Mathf.Sin(Time.unscaledTime * 5f);
+            rect.localScale = new Vector3(s, s, 1f);
+        }
+    }
+
+    void PickChoice(string id)
+    {
+        if (!awaitingChoice) return;
+        chosenId = id;
+        awaitingChoice = false;
+        HideChoices();
+        Next();
+    }
+
+    void PickChoiceAt(int i)
+    {
+        if (!awaitingChoice || index < 0 || index >= script.Count) return;
+        Line line = script[index];
+        if (!line.IsChoice || i < 0 || i >= line.choiceIds.Length) return;
+        PickChoice(line.choiceIds[i]);
+    }
+
+    void HideChoices()
+    {
+        awaitingChoice = false;
+        if (choiceRow != null) { Destroy(choiceRow); choiceRow = null; }
+    }
+
+    IEnumerator StormOffThenNext()
+    {
+        yield return StormOff();
+        if (IsRunning) Next();
+    }
+
+    // Crush JK's colours and slide the portrait off to the right (store DEN beat).
+    IEnumerator StormOff()
+    {
+        stormingOff = true;
+        Transform jk = null;
+        foreach (Character c in characters)
+        {
+            if (c == null || c.isPlayer || string.IsNullOrEmpty(c.name)) continue;
+            if (actors.TryGetValue(c.name, out Transform portrait)) { jk = portrait; break; }
+        }
+        if (jk == null) { stormingOff = false; yield break; }
+
+        var crush = new List<Image>();
+        foreach (var part in portraitColors)
+            if (part.Key != null && part.Key.transform.IsChildOf(jk)) crush.Add(part.Key);
+        foreach (Image img in crush)
+        {
+            Color baseColor = portraitColors[img];
+            Color sad = new Color(baseColor.r * 0.45f, baseColor.g * 0.45f, baseColor.b * 0.55f, baseColor.a);
+            img.color = sad;
+            portraitColors[img] = sad;
+        }
+
+        RectTransform rect = jk as RectTransform;
+        if (rect == null) { stormingOff = false; yield break; }
+        SpawnAngerFlames(rect);
+
+        // Flame holds ~2s above JK's head, then he bolts off quickly.
+        float holdUntil = Time.unscaledTime + 2f;
+        while (Time.unscaledTime < holdUntil) yield return null;
+
+        Vector2 from = rect.anchoredPosition;
+        Vector2 to = from + new Vector2(LayoutWidth * 0.85f, -30f);
+        float dur = 0.28f;
+        float elapsed = 0f;
+        while (elapsed < dur)
+        {
+            elapsed += Time.unscaledDeltaTime;
+            float u = Mathf.Clamp01(elapsed / dur);
+            float ease = u * u;   // accelerate out
+            rect.anchoredPosition = Vector2.Lerp(from, to, ease);
+            yield return null;
+        }
+        jk.gameObject.SetActive(false);
+        if (speaker == jk) speaker = null;
+        stormingOff = false;
+    }
+
+    // Cartoon fire plume over the speaker's head while they storm off.
+    void SpawnAngerFlames(RectTransform who)
+    {
+        var root = new GameObject("AngerFlames", typeof(RectTransform));
+        RectTransform rootRect = (RectTransform)root.transform;
+        rootRect.SetParent(who, false);
+        rootRect.anchorMin = rootRect.anchorMax = new Vector2(0.5f, 1f);
+        rootRect.pivot = new Vector2(0.5f, 0f);
+        rootRect.anchoredPosition = new Vector2(0f, 18f);
+        rootRect.sizeDelta = new Vector2(140f, 110f);
+        root.AddComponent<AngerFlameBurst>();
+    }
+
+    class AngerFlameBurst : MonoBehaviour
+    {
+        struct Tongue
+        {
+            public RectTransform rect;
+            public float baseX, baseRot, phase, wiggle;
+        }
+
+        readonly List<Tongue> tongues = new List<Tongue>();
+        readonly List<RectTransform> embers = new List<RectTransform>();
+        float born;
+        static Sprite flameSprite;
+        static Sprite emberSprite;
+
+        void Awake()
+        {
+            born = Time.unscaledTime;
+            if (flameSprite == null) flameSprite = BuildFlameSprite();
+            if (emberSprite == null) emberSprite = BuildEmberSprite();
+
+            // Outer red, mid orange, inner yellow — stacked so it reads as one fire.
+            AddTongue(0f, 72f, 100f, 0f, 0f, 1f);
+            AddTongue(-22f, 48f, 72f, -18f, 0.7f, 0.85f);
+            AddTongue(24f, 44f, 68f, 16f, 1.4f, 0.8f);
+            AddTongue(-8f, 36f, 56f, -8f, 2.1f, 0.7f);
+            AddTongue(10f, 32f, 50f, 10f, 2.8f, 0.65f);
+
+            for (int i = 0; i < 8; i++)
+            {
+                var go = new GameObject("Ember", typeof(RectTransform), typeof(Image));
+                RectTransform r = (RectTransform)go.transform;
+                r.SetParent(transform, false);
+                float s = 5f + (i % 3) * 2f;
+                r.sizeDelta = new Vector2(s, s);
+                Image img = go.GetComponent<Image>();
+                img.sprite = emberSprite;
+                img.color = i % 2 == 0
+                    ? new Color(1f, 0.85f, 0.25f, 1f)
+                    : new Color(1f, 0.45f, 0.1f, 1f);
+                img.raycastTarget = false;
+                embers.Add(r);
+            }
+        }
+
+        void AddTongue(float x, float w, float h, float rot, float phase, float wiggle)
+        {
+            var go = new GameObject("Flame", typeof(RectTransform), typeof(Image));
+            RectTransform r = (RectTransform)go.transform;
+            r.SetParent(transform, false);
+            r.sizeDelta = new Vector2(w, h);
+            r.anchoredPosition = new Vector2(x, 4f);
+            r.localRotation = Quaternion.Euler(0f, 0f, rot);
+            Image img = go.GetComponent<Image>();
+            img.sprite = flameSprite;
+            img.color = Color.white;
+            img.raycastTarget = false;
+            tongues.Add(new Tongue
+            {
+                rect = r, baseX = x, baseRot = rot, phase = phase, wiggle = wiggle
+            });
+        }
+
+        // Classic fire: wide red base → orange body → bright yellow tip, wavy silhouette.
+        static Sprite BuildFlameSprite()
+        {
+            const int w = 64, h = 96;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            tex.wrapMode = TextureWrapMode.Clamp;
+            for (int y = 0; y < h; y++)
+            {
+                float v = y / (float)(h - 1); // 0 base → 1 tip
+                // Asymmetric S-curve edges (cartoon flame).
+                float left = -0.42f + 0.12f * Mathf.Sin(v * Mathf.PI * 2.2f)
+                             + 0.08f * Mathf.Sin(v * Mathf.PI * 4.1f);
+                float right = 0.42f - 0.1f * Mathf.Sin(v * Mathf.PI * 2.6f + 1.2f)
+                              - 0.07f * Mathf.Sin(v * Mathf.PI * 3.7f);
+                // Taper hard near the tip.
+                float taper = Mathf.Lerp(1f, 0.08f, v * v);
+                left *= taper;
+                right *= taper;
+                for (int x = 0; x < w; x++)
+                {
+                    float u = (x + 0.5f) / w - 0.5f;
+                    if (u < left || u > right) { tex.SetPixel(x, y, Color.clear); continue; }
+                    float across = Mathf.InverseLerp(left, right, u);
+                    float edge = Mathf.Min(across, 1f - across) * 2f; // 0 rim → 1 center
+                    float a = Mathf.Clamp01(0.55f + 0.55f * edge);
+                    if (v < 0.08f) a *= v / 0.08f; // soft base
+
+                    // Colour: red rim / base → orange mid → yellow core & tip.
+                    Color rim = new Color(0.95f, 0.12f, 0.02f, a);
+                    Color mid = new Color(1f, 0.45f, 0.05f, a);
+                    Color core = new Color(1f, 0.92f, 0.35f, a);
+                    Color c = Color.Lerp(rim, mid, Mathf.Clamp01(edge * 1.2f));
+                    c = Color.Lerp(c, core, Mathf.Clamp01((edge - 0.35f) * 1.8f) * Mathf.Lerp(0.35f, 1f, v));
+                    // Tip goes yellower overall.
+                    c = Color.Lerp(c, core, v * v * 0.65f);
+                    c.a = a;
+                    tex.SetPixel(x, y, c);
+                }
+            }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0f), 48f);
+        }
+
+        static Sprite BuildEmberSprite()
+        {
+            const int n = 16;
+            var tex = new Texture2D(n, n, TextureFormat.RGBA32, false);
+            tex.filterMode = FilterMode.Bilinear;
+            float mid = (n - 1) * 0.5f;
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), new Vector2(mid, mid)) / mid;
+                    float a = Mathf.Clamp01(1.1f - d);
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+                }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 16f);
+        }
+
+        void Update()
+        {
+            float t = Time.unscaledTime - born;
+            for (int i = 0; i < tongues.Count; i++)
+            {
+                Tongue f = tongues[i];
+                if (f.rect == null) continue;
+                float sway = Mathf.Sin(t * 10f + f.phase) * 6f * f.wiggle;
+                float stretch = 1f + 0.12f * Mathf.Sin(t * 14f + f.phase * 1.3f);
+                float squash = 1f + 0.08f * Mathf.Sin(t * 17f + f.phase * 0.7f);
+                f.rect.anchoredPosition = new Vector2(f.baseX + sway, 4f + Mathf.Abs(Mathf.Sin(t * 9f + f.phase)) * 3f);
+                f.rect.localRotation = Quaternion.Euler(0f, 0f, f.baseRot + sway * 0.6f);
+                f.rect.localScale = new Vector3(squash, stretch, 1f);
+            }
+            for (int i = 0; i < embers.Count; i++)
+            {
+                RectTransform r = embers[i];
+                if (r == null) continue;
+                float life = (t * 0.55f + i * 0.17f) % 1.2f;
+                float u = life / 1.2f;
+                float x = Mathf.Sin(i * 1.7f + t * 3f) * (18f + i * 2f);
+                float y = 20f + u * 70f;
+                r.anchoredPosition = new Vector2(x, y);
+                float s = (1f - u) * (0.7f + (i % 3) * 0.2f);
+                r.localScale = new Vector3(s, s, 1f);
+                Image img = r.GetComponent<Image>();
+                if (img != null)
+                {
+                    Color c = img.color;
+                    c.a = Mathf.Clamp01(1.2f - u * 1.4f);
+                    img.color = c;
+                }
+            }
+        }
     }
 
     void Finish()
     {
         IsRunning = false;
+        HideChoices();
+        StopAllCoroutines();
+        stormingOff = false;
         if (box != null) box.SetActive(false);
         if (removeCharacters)
             foreach (GameObject go in spawned) if (go != null) Destroy(go);
@@ -289,15 +733,67 @@ public class TutorialDialogue : MonoBehaviour
             foreach (Line line in lines) if (line != null && !string.IsNullOrEmpty(line.text)) script.Add(line);
             return;
         }
+        string onlyIf = "";
         foreach (string raw in scriptFile.text.Split('\n'))
         {
             string text = raw.Trim();
-            if (text.Length == 0 || text.StartsWith("#")) continue;   // blank lines and # comments
+            if (text.Length == 0) continue;
+            if (text.StartsWith("#choice "))
+            {
+                Line choice = ParseChoice(text.Substring(8).Trim());
+                if (choice != null)
+                {
+                    choice.onlyIf = onlyIf;
+                    script.Add(choice);
+                }
+                continue;
+            }
+            if (text.StartsWith("#if "))
+            {
+                onlyIf = text.Substring(4).Trim();
+                continue;
+            }
+            if (text == "#endif")
+            {
+                onlyIf = "";
+                continue;
+            }
+            if (text.StartsWith("#")) continue;   // blank-line comments
             string fire = TakeEvent(ref text);
             int before = script.Count;
             AddScriptLine(text);
-            if (script.Count > before) script[before].fireEvent = fire;
+            if (script.Count > before)
+            {
+                script[before].fireEvent = fire;
+                script[before].onlyIf = onlyIf;
+            }
         }
+    }
+
+    // "buy:Buy anyway|skip:Not buying" → a choice Line
+    static Line ParseChoice(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return null;
+        string[] parts = raw.Split('|');
+        var ids = new List<string>();
+        var labels = new List<string>();
+        foreach (string part in parts)
+        {
+            string p = part.Trim();
+            if (p.Length == 0) continue;
+            int colon = p.IndexOf(':');
+            if (colon <= 0) continue;
+            ids.Add(p.Substring(0, colon).Trim());
+            labels.Add(p.Substring(colon + 1).Trim());
+        }
+        if (ids.Count == 0) return null;
+        return new Line
+        {
+            speaker = "",
+            text = "",
+            choiceIds = ids.ToArray(),
+            choiceLabels = labels.ToArray(),
+        };
     }
 
     // "... text #show_shelf": the line fires TutorialEvents "show_shelf" when it shows (a step can
@@ -400,9 +896,8 @@ public class TutorialDialogue : MonoBehaviour
         }
     }
 
-    // Beside Box: the others from the left edge inwards, the player from the right edge inwards,
-    // standing on the box's bottom line; the box spans the gap. Across the whole screen when there
-    // is no arena (and so no HUD sidebar), like the store
+    // Beside Box (store): player on the left, others (J.K. Rolling) on the right; the box spans
+    // the gap. Across the whole screen when there is no arena (and so no HUD sidebar).
     void SpawnBesideBox()
     {
         float width = FindFirstObjectByType<LevelLayout>() != null ? LayoutWidth * (1f - HUDLayout.SidebarWidth) : LayoutWidth;
@@ -418,8 +913,8 @@ public class TutorialDialogue : MonoBehaviour
             }
             RectTransform portrait = AddPortrait(c, new Vector2(0f, BoxBottom));
             float w = portrait.sizeDelta.x;
-            if (c.isPlayer) { Place(portrait, right - w * 0.5f, BoxBottom); right -= w + gap; }
-            else { Place(portrait, left + w * 0.5f, BoxBottom); left += w + gap; }
+            if (c.isPlayer) { Place(portrait, left + w * 0.5f, BoxBottom); left += w + gap; }
+            else { Place(portrait, right - w * 0.5f, BoxBottom); right -= w + gap; }
         }
         LayOutPanel(left, right);
     }
@@ -528,7 +1023,8 @@ public class TutorialDialogue : MonoBehaviour
     // times boxScale), with a panel across the bottom of the arena
     void BuildBox()
     {
-        box = new GameObject("DialogueBox", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+        box = new GameObject("DialogueBox", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler),
+                             typeof(GraphicRaycaster));
         Canvas canvas = box.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = SortingOrder;

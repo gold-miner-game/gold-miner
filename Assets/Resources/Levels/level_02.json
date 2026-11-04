@@ -70,8 +70,7 @@
     "greedy": true,
     "hook_delay_1": 2.5,
     "hook_delay_2": 4.5,
-    "compete": 1,
-    "classic_hooks": 1
+    "compete": 1
   },
   "skills": {
     "block": true,

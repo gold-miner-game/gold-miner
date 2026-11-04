@@ -75,7 +75,9 @@ public class StoreView : MonoBehaviour
         var events = new GameObject("StoreEventSystem");
         events.transform.SetParent(parent, false);
         events.AddComponent<EventSystem>();
-        events.AddComponent<StandaloneInputModule>();
+        // Input System package: StandaloneInputModule often gets no clicks in this project.
+        var ui = events.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+        if (ui != null) ui.AssignDefaultActions();
     }
 
     void OnDestroy()
@@ -243,15 +245,14 @@ public class StoreView : MonoBehaviour
             new ShopOffer
             {
                 id = "brace", title = "Brace", price = 400,
-                description = "Blocking next level.",
-                icon = "brace", color = new Color(0.25f, 0.45f, 0.85f)
+                description = "+1 life next level (orange bonus).",
+                icon = "brace", color = new Color(1f, 0.55f, 0.08f)
             }
         };
     }
 
-    // Pays for one and uses it. Between levels that arms the effect for the next
-    // level: swift doubles speed, ration skips digest, shield runs 5s, brace
-    // blocks the whole level. A bought item leaves the shelf until that use is over.
+    // Pays for one and arms it for the next playable level. Each item can be bought only once.
+    // Swift: double speed. Ration: no digest. Shield: 5s invuln. Brace: +1 orange bonus life.
     static bool Buy(string id, int price)
     {
         CrossLevelStatus player = CrossLevelStatus.Active;
@@ -259,7 +260,7 @@ public class StoreView : MonoBehaviour
         player.addWallet(-price);
         PlayerSkill skill = player.addSkill(id);
         skill.stock++;
-        skill.unlocked = true;
+        skill.unlocked = true;   // permanent: shelf never offers it again
         player.useSkill(id);
         PlayAnalytics.Purchase(id);
         return true;
@@ -383,11 +384,13 @@ public class StoreView : MonoBehaviour
             label.Refresh();
     }
 
+    // Once bought (unlocked), the item never returns to the shelf — one purchase max.
     static bool AlreadyOwned(string id)
     {
         CrossLevelStatus player = CrossLevelStatus.Active;
         if (player == null) return false;
-        return Held(player.getSkill(id)) > 0;
+        PlayerSkill skill = player.getSkill(id);
+        return skill != null && skill.unlocked && IsStoreItem(id);
     }
 
     // Bought items still count after the effect is armed, because that spends the stock.

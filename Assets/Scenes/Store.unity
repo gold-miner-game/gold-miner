@@ -1975,58 +1975,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TutorialDialogue
   characters:
-  - name: J.K.Rolling
-    prefab: {fileID: 4310000000000000001, guid: 961e788c3a70421298d40ea942b421b6, type: 3}
+  - name: Evil Meowmeow
+    prefab: {fileID: 3441999243807342868, guid: 663acc62e2e97ce40b482c3a8bccd9d5, type: 3}
     spawnAt: {fileID: 0}
     isPlayer: 0
-    side: 1
+    side: 0
   - name: You
     prefab: {fileID: 5925258680730926926, guid: 52a6ed9b3da9c4a269d718c6441dd744, type: 3}
     spawnAt: {fileID: 0}
     isPlayer: 1
     side: 0
-  lines:
-  - speaker: J.K.Rolling
-    text: 'Before the next fight, let me show you my favourite place in the whole
-      mine: the store!'
-    autoNext: 0
-    fireEvent: 
-  - speaker: You
-    text: 'A store? Down here?
-
-'
-    autoNext: 0
-    fireEvent: 
-  - speaker: J.K.Rolling
-    text: " Up there is your wallet. Every coin you take from the miners ends up
-      in it. \r\n"
-    autoNext: 0
-    fireEvent: point_wallet
-  - speaker: J.K.Rolling
-    text: '0. And these are the goods. Point at one to read what it does, click it
-      to buy it. #show_shelf
-
-'
-    autoNext: 0
-    fireEvent: point_goods
-  - speaker: J.K.Rolling
-    text: 'Whatever you buy works in your next level: faster legs, no time digesting,
-      a shield, or a block that lasts the whole level.
-
-'
-    autoNext: 0
-    fireEvent: 
-  - speaker: You
-    text: 'And when I''m done shopping? '
-    autoNext: 0
-    fireEvent: 
-  - speaker: You
-    text: 'Press Leave and you''re back on the map. The store stays open, so come
-      back any time. '
-    autoNext: 0
-    fireEvent: point_leave
+  lines: []
   scriptFile: {fileID: 4900000, guid: 3f6a9c2e5b8d4a1f9e0c7b2d5a8f1e4c, type: 3}
-  useLines: 1
+  useLines: 0
   lettersPerSecond: 45
   speakerLight: {fileID: 0}
   characterOrder: 50

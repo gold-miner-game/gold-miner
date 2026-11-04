@@ -16,6 +16,8 @@ public class PlayerLifeBar : MonoBehaviour
     [Tooltip("Above the top of the player's body, in world units")]
     public float lift = 0.22f;
     public Color full = new Color(0.92f, 0.16f, 0.2f);
+    // Brace bonus pips: orange (#FF8C14), same cue as the sidebar LIFE +N.
+    public Color braceFull = new Color(1f, 0.549f, 0.078f, 1f);
     public Color empty = new Color(0.12f, 0.12f, 0.14f, 0.85f);
     public Color frame = new Color(0f, 0f, 0f, 0.7f);
 
@@ -31,9 +33,16 @@ public class PlayerLifeBar : MonoBehaviour
     void LateUpdate()
     {
         GameManager gm = GameManager.Instance;
-        if (gm != seenFor) { seenFor = gm; most = gm != null ? Mathf.Max(gm.Lives, gm.startingLives) : 0; }   // a new round: as long as the start
+        if (gm != seenFor) { seenFor = gm; most = gm != null ? Mathf.Max(gm.Lives, gm.startingLives) : 0; }
+
         int lives = gm != null ? gm.Lives : 0;
-        most = Mathf.Max(most, lives);
+        int bonus = gm != null ? gm.BonusLives : 0;
+        if (bonus <= 0) bonus = LevelLoader.PendingBraceBonusLives();
+        // Armed Brace on the hub may not be in gm.Lives yet — grow the bar so the orange pip appears.
+        int filled = lives;
+        if (bonus > 0 && gm != null && gm.BonusLives <= 0) filled = lives + bonus;
+
+        most = Mathf.Max(most, filled, gm != null ? gm.startingLives : 0);
         bool show = gm != null && most > 0 && most <= maxSegments && isActiveAndEnabled;
         if (!show) { if (bar != null) bar.gameObject.SetActive(false); return; }
 
@@ -44,7 +53,16 @@ public class PlayerLifeBar : MonoBehaviour
         if (body == null) body = GetComponent<Collider2D>();
         Vector2 at = body != null ? new Vector2(body.bounds.center.x, body.bounds.max.y) : (Vector2)transform.position + Vector2.up * 0.5f;
         bar.position = new Vector3(at.x, at.y + lift, 0f);
-        for (int i = 0; i < segments.Length; i++) segments[i].color = i < lives ? full : empty;
+
+        // Rightmost filled segments are Brace bonus Lives (orange); the rest stay bright red.
+        bonus = Mathf.Clamp(bonus, 0, filled);
+        int normalFilled = filled - bonus;
+        for (int i = 0; i < segments.Length; i++)
+        {
+            if (i >= filled) segments[i].color = empty;
+            else if (i >= normalFilled) segments[i].color = braceFull;
+            else segments[i].color = full;
+        }
     }
 
     void Make()

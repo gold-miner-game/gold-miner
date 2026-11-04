@@ -244,12 +244,12 @@ public class CrossLevelStatus : MonoBehaviour
         return shield != null && shield.secondsLeft > 0f;
     }
 
-    // True for the rest of the level after the brace item is used.
-    public virtual bool isBracing()
-    {
-        PlayerSkill brace = getSkill("brace");
-        return brace != null && brace.active;
-    }
+    // Legacy name: Brace used to mean full-level block. It now grants +1 bonus life instead.
+    public virtual bool isBracing() => false;
+
+    // Extra life from Brace this level (shown orange on the HUD). Cleared when the level ends.
+    public virtual int getBraceBonusLives() => braceBonusLives;
+    int braceBonusLives;
 
     public virtual IReadOnlyList<PlayerSkill> getSkills() { return skills; }
 
@@ -301,7 +301,14 @@ public class CrossLevelStatus : MonoBehaviour
             PlayerSkill skill = skills[i];
             if (!skill.armed) continue;
             skill.armed = false;
-            if (skill.id == "ration" || skill.id == "swift" || skill.id == "brace")
+            if (skill.id == "brace")
+            {
+                skill.active = true;
+                braceBonusLives = 1;
+                setExtraLives(1);
+                continue;
+            }
+            if (skill.id == "ration" || skill.id == "swift")
             {
                 skill.active = true;
                 if (skill.id == "swift") beginSwiftBoost();
@@ -324,6 +331,8 @@ public class CrossLevelStatus : MonoBehaviour
     public virtual void onLevelEnded()
     {
         endSwiftBoost();
+        braceBonusLives = 0;
+        setExtraLives(0);
         for (int i = 0; i < skills.Count; i++)
         {
             PlayerSkill skill = skills[i];
@@ -375,6 +384,11 @@ public class CrossLevelStatus : MonoBehaviour
             skill.unlocked = true;
             skill.active = true;
             if (id == "swift") beginSwiftBoost();
+            if (id == "brace")
+            {
+                braceBonusLives = 1;
+                setExtraLives(1);
+            }
             return true;
         }
 
