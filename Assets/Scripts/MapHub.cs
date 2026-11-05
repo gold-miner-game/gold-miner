@@ -45,7 +45,12 @@ public class MapHub : MonoBehaviour
     }
 
     readonly List<HubPortal> portals = new List<HubPortal>();
+    PlayerCharacter walker;
+    float tileSize;
     string hint = "";
+
+    [Tooltip("Where a player caught by a miner's hook on the map comes back: in front of this node's portal")]
+    public string reviveAt = "role_pick";
     float hintUntil;
     GUIStyle hintStyle;
 
@@ -66,6 +71,8 @@ public class MapHub : MonoBehaviour
     public void Build(LevelData level, PlayerCharacter player, Sprite hexSprite, Color wallColor, Transform baked)
     {
         float tile = level.TileSize;
+        walker = player;
+        tileSize = tile;
         Transform root = baked != null ? baked : new GameObject("Hub").transform;
 
         // Portals: the scene's, else one per grid portal
@@ -130,6 +137,21 @@ public class MapHub : MonoBehaviour
                     Debug.LogWarning("MapHub: WorldMap node '" + node.id + "' has no portal in the hub level");
 
         if (baked != null) HideRetiredModes(baked);
+        if (baked != null) LetHooksThroughGreen(baked);
+    }
+
+    // Green rocks (levels not disclosed yet) are no obstacle to a hook. The bake marks them already;
+    // this also covers a map baked before Rock.hookPasses existed (found by their green tint)
+    static void LetHooksThroughGreen(Transform baked)
+    {
+        foreach (Rock rock in baked.GetComponentsInChildren<Rock>(true))
+        {
+            SpriteRenderer sprite = rock.GetComponent<SpriteRenderer>();
+            if (sprite == null) continue;
+            Color c = sprite.color;
+            if (Mathf.Abs(c.r - GreenRock.r) < 0.05f && Mathf.Abs(c.g - GreenRock.g) < 0.05f && Mathf.Abs(c.b - GreenRock.b) < 0.05f)
+                rock.hookPasses = true;
+        }
     }
 
     // Attack and survival are out of this build. Their walls and floor labels stay in the baked
@@ -168,6 +190,56 @@ public class MapHub : MonoBehaviour
         text.color = new Color(1f, 1f, 1f, 0.55f);
         text.sortingOrder = 1;
         return go;
+    }
+
+    // --- HP on the map ----------------------------------------------------------------------------
+    // A miner's hook costs 1 HP (GameManager.PlayerHit). The map's HP is kept between visits and only
+    // refills when a level is won (RefillHp, from GameFlow) or when the player revives here.
+    public const string HpKey = "gm.map.hp";   // core HP left on the map (no Brace pip); none = full
+    int fullLives;                              // full HP this visit, with any Brace pip
+
+    // LevelLoader.Start, after the hub's lives are set up: carry over the HP left from last time
+    public void ApplySavedHp(GameManager gm)
+    {
+        if (gm == null) return;
+        fullLives = gm.startingLives;
+        if (!PlayerPrefs.HasKey(HpKey)) return;
+        int fullCore = Mathf.Max(1, gm.startingLives - gm.BonusLives);
+        int core = Mathf.Clamp(PlayerPrefs.GetInt(HpKey, fullCore), 1, fullCore);
+        gm.SetLives(core + gm.BonusLives);
+    }
+
+    public void SaveHp(GameManager gm)
+    {
+        if (gm == null) return;
+        PlayerPrefs.SetInt(HpKey, Mathf.Max(1, gm.Lives - gm.BonusLives));
+        PlayerPrefs.Save();
+    }
+
+    // A won level: the map's HP is full again next time
+    public static void RefillHp()
+    {
+        PlayerPrefs.DeleteKey(HpKey);
+        PlayerPrefs.Save();
+    }
+
+    // The hook took the last HP: the player revives on the floor just above the Pick Character
+    // portal with full HP. Without that portal they revive where they are
+    public void Revive(GameManager gm)
+    {
+        RefillHp();
+        if (gm != null)
+        {
+            gm.SetBonusLives(LevelLoader.PendingBraceBonusLives());
+            gm.SetLives(fullLives > 0 ? fullLives : gm.startingLives);
+        }
+        HubPortal at = portals.Find(p => p != null && p.nodeId == reviveAt);
+        if (at == null || walker == null) return;
+        Vector2 spot = (Vector2)at.transform.position + Vector2.up * tileSize;
+        walker.transform.position = spot;
+        var body = walker.GetComponent<Rigidbody2D>();
+        if (body != null) { body.position = spot; body.linearVelocity = Vector2.zero; }
+        ShowHint("Caught! Back to " + (at.Node != null ? at.Node.displayName : reviveAt) + " with full HP");
     }
 
     public void Enter(HubPortal portal)

@@ -10,6 +10,8 @@ public class Treasure : MonoBehaviour
     public static readonly List<Treasure> Active = new List<Treasure>();
     // Treasure riding a hook home: no longer Active, but not paid out yet
     public static readonly HashSet<Treasure> OnHooks = new HashSet<Treasure>();
+    // The player's character ate this treasure (mouth, tail or tongue). The world map's one-time gold listens
+    public static event System.Action<Treasure> Eaten;
 
     public TreasureType type = TreasureType.SmallGold;
     public int value = 50;
@@ -50,6 +52,7 @@ public class Treasure : MonoBehaviour
         player.OnTreasureEaten();
         player.DigestTreasure(this, value);
         PlayAnalytics.FirstGold(type);
+        Eaten?.Invoke(this);
         Destroy(gameObject);
         return true;
     }
@@ -75,6 +78,7 @@ public class Treasure : MonoBehaviour
         if (player != null) player.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
         PlayAnalytics.FirstGold(type);
+        Eaten?.Invoke(this);
         Destroy(gameObject);
     }
 

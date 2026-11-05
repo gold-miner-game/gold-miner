@@ -10,6 +10,7 @@ public static class ProgressStore
     const string CharacterKey = "gm.progress.character";
     const string RevealedKey = "gm.progress.revealed";    // ';'-separated ids of hidden hub portals already shown
     const string MarginsKey = "gm.progress.bestMargins"; // "id:margin;id:margin"
+    const string MapGoldKey = "gm.progress.mapGold";     // ';'-separated ids of the world map's one-time gold already eaten
 
     static HashSet<string> completed;
     static Dictionary<string, int> bestMargins;
@@ -139,6 +140,22 @@ public static class ProgressStore
         PlayerPrefs.Save();
     }
 
+    // The world map's one-time gold (MapGold): once eaten it never comes back
+    public static bool MapGoldTaken(string goldId)
+    {
+        foreach (string id in PlayerPrefs.GetString(MapGoldKey, "").Split(';'))
+            if (id == goldId) return true;
+        return false;
+    }
+
+    public static void MarkMapGoldTaken(string goldId)
+    {
+        if (string.IsNullOrEmpty(goldId) || MapGoldTaken(goldId)) return;
+        string raw = PlayerPrefs.GetString(MapGoldKey, "");
+        PlayerPrefs.SetString(MapGoldKey, raw == "" ? goldId : raw + ";" + goldId);
+        PlayerPrefs.Save();
+    }
+
     // The tutorial run (WorldMap.tutorialLevels) is saved under this id once it is finished.
     public const string TutorialDoneId = "tutorial";
     // tut_block = the last tutorial node of the old map, so older saves skip the run too
@@ -155,6 +172,8 @@ public static class ProgressStore
         PlayerPrefs.DeleteKey(CharacterKey);
         PlayerPrefs.DeleteKey(RevealedKey);
         PlayerPrefs.DeleteKey(MarginsKey);
+        PlayerPrefs.DeleteKey(MapGoldKey);
+        PlayerPrefs.DeleteKey(MapHub.HpKey);
         PlayerPrefs.DeleteKey("gm.progress.marginsCredited"); // legacy dual-ledger key
         PlayerPrefs.DeleteKey(SingleWalletMigratedKey);
         PlayerPrefs.Save();

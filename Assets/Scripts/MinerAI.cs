@@ -125,9 +125,23 @@ public class MinerAI : MonoBehaviour
         StartCoroutine(Loop());
     }
 
+    // Waits in game time, except during bullet time (TimeMovesWithPlayer slowing the world while the
+    // player stands still): then in real time, so the miner keeps aiming and firing at its usual pace
+    // and only the hook flies in slow motion. A pause (time scale 0) still holds it.
+    static IEnumerator Wait(float seconds)
+    {
+        float t = 0f;
+        while (t < seconds)
+        {
+            yield return null;
+            if (Time.timeScale <= 0f) continue;
+            t += TimeMovesWithPlayer.Slowness > 0f ? Time.unscaledDeltaTime : Time.deltaTime;
+        }
+    }
+
     IEnumerator Loop()
     {
-        yield return new WaitForSeconds(startDelay);
+        yield return Wait(startDelay);
 
         while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
@@ -183,7 +197,7 @@ public class MinerAI : MonoBehaviour
             // 3. Telegraph: yellow = treasure, red = player
             telegraph.Show(origin, origin + dir * length, aimAtPlayer ? playerColor : treasureColor);
             if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.AimEvent);
-            yield return new WaitForSeconds(Random.Range(telegraphMin, telegraphMax));
+            yield return Wait(Random.Range(telegraphMin, telegraphMax));
             telegraph.Hide();
             if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
@@ -198,7 +212,7 @@ public class MinerAI : MonoBehaviour
             if (greedyValue && aimThroughPig && !lastShotAtPig) aimThroughPig = false;
             if (aimAtPlayer && GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(SurvivalHookAI.DodgedEvent);
 
-            yield return new WaitForSeconds(cooldown);
+            yield return Wait(cooldown);
         }
     }
 

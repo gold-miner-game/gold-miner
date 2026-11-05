@@ -60,6 +60,12 @@ public class GameManager : MonoBehaviour
         BonusLives = Mathf.Max(0, bonus);
     }
 
+    // The world map keeps its own HP between visits (MapHub): set it straight
+    public void SetLives(int lives)
+    {
+        Lives = Mathf.Max(1, lives);
+    }
+
     // LevelLoader sets startingLives after Awake; call this so Lives matches the braced total.
     public void SyncLivesFromStart()
     {
@@ -132,6 +138,23 @@ public class GameManager : MonoBehaviour
 
         // A shield absorbs the hit for its full 5 seconds. The hook still stops.
         if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
+
+        // The world map (the evil cat's eye miners): a hook costs 1 HP. The last one doesn't end the
+        // run: the player revives at the Pick Character portal with full HP (MapHub)
+        if (MapHub.Active != null)
+        {
+            TutorialEvents.Fire("player_hit");
+            invincibleUntil = Time.time + invincibleTime;
+            if (Lives > 1)
+            {
+                Lives--;
+                if (BonusLives > 0) BonusLives--;
+                TutorialEvents.Fire("life_lost");
+                MapHub.Active.SaveHp(this);
+            }
+            else MapHub.Active.Revive(this);
+            return;
+        }
 
         PlayAnalytics.Death();
         TutorialEvents.Fire("player_hit");
