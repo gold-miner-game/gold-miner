@@ -335,17 +335,18 @@ public class LevelLoader : MonoBehaviour
         else if (baked == null)
         {
             var walls = new GameObject("Walls").transform;
-            void Wall(Vector2 at, Color? tint)
+            void Wall(Vector2 at, Color? tint, bool hookPasses = false)
             {
                 GameObject go = Instantiate(rockPrefab, at, Quaternion.identity, walls);
                 go.transform.localScale = Vector3.one * tile;
                 Rock rock = go.GetComponent<Rock>();
-                if (rock != null) rock.MakeWall();
+                if (rock != null) { rock.MakeWall(); rock.hookPasses = hookPasses; }
                 SpriteRenderer r = go.GetComponent<SpriteRenderer>();
                 if (r != null && tint.HasValue) r.color = tint.Value;
             }
             foreach (Vector2 at in level.walls) Wall(at, null);
-            foreach (LevelData.ColoredWall w in level.coloredWalls) Wall(w.position, MapHub.WallColor(w.color, grey));   // the mode areas
+            foreach (LevelData.ColoredWall w in level.coloredWalls)   // the mode areas; green ones don't stop a hook
+                Wall(w.position, MapHub.WallColor(w.color, grey), w.color == 'G');
         }
 
         GameplayCamera.SetArenaSize(level.MazeSize + Vector2.one * tile);
@@ -1125,6 +1126,16 @@ public class LevelLoader : MonoBehaviour
         bool kills = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
         miner.shootsPlayer = kills;
         miner.hook.hitsPig = kills;
+        // "hunt_player": every shot at the player, and the hook passes over gold (the world map's eye
+        // miners guard the one-time gold instead of taking it)
+        if (level.Param("hunt_player", 0f) > 0.5f)
+        {
+            miner.huntPigOnly = true;
+            miner.hook.grabsTreasure = false;
+        }
+        // "hook_wall_grace": how far a shot flies before wall rocks can stop it (0 on the world map,
+        // so an eye miner's hook stops at the first rock, even the ones right beside it)
+        miner.hook.wallGrace = level.Param("hook_wall_grace", miner.hook.wallGrace);
         miner.hook.extendSpeed = level.Param("hook_extend", miner.hook.extendSpeed) * gameSpeed;
         miner.hook.retractSpeed = level.Param("hook_retract", miner.hook.retractSpeed) * gameSpeed;
         miner.hook.passRocks = level.Param("hooks_pass_rocks", 0f) > 0.5f;
@@ -1417,6 +1428,9 @@ public class LevelLoader : MonoBehaviour
             }
             // Restore overwrites Lives; re-apply armed Brace so the map LIFE bar shows the orange +1.
             ApplyHubBracePreview();
+            // Then the HP the map kept from last time (hooks cost HP there; a won level refills it)
+            MapHub hub = GetComponent<MapHub>();
+            if (hub != null) hub.ApplySavedHp(GameManager.Instance);
         }
     }
 

@@ -1,69 +1,104 @@
 {
   "name": "World Map",
-  "_comment": "The world-map hub (MapHub). # wall, R/Y/G red/yellow/green wall (attack/survival/compete areas), P start, < > ^ v one-way. Each portal is a WorldMap node; hidden ones are rocks until their node unlocks.",
+  "_comment": "The world-map hub (MapHub), drawn as the evil cat (EvilMeowmeow.prefab), design V156. honeycomb: odd rows sit half a tile right. # wall, G green wall = a level not disclosed yet, P start. Portals unlock in the WorldMap order (Store, Pick Character, Basic, Level 1, Level 2); every one after the Store is a green stone until its turn. The two eyes are hollow, their outlines run green, rock, gap, rock round from the tip, with a miner in each (compete: they shoot at the player and time slows while the player stands still); a hook costs 1 HP; at 0 HP the player revives at Pick Character with full HP, and every won level refills it. still_time_scale = how slow time gets while standing still. The miners hunt only the player (hunt_player) and guard 4 one-time small gold in the eyes' top corners ($200, enough for the cheapest Store item). hook_wall_grace 0: the eye miners' hooks stop at the first rock they touch.",
   "params": {
     "pig_speed": 4.0,
     "tile_size": 0.42,
     "digest_time": 0.0,
-    "digest_per_value": 0.0
+    "digest_per_value": 0.0,
+    "compete": 1,
+    "hole_size": 0.45,
+    "hunt_player": 1,
+    "still_time_scale": 0.06,
+    "hook_wall_grace": 0
   },
+  "honeycomb": true,
   "grid": [
-    "........................GGGGGGGGGGGG",
-    "........................GGGGGGGGGGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG....GGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG....GGG",
-    "........................GGGGG...GGGG",
-    "........................GGGGG...GGGG",
-    "................................GGGG",
-    "................................GGGG",
-    "................................GGGG",
-    "........................GGGGGGGGGGGG",
-    ".................P......GGGGGGGGGGGG",
-    "........................GGGGGGGGGGGG",
-    "........................GGGGGGGGGGGG",
-    "............############GGGGGGGGGGGG"
+    ".............#........#.............",
+    "............##.......##.............",
+    "............#G#......#G#............",
+    "...........#..#.....#..#............",
+    "...........#...#....#...#...........",
+    ".....######....#####....######......",
+    "....#######.....####.....#######....",
+    "...###.......................###....",
+    "..###...G#.#G#.#G..G#.#G#.#G...###..",
+    ".###....#......#...#......#....###..",
+    ".#G..............................G#.",
+    "##.........##.........##.........###",
+    ".##..............................##.",
+    "##...............P...............###",
+    ".#G..............................G#.",
+    "##...............................###",
+    ".##..........##########..........##.",
+    ".##.........##.##.##.##.........##..",
+    "..###........G.....G..G........###..",
+    "..####.......................####...",
+    "....#####..................#####....",
+    ".....#########################......",
+    "........####################........"
   ],
   "portals": [
     {
       "target": "store_1",
       "x": 12,
-      "y": 21
+      "y": 16
     },
     {
       "target": "role_pick",
       "x": 23,
-      "y": 21
+      "y": 16,
+      "hidden": true,
+      "stone": "G"
     },
     {
       "target": "battle_02",
-      "x": 15,
-      "y": 12
+      "x": 16,
+      "y": 18,
+      "hidden": true,
+      "stone": "G"
     },
     {
       "target": "battle_03",
-      "x": 32,
-      "y": 12
+      "x": 12,
+      "y": 12,
+      "hidden": true,
+      "stone": "G"
     },
     {
       "target": "battle_06",
-      "x": 32,
-      "y": 8
+      "x": 23,
+      "y": 12,
+      "hidden": true,
+      "stone": "G"
     }
   ],
-  "labels": [
+  "miners": [
     {
-      "text": "COMPETE",
-      "x": 30,
-      "y": 16
+      "x": 11.5,
+      "y": 9.0
+    },
+    {
+      "x": 22.5,
+      "y": 9.0
+    }
+  ],
+  "gold": [
+    {
+      "x": 9,
+      "y": 9
+    },
+    {
+      "x": 14,
+      "y": 9
+    },
+    {
+      "x": 25,
+      "y": 9
+    },
+    {
+      "x": 20,
+      "y": 9
     }
   ]
 }

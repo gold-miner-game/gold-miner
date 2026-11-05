@@ -205,6 +205,7 @@ public class GameFlow : MonoBehaviour
                 GameManager gm = GameManager.Instance;
                 if (gm != null && gm.PlayerWon)
                 {
+                    MapHub.RefillHp();   // every won level refills the world map's HP
                     int margin = gm.PlayerMoney - gm.MinerMoney;
                     int gain = ProgressStore.TryCreditBestMargin(node.id, margin);
                     Debug.Log("GameFlow: best margin for " + node.id + " = " + margin

@@ -13,6 +13,8 @@ public class Rock : MonoBehaviour
     private SpriteRenderer sr;
     [Tooltip("A maze wall (the world map): planted, and it never breaks")]
     public bool isWall;
+    [Tooltip("A hook flies through this rock (the world map's green rocks: levels not disclosed yet). The player still can't")]
+    public bool hookPasses;
 
     private bool shattered;
     private bool indestructible;

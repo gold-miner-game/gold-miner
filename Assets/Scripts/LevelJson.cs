@@ -22,9 +22,11 @@ using UnityEngine;
 //   P player start   < > ^ v one-way tile (passable only
 //   that way)   anything else floor
 // plus "portals": [{"target": "battle_01", "x": col, "y": row, "hidden": true}], each a WorldMap
-// node id. A hidden portal is a rock, coloured like the walls around it, until its node unlocks. And "labels":
-// [{"text": "ATTACK", "x": col, "y": row}], words on the floor. A grid level has no hooks unless it
-// lists some.
+// node id. A hidden portal is a rock, coloured like the walls around it (or "stone": "G" / "R" / "Y"),
+// until its node unlocks. And "labels": [{"text": "ATTACK", "x": col, "y": row}], words on the floor.
+// "honeycomb": true shifts every odd row half a tile to the right, so the hexagon rocks pack like a
+// honeycomb and slanted edges (the evil cat's ears, eyes and teeth) come out straight. A grid level
+// has no hooks unless it lists some ("hooks" in world units, or "miners": [{"x": col, "y": row}]).
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.
 public class LevelData
 {
@@ -85,6 +87,7 @@ public class LevelData
     public readonly List<MazeTrigger> mazeTriggers = new List<MazeTrigger>();
     public readonly List<string> creditSources = new List<string>();
     public bool IsMaze;
+    public bool Honeycomb;   // odd grid rows sit half a tile to the right
     public float TileSize = 1f;
     public int GridRows;
     public int EntryCredit;
@@ -100,6 +103,7 @@ public class LevelData
     public readonly List<OneWay> oneWays = new List<OneWay>();
     public readonly List<Portal> portals = new List<Portal>();
     public readonly List<Label> labels = new List<Label>();
+    public readonly List<Vector2> mapGold = new List<Vector2>();   // the hub's one-time gold ("gold" spots)
 
     public static LevelData Parse(string json)
     {
@@ -122,8 +126,8 @@ public class LevelData
         if (root.TryGetValue("items", out object items)) ReadItems(items, level.items);
         if (root.TryGetValue("grid", out object grid) && grid is List<object> rows)
         {
+            if (!root.ContainsKey("hooks")) level.hooks.Clear();   // the hub has no miner, unless its "miners" place some
             ReadGrid(level, rows, root);
-            if (!root.ContainsKey("hooks")) level.hooks.Clear();   // the hub has no miner
         }
         if (root.TryGetValue("stages", out object stages))
             foreach (object s in (List<object>)stages) level.stages.Add(ReadStage((Dictionary<string, object>)s));
@@ -140,7 +144,9 @@ public class LevelData
         foreach (object r in rows) if (r is string line) cols = Mathf.Max(cols, line.Length);
         level.IsMaze = true;
         level.TileSize = tile;
-        level.MazeSize = new Vector2(cols, rows.Count) * tile;
+        level.Honeycomb = root.TryGetValue("honeycomb", out object hc) && hc is bool hb2 && hb2;
+        // a honeycomb's shifted rows reach half a tile further right
+        level.MazeSize = new Vector2(cols + (level.Honeycomb && rows.Count > 1 ? 0.5f : 0f), rows.Count) * tile;
 
         for (int row = 0; row < rows.Count; row++)
         {
@@ -172,8 +178,28 @@ public class LevelData
                     target = target,
                     position = GridToWorld(level, x, y),
                     hidden = p.TryGetValue("hidden", out object h) && h is bool hb && hb,
-                    stone = WallAround(rows, x, y),
+                    stone = p.TryGetValue("stone", out object st) && st is string s && s.Length > 0 ? s[0] : WallAround(rows, x, y),
                 });
+            }
+
+        // "miners": [{"x": col, "y": row}]: a miner's hook origin on that tile (the evil cat's eyes)
+        if (root.TryGetValue("miners", out object miners) && miners is List<object> spots)
+            foreach (object o in spots)
+            {
+                if (!(o is Dictionary<string, object> m)) continue;
+                float x = m.TryGetValue("x", out object mx) ? ToFloat(mx) : 0f;
+                float y = m.TryGetValue("y", out object my) ? ToFloat(my) : 0f;
+                level.hooks.Add(GridToWorld(level, x, y));
+            }
+
+        // "gold": [{"x": col, "y": row}]: one-time small gold on that tile (MapGold, baked into the scene)
+        if (root.TryGetValue("gold", out object gold) && gold is List<object> pieces)
+            foreach (object o in pieces)
+            {
+                if (!(o is Dictionary<string, object> g)) continue;
+                float x = g.TryGetValue("x", out object gx) ? ToFloat(gx) : 0f;
+                float y = g.TryGetValue("y", out object gy) ? ToFloat(gy) : 0f;
+                level.mapGold.Add(GridToWorld(level, x, y));
             }
 
         if (root.TryGetValue("labels", out object labels) && labels is List<object> words)
@@ -200,10 +226,11 @@ public class LevelData
         return '#';
     }
 
-    // Tile centre of (col, row); row 0 is the top
+    // Tile centre of (col, row); row 0 is the top. In a honeycomb, odd rows are half a tile to the right.
     public static Vector2 GridToWorld(LevelData level, float col, float row)
     {
         float tile = level.TileSize;
+        if (level.Honeycomb && Mathf.RoundToInt(row) % 2 == 1) col += 0.5f;
         return new Vector2((col + 0.5f) * tile - level.MazeSize.x * 0.5f,
                            level.MazeSize.y * 0.5f - (row + 0.5f) * tile);
     }

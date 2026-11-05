@@ -21,6 +21,9 @@ public class Hook : MonoBehaviour
     public bool hitsPig = true;      // false: the hook passes through the pig (no-kill levels)
     public bool grabsTreasure = true;   // false: the hook passes through treasure (survival hunts only the player)
     public bool passRocks;           // true: stones do not stop or break the hook
+    [Tooltip("Rocks touched within this distance of the shot's start are ignored for the rest of the shot " +
+             "(a maze miner's neighbouring walls). 0: every rock stops the hook (the world map's eye miners)")]
+    public float wallGrace = 0.25f;
 
     [Header("Look")]
     public Color defaultColor = Color.yellow;
@@ -413,10 +416,10 @@ public class Hook : MonoBehaviour
         if (rock != null)
         {
             // Stone cages: the hook flies through. Maze walls still stop a shot.
-            if (passRocks) return false;
+            if (passRocks || rock.hookPasses) return false;
             // Maze walls sit on neighboring tiles; ignore them until the hook has left its spawn cell
-            // so E/M are not instantly blocked by the rocks beside them.
-            if (traveled < 0.25f) return false;
+            // so E/M are not instantly blocked by the rocks beside them (wallGrace, 0.25 by default).
+            if (traveled < wallGrace) return false;
             rock.OnHookBlocked();
             return true;
         }

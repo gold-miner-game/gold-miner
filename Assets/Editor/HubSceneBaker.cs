@@ -11,6 +11,8 @@ using UnityEngine.SceneManagement;
 //   Portals   one per map node (HubPortal: Node Id, Hidden, Stone Color)
 //   OneWays   the one-way tiles (OneWayDoor: Allowed Dir; an arrow in the Scene view)
 //   Labels    the area names on the floor
+// and sets Level > Hooks (outside Hub) to one hook origin per "miners" spot in the file, and puts a
+// one-time small gold (MapGold) under Level > Items per "gold" spot.
 // From then on the scene is the map: move, add or delete walls and portals in the Scene view, and
 // put story (Tools > Gold Miner > Tutorial Step / Tutorial Story) anywhere in it. The map fires
 // TutorialEvents for story (map_open, map_cleared_<node>, ..., see TutorialEvents.MapEvents).
@@ -83,7 +85,7 @@ public static class HubSceneBaker
         Transform old = layout.transform.Find(MapHub.BakedRootName);
         if (old != null && ask && !EditorUtility.DisplayDialog("Bake World Map",
                 "Replace the baked map (Level > Hub) with the grid in " + layout.levelFile.name + ".json?\n\n" +
-                "Walls, portals and labels you changed in the scene are lost. Story and anything else outside Hub is kept.",
+                "Walls, portals and labels you changed in the scene are lost, Level > Hooks is set to the file's miners and its one-time gold is placed again. Story and anything else outside Hub is kept.",
                 "Replace", "Cancel"))
             return;
 
@@ -102,7 +104,7 @@ public static class HubSceneBaker
         Undo.RegisterCreatedObjectUndo(hub.gameObject, "Bake World Map");
         Transform walls = Group(hub, "Walls"), portals = Group(hub, "Portals"), oneWays = Group(hub, "OneWays"), labels = Group(hub, "Labels");
 
-        void Wall(Vector2 at, Color? tint)
+        void Wall(Vector2 at, Color? tint, bool hookPasses = false)
         {
             var go = (GameObject)PrefabUtility.InstantiatePrefab(rockPrefab, scene);
             go.name = "Wall";
@@ -110,12 +112,13 @@ public static class HubSceneBaker
             go.transform.position = at;
             go.transform.localScale = Vector3.one * tile;
             Rock rock = go.GetComponent<Rock>();
-            if (rock != null) rock.isWall = true;
+            if (rock != null) { rock.isWall = true; rock.hookPasses = hookPasses; }
             SpriteRenderer sr = go.GetComponent<SpriteRenderer>();
             if (sr != null && tint.HasValue) sr.color = tint.Value;
         }
         foreach (Vector2 at in level.walls) Wall(at, null);
-        foreach (LevelData.ColoredWall w in level.coloredWalls) Wall(w.position, MapHub.WallColor(w.color, grey));
+        // green rocks (levels not disclosed yet) are no obstacle to a hook
+        foreach (LevelData.ColoredWall w in level.coloredWalls) Wall(w.position, MapHub.WallColor(w.color, grey), w.color == 'G');
 
         foreach (LevelData.Portal p in level.portals)
         {
@@ -146,11 +149,43 @@ public static class HubSceneBaker
 
         if (layout.playerStart != null) layout.playerStart.position = level.pigStart;
 
+        // The map file's "miners" (the evil cat's eyes): one hook origin each under Level > Hooks,
+        // which LevelLoader reads for the scene's miners
+        if (layout.hooks != null)
+        {
+            for (int i = layout.hooks.childCount - 1; i >= 0; i--) Undo.DestroyObjectImmediate(layout.hooks.GetChild(i).gameObject);
+            for (int i = 0; i < level.hooks.Count; i++)
+            {
+                var origin = new GameObject("Miner " + (i + 1));
+                Undo.RegisterCreatedObjectUndo(origin, "Bake World Map");
+                origin.transform.SetParent(layout.hooks, false);
+                origin.transform.position = level.hooks[i];
+            }
+        }
+
+        // The map file's "gold": one-time small gold (MapGold) under Level > Items. Other items stay
+        GameObject goldPrefab = FindPrefab("Gold_Small");
+        if (layout.items != null && goldPrefab != null)
+        {
+            foreach (MapGold g in layout.items.GetComponentsInChildren<MapGold>(true)) Undo.DestroyObjectImmediate(g.gameObject);
+            for (int i = 0; i < level.mapGold.Count; i++)
+            {
+                var go = (GameObject)PrefabUtility.InstantiatePrefab(goldPrefab, scene);
+                Undo.RegisterCreatedObjectUndo(go, "Bake World Map");
+                go.name = "Gold_Small";   // LevelLayout.Items reads the type from the name
+                go.transform.SetParent(layout.items, false);
+                go.transform.position = level.mapGold[i];
+                go.transform.localScale = Vector3.one * tile * 0.85f;   // like the maze's gold: fits a tile
+                go.AddComponent<MapGold>().goldId = "map_gold_" + (i + 1);
+            }
+        }
+
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         if (ask) Selection.activeGameObject = hub.gameObject;
         Debug.Log("HubSceneBaker: baked " + (level.walls.Count + level.coloredWalls.Count) + " walls, " + level.portals.Count +
-                  " portals, " + level.oneWays.Count + " one-way tiles and " + level.labels.Count + " labels into " + scene.path);
+                  " portals, " + level.oneWays.Count + " one-way tiles, " + level.labels.Count + " labels and " +
+                  level.hooks.Count + " miners and " + level.mapGold.Count + " gold into " + scene.path);
     }
 
     [MenuItem("Tools/Gold Miner/Bake World Map Into Scene", true)]
