@@ -78,6 +78,7 @@ public class SurvivalHookAI : MonoBehaviour
             telegraph.Hide();
             if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
+            hook.AimedAtPlayer = true;
             hook.Fire(origin, dir, length, shotColor);
             TutorialEvents.Fire(FireEvent);
             TutorialEvents.Fire(ShotEvent);

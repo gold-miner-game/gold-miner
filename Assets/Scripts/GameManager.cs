@@ -140,7 +140,11 @@ public class GameManager : MonoBehaviour
         if (!IsPlaying || IsInvincible) return;
 
         // A shield absorbs the hit for its full 5 seconds. The hook still stops.
-        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
+        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded())
+        {
+            PlayAnalytics.ShieldSoaked();
+            return;
+        }
 
         // The world map (the evil cat's eye miners): a hook costs 1 HP. The last one doesn't end the
         // run: the player revives at the Pick Character portal with full HP (MapHub)
@@ -165,7 +169,11 @@ public class GameManager : MonoBehaviour
         {
             Lives--;
             // Brace bonus pips are lost first (orange count drops with the hit).
-            if (BonusLives > 0) BonusLives--;
+            if (BonusLives > 0)
+            {
+                BonusLives--;
+                PlayAnalytics.BraceSpent();
+            }
             invincibleUntil = Time.time + invincibleTime;
             TutorialEvents.Fire("life_lost");   // still alive (the last Life ends the round instead)
         }

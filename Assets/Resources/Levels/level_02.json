@@ -67,7 +67,6 @@
     "starting_lives": 3,
     "invincible_time": 0.4,
     "hook_kills": true,
-    "pig_only": true,
     "wall_rocks": true,
     "hooks_pass_rocks": true,
     "greedy": true,

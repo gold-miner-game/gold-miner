@@ -97,9 +97,11 @@ public class Level1Tutorial : MonoBehaviour
         // 1. Who you are. One second, everything else dark.
         yield return Show(new[] { (Vector2)player.transform.position }, 0.9f, "You're the pig.", 1f);
         Time.timeScale = 1f;
+        Prompted();
 
         // 2. Every gold and the diamond, each with its own arrow. They eat a gold first.
         yield return UntilGoldEaten();
+        Acted("eat_gold", true);
 
         // The pink number just went up. Time stays frozen, so the digest they just started is still on screen.
         yield return ShowMoney("Your money goes up.", 2f, "PlayerMoney");
@@ -114,13 +116,16 @@ public class Level1Tutorial : MonoBehaviour
         {
             bool wasDiamond = prize.type == TreasureType.Diamond;
             Vector2 spot = OnThePath(origin, prize.transform.position);
+            Prompted();
             while (Vector2.Distance(player.transform.position, spot) > Reach)
             {
                 Point(spot, 0.6f, "Go here.", true);
                 yield return null;
             }
+            Acted("go_here", true);
             while (miner.hook.IsBusy) yield return null;
             miner.hook.PullBack(origin, prize, miner.treasureColor, 0f);
+            Prompted();
             int stolen = player.TreasureStolen;
             while (miner.hook.IsBusy && player.TreasureStolen == stolen)
             {
@@ -128,6 +133,8 @@ public class Level1Tutorial : MonoBehaviour
                 if (hyde == null || !hyde.IsBlocking) miner.hook.Hold(0.05f);
                 yield return null;
             }
+            Acted("cut", player.TreasureStolen != stolen);
+            Prompted();
             int eaten = player.Eaten;
             float giveUp = Time.unscaledTime + 6f;
             string eatLine = wasDiamond ? "Now you can eat the diamond." : "Now you can eat it.";
@@ -136,6 +143,7 @@ public class Level1Tutorial : MonoBehaviour
                 Point(prize.transform.position, 0.55f, eatLine, true);
                 yield return null;
             }
+            Acted("eat_drop", player.Eaten != eaten);
         }
 
         while (miner.hook.IsBusy) yield return null;
@@ -179,6 +187,18 @@ public class Level1Tutorial : MonoBehaviour
             yield return null;
         }
         Hide();
+    }
+
+    float promptAt;
+
+    // A prompt that asks for an action is on screen from now
+    void Prompted() { promptAt = Time.unscaledTime; }
+
+    // The player did what the prompt asked (done false: the step gave up). One analytics row,
+    // value = seconds since the prompt appeared
+    void Acted(string step, bool done)
+    {
+        PlayAnalytics.TutorialAction(step, Time.unscaledTime - promptAt, done);
     }
 
     // The red bar over the pig. Same spot PlayerLifeBar draws.

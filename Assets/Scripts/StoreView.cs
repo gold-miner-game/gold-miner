@@ -37,6 +37,18 @@ public class StoreView : MonoBehaviour
         view.HideTip();
         view.FillShelf();
         view.Refresh();
+        PlayAnalytics.StoreOpen(AffordableCount());
+    }
+
+    // Items still on the shelf that the wallet pays for
+    public static int AffordableCount()
+    {
+        CrossLevelStatus player = CrossLevelStatus.Active;
+        if (player == null) return 0;
+        int count = 0;
+        foreach (ShopOffer offer in Offers())
+            if (!AlreadyOwned(offer.id) && player.getWallet() >= offer.price) count++;
+        return count;
     }
 
     public static void Hide()
@@ -66,7 +78,11 @@ public class StoreView : MonoBehaviour
         if (FindFirstObjectByType<EventSystem>() == null) MakeEventSystem(transform);
         MakeSprites();
         if (canvas == null) Build();
-        if (leaveButton != null) leaveButton.onClick.AddListener(() => { if (onLeave != null) onLeave(); });
+        if (leaveButton != null) leaveButton.onClick.AddListener(() =>
+        {
+            PlayAnalytics.StoreLeave();
+            if (onLeave != null) onLeave();
+        });
         canvas.gameObject.SetActive(false);
     }
 
@@ -309,7 +325,11 @@ public class StoreView : MonoBehaviour
         });
 
         var hover = root.AddComponent<StoreItemHover>();
-        hover.Bind(rect, () => ShowTip(rect, itemName, description), HideTip);
+        hover.Bind(rect, () =>
+        {
+            ShowTip(rect, itemName, description);
+            PlayAnalytics.StoreHover(id);
+        }, HideTip);
 
         var iconRoot = new GameObject("Icon");
         iconRoot.transform.SetParent(root.transform, false);

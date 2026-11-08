@@ -152,6 +152,8 @@ public class GameFlow : MonoBehaviour
         CurrentNode = node;
         winHandled = false;
         winAt = 0f;
+        PlayAnalytics.NodeEnter(node.id);
+        if (node.type == NodeType.Battle) PlayAnalytics.StoreChance(node.id, StoreView.AffordableCount());
 
         switch (node.type)
         {

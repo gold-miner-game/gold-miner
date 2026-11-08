@@ -45,6 +45,8 @@ public class Hook : MonoBehaviour
 
     public bool IsBusy => state != State.Idle;
     public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
+    public bool Defended { get; private set; }    // the player blocked this shot or cut its rope
+    [HideInInspector] public bool AimedAtPlayer;  // set by MinerAI before each shot: a red shot
 
     // Held in place (by the squirrel's firm tail): nothing moves, then the shot carries on
     public bool IsStalled => Time.time < stallUntil;
@@ -150,6 +152,8 @@ public class Hook : MonoBehaviour
         carried = null;
         touched.Clear();
         HitPlayer = false;
+        Defended = false;
+        reported = false;
         stallUntil = 0f;
         cut = false;
         ShotCount++;
@@ -188,6 +192,7 @@ public class Hook : MonoBehaviour
         if (col != null) touched.Add(col);   // don't grab it again once knocked loose
         treasure.GrabByHook(transform);
         carried = treasure;
+        grabbedAt = Time.time;
         HoldInClaw();
         holdUntil = Time.time + hold;
         state = State.Retracting;
@@ -267,6 +272,7 @@ public class Hook : MonoBehaviour
                     if (player != null && player.IsBlocking && touched.Add(hit.collider))
                     {
                         PlayAnalytics.Steal();
+                        ReportCut();
                         DropCarried();
                         player.OnTreasureKnocked();
                         CutRope(ClosestOnRope(player.transform.position), player);
@@ -276,6 +282,7 @@ public class Hook : MonoBehaviour
                         && touched.Add(hit.collider) && GameManager.Instance != null)
                     {
                         // A hook that is already holding gold still hurts a pig who is not blocking.
+                        Report("hit");
                         GameManager.Instance.PlayerHit();
                     }
                     continue;
@@ -290,7 +297,12 @@ public class Hook : MonoBehaviour
         if ((next - origin).sqrMagnitude > 0.0001f) return;
 
         // Back at the miner: now the treasure counts
-        if (carried != null) carried.DeliverToMiner();
+        Report(carried != null ? "banked" : AimedAtPlayer ? "dodge" : "empty");
+        if (carried != null)
+        {
+            if (react) PlayAnalytics.ItemBanked(carried);
+            carried.DeliverToMiner();
+        }
         carried = null;
         cut = false;
         state = State.Idle;
@@ -326,14 +338,20 @@ public class Hook : MonoBehaviour
             float facing = toPig.sqrMagnitude < 0.0001f ? 0f : Vector2.Dot(delta / length, toPig.normalized);
             bool block = facing > -BothBand;
             bool slice = facing < BothBand;
+            Defended = true;
 
             if (carried != null)
             {
                 PlayAnalytics.Steal();
+                ReportCut();
                 DropCarried();
                 player.OnTreasureKnocked();
             }
-            else player.OnHookBlocked();
+            else
+            {
+                Report("blocked");
+                player.OnHookBlocked();
+            }
 
             if (block) ShowBlock(hit.collider);
             if (slice) CutRope(ClosestOnRope(player.transform.position), player);
@@ -409,6 +427,7 @@ public class Hook : MonoBehaviour
             if (treasure.IsTaken || !grabsTreasure) return false;
             treasure.GrabByHook(transform);
             carried = treasure;
+            grabbedAt = Time.time;
             return true;
         }
 
@@ -445,6 +464,8 @@ public class Hook : MonoBehaviour
         if (player.IsBlocking)
         {
             if (!touched.Add(col)) return false;
+            Defended = true;
+            Report("blocked");
             player.OnHookBlocked();
             ShowBlock(col);
             return true;
@@ -457,8 +478,26 @@ public class Hook : MonoBehaviour
         // No color check: any hook that touches the pig hurts it.
         // GameManager decides the outcome (lose a Life, or end the round).
         HitPlayer = true;
+        Report("hit");
         if (GameManager.Instance != null) GameManager.Instance.PlayerHit();
         return true;
+    }
+
+    bool reported;
+    float grabbedAt;
+
+    // One outcome per shot, the first that happens. Sent before PlayerHit, so a hit that ends the round still counts
+    void Report(string outcome)
+    {
+        if (reported) return;
+        reported = true;
+        PlayAnalytics.HookShot(AimedAtPlayer, outcome);
+    }
+
+    void ReportCut()
+    {
+        Report("cut");
+        PlayAnalytics.ItemCut(carried, Time.time - grabbedAt);
     }
 
     // Heavier treasure is pulled back more slowly
@@ -485,6 +524,7 @@ public class Hook : MonoBehaviour
     public bool Release(Treasure treasure)
     {
         if (treasure == null || carried != treasure) return false;
+        ReportCut();
         DropCarried();
         return true;
     }

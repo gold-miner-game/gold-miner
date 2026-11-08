@@ -171,6 +171,7 @@ public class HubPortal : MonoBehaviour
         if (Node == null || isStone || revealing || !armed || other.GetComponentInParent<PlayerCharacter>() == null) return;
         if (!IsUnlocked)
         {
+            PlayAnalytics.LockedPortal(Node.id, Map != null ? Map.GoldTowardUnlock(Node) : 0);
             if (WaitingOnGold)
                 hub.ShowHint("Win by $" + Node.unlockGold + " in total across " + Map.GoldGateNames(Node)
                              + " (best round each, now $" + Map.GoldTowardUnlock(Node) + ")");

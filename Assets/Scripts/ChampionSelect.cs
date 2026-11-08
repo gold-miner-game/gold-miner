@@ -16,9 +16,11 @@ public class ChampionSelect : MonoBehaviour
     public string gameplayScene = "Game";
 
     Coroutine leaving;
+    float openedAt;
 
     void Start()
     {
+        openedAt = Time.unscaledTime;
         int shown = -1;
         if (ProgressStore.HasPickedCharacter
             && int.TryParse(ProgressStore.SelectedCharacter, out int picked))
@@ -46,7 +48,7 @@ public class ChampionSelect : MonoBehaviour
         ChampionSpawner.Chosen = champion;
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(champion));
         ProgressStore.SelectedCharacter = champion.ToString();
-        PlayAnalytics.CharacterPicked(champion);
+        PlayAnalytics.CharacterPicked(champion, Time.unscaledTime - openedAt);
 
         // A story on the pick plays out before the scene moves on
         TutorialEvents.Fire(TutorialEvents.CharacterPicked);

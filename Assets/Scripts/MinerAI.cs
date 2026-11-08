@@ -42,6 +42,7 @@ public class MinerAI : MonoBehaviour
             yield break;
         }
 
+        hook.AimedAtPlayer = aimAtPlayer;
         hook.Fire(origin, dir, length, color);
         while (hook.IsBusy && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
             yield return null;
@@ -205,6 +206,7 @@ public class MinerAI : MonoBehaviour
             if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
             // 4. Fire, then wait for the hook to come back
+            hook.AimedAtPlayer = aimAtPlayer;
             hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
             if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.FireEvent);
             TutorialEvents.Fire(SurvivalHookAI.ShotEvent);   // every shot, the gold ones too
@@ -214,7 +216,6 @@ public class MinerAI : MonoBehaviour
             // The lane shot (the caged gold) is done. Later shots chase whatever is left.
             if (greedyValue && aimThroughPig && !lastShotAtPig) aimThroughPig = false;
             if (aimAtPlayer && GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(SurvivalHookAI.DodgedEvent);
-
             yield return Wait(cooldown);
         }
     }

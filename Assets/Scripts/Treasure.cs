@@ -52,6 +52,7 @@ public class Treasure : MonoBehaviour
         player.OnTreasureEaten();
         player.DigestTreasure(this, value);
         PlayAnalytics.FirstGold(type);
+        PlayAnalytics.ItemEaten(this);
         Eaten?.Invoke(this);
         Destroy(gameObject);
         return true;
@@ -78,6 +79,7 @@ public class Treasure : MonoBehaviour
         if (player != null) player.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
         PlayAnalytics.FirstGold(type);
+        PlayAnalytics.ItemEaten(this);
         Eaten?.Invoke(this);
         Destroy(gameObject);
     }
