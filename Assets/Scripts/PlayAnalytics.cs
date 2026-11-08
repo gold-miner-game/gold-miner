@@ -13,7 +13,7 @@ using UnityEngine.SceneManagement;
 //
 // Create one Google Form with these short-answer questions, in any order:
 //   player, session, level, character, event, value,
-//   player_money, miner_money, won, end_reason, tutorial, source
+//   player_money, miner_money, won, end_reason, tutorial, source, seq, t, attempt, build
 // Send a prefilled link, copy the formResponse URL (replace viewform with
 // formResponse) into FormUrl, and copy each entry.123 id into the matching field.
 // Leave FormUrl empty until then: rows stay on this machine only.
@@ -32,12 +32,11 @@ public class PlayAnalytics : MonoBehaviour
     const string EEndReason = "entry.1647763650";
     const string ETutorial = "entry.2094911153";
     const string ESource = "entry.1166496251";
-    // Optional columns: seq, t, attempt, build. Add these four short-answer questions to the form and
-    // paste their entry ids here. Until then the rows still post without them.
-    const string ESeq = "";
-    const string ET = "";
-    const string EAttempt = "";
-    const string EBuild = "";
+    // Traceability columns: seq, t, attempt, build. A row still posts if one of these is left empty.
+    const string ESeq = "entry.2051268683";
+    const string ET = "entry.269200636";
+    const string EAttempt = "entry.1402664207";
+    const string EBuild = "entry.1461135230";
 
     const string Build = "beta-1110";
     const float HeartbeatSeconds = 30f;

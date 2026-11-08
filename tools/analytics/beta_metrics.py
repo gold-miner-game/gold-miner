@@ -32,6 +32,7 @@ BATTLES = [("battle_03", "Level 1"), ("battle_06", "Level 2"), ("battle_02", "Le
 STEPS = [("eat_gold", "Eat gold"), ("go_here", "Go to the rope"), ("cut", "Cut the rope"), ("eat_drop", "Eat what fell")]
 NAMES = {"0": "Mr. Hyde", "1": "JK. Rolling", "2": "Scrat", "3": "Rero Rero"}
 ITEMS = ["swift", "ration", "shield", "brace"]
+BUILD = "beta-1110"  # PlayAnalytics.Build
 UNDERSTOOD = 8.0     # seconds; the same line PlayAnalytics uses
 STANDING = 3.0       # units moved in a 15 s stuck window; below this the player stood still
 
@@ -48,7 +49,11 @@ def load_rows(path):
     else:
         raw = list(csv.DictReader(text.splitlines()))
     rows = [normalize(r) for r in raw]
-    return [r for r in rows if r["event"] and r["source"] != "check" and r["event"] != "pipeline_check"]
+    rows = [r for r in rows if r["event"] and r["source"] != "check" and r["event"] != "pipeline_check"]
+    # The sheet also holds the Alpha playtests, which have no build. Keep only this build's rows.
+    if any(r["build"] for r in rows):
+        rows = [r for r in rows if r["build"] == BUILD]
+    return rows
 
 
 def normalize(row):
@@ -78,6 +83,7 @@ def normalize(row):
         "tutorial": str(clean.get("tutorial", "")),
         "source": str(clean.get("source", "")),
         "attempt": str(clean.get("attempt", "")),
+        "build": str(clean.get("build", "")),
     }
 
 
@@ -309,7 +315,8 @@ def mock_rows(players=40, seed=526):
     def add(p, s, event, level="", value=0, won="", reason="", tutorial="0", character="0", attempt=0):
         rows.append({"player": p, "session": s, "level": level, "character": character, "event": event,
                      "value": round(value, 2), "player_money": 0, "miner_money": 0, "won": won,
-                     "end_reason": reason, "tutorial": tutorial, "source": "mock", "attempt": attempt})
+                     "end_reason": reason, "tutorial": tutorial, "source": "mock", "attempt": attempt,
+                     "build": BUILD})
 
     slow_odds = {"eat_gold": 0.1, "go_here": 0.08, "cut": 0.38, "eat_drop": 0.15}
     for i in range(players):
