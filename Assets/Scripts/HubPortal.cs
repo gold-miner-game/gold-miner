@@ -4,13 +4,13 @@ using UnityEngine;
 
 // Owner: Penny (Level map & tutorial)
 // One map node (a level, the Store, Pick Character, Survive Mode) as a portal tile in the world-map
-// hub. Walk into it to enter the node. A locked one (no prerequisite cleared yet) only says what to
-// clear first. Look after Penny's maze portals: a violet hexagon with a star.
+// hub. Walk into it to enter the node. A locked one only says what to clear first, or how much is
+// still to earn when its earnings gate (MapNode.unlockGold) is what keeps it shut. Look after Penny's maze portals: a violet hexagon with a star.
 // A hidden portal is a rock in the wall (same colour as the walls around it) until its node unlocks.
 // The first time the player sees it unlocked, the rock turns into the portal (Penny's stone morph).
 public class HubPortal : MonoBehaviour
 {
-    static readonly Color Locked    = new Color(0.30f, 0.26f, 0.36f, 0.9f);
+    static readonly Color Locked    = new Color(0.34f, 0.17f, 0.46f, 1f);    // Available, dimmed
     static readonly Color Available = new Color(0.62f, 0.28f, 0.85f, 1f);
     static readonly Color Cleared   = new Color(0.40f, 0.72f, 0.95f, 1f);   // not gold: the survival rocks are yellow
     static readonly Color StarOn    = new Color(1f, 0.95f, 0.75f, 1f);
@@ -31,6 +31,7 @@ public class HubPortal : MonoBehaviour
     SpriteRenderer hex;
     SpriteRenderer star;
     TextMeshPro label;
+    string labelName;
     CircleCollider2D area;
     Vector3 baseScale;
     Vector3 stoneScale;
@@ -46,6 +47,7 @@ public class HubPortal : MonoBehaviour
         stoneScale = Vector3.one * tileSize;   // the walls' size, so it reads as one of them
 
         hex = Visuals(gameObject, hexSprite, node.displayName, out label);
+        labelName = label.text;
 
         var starGo = new GameObject("Star");
         starGo.transform.SetParent(transform, false);
@@ -126,9 +128,17 @@ public class HubPortal : MonoBehaviour
         bool open = IsUnlocked;
         hex.color = !open ? Locked : IsCleared ? Cleared : Available;
         star.color = open ? StarOn : StarOff;
-        label.color = open ? Color.white : new Color(1f, 1f, 1f, 0.45f);
+        label.color = open ? Color.white : new Color(1f, 1f, 1f, 0.6f);
+        label.text = WaitingOnGold
+            ? labelName + "\n$" + Map.GoldTowardUnlock(Node) + " / $" + Node.unlockGold
+            : labelName;
         transform.localScale = baseScale;
     }
+
+    WorldMap Map => GameFlow.Instance.Map;
+
+    // Its level before is cleared; only the earnings gate keeps it shut
+    bool WaitingOnGold => !IsUnlocked && Map != null && Map.PrerequisiteCleared(Node) && !Map.GoldGateMet(Node);
 
     // The rock swells, takes the portal's colour and grows its star, then opens
     IEnumerator Reveal()
@@ -159,7 +169,16 @@ public class HubPortal : MonoBehaviour
     void OnTriggerEnter2D(Collider2D other)
     {
         if (Node == null || isStone || revealing || !armed || other.GetComponentInParent<PlayerCharacter>() == null) return;
-        if (!IsUnlocked) { hub.ShowHint("Clear " + PrerequisiteNames() + " first"); return; }
+        if (!IsUnlocked)
+        {
+            if (WaitingOnGold)
+                hub.ShowHint("Win by $" + Node.unlockGold + " in total across " + Map.GoldGateNames(Node)
+                             + " (best round each, now $" + Map.GoldTowardUnlock(Node) + ")");
+            else
+                hub.ShowHint((PrerequisiteIsBattle() ? "Beat " : "Visit ") + PrerequisiteNames()
+                             + " first to unlock " + Node.displayName);
+            return;
+        }
         armed = false;
         hub.Enter(this);
     }
@@ -180,6 +199,14 @@ public class HubPortal : MonoBehaviour
             names[i] = n != null ? n.displayName : ids[i];
         }
         return names.Length == 0 ? "the levels before" : string.Join(" or ", names);
+    }
+
+    bool PrerequisiteIsBattle()
+    {
+        WorldMap map = GameFlow.Instance.Map;
+        if (map == null || Node.prerequisites == null || Node.prerequisites.Length == 0) return true;
+        MapNode n = map.Find(Node.prerequisites[0]);
+        return n == null || n.type == NodeType.Battle;
     }
 
     static Sprite starSprite;

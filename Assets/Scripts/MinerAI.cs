@@ -78,6 +78,7 @@ public class MinerAI : MonoBehaviour
     public Strategy strategy = Strategy.Weighted;
     public bool shootsPlayer = true;   // false: only treasure shots (no-kill levels)
     public bool huntPigOnly;          // never gold: every shot aims at the pig
+    public float huntReach;           // 0: stop just past the pig. Above 0: the rope travels at least this far
     public bool aimThroughPig;        // only treasure whose line crosses the pig's start
     public bool greedyValue;          // biggest treasure first, then keep competing for the rest
     public bool resumeAfterScripted;  // a scripted opening pull, then shoot on its own
@@ -193,6 +194,8 @@ public class MinerAI : MonoBehaviour
             Vector2 toTarget = targetPos - origin;
             Vector2 dir = toTarget.normalized;
             float length = toTarget.magnitude + overshoot;
+            // A hunter's rope crosses the whole arena, so the pig is in range from anywhere on screen.
+            if (aimAtPlayer && huntReach > 0f) length = Mathf.Max(length, huntReach);
 
             // 3. Telegraph: yellow = treasure, red = player
             telegraph.Show(origin, origin + dir * length, aimAtPlayer ? playerColor : treasureColor);

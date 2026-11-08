@@ -39,6 +39,7 @@ public class GameFlow : MonoBehaviour
     public MapNode CurrentNode { get; private set; }
     // True while the world-map hub (a walkable level, MapHub) is open
     public bool InHub => flow == Flow.Hub || MapHub.Active != null;   // or its scene was played directly
+    public bool InTutorialRun => tutorialStep >= 0;
 
     Flow flow = Flow.None;
     int tutorialStep = -1;   // index into Map.tutorialLevels while the tutorial run plays; -1 = not in it
@@ -272,7 +273,13 @@ public class GameFlow : MonoBehaviour
             winAt = Time.unscaledTime + returnDelay;
         }
         if (Time.unscaledTime < winAt) return;
-        if (tutorialStep >= 0) NextTutorial(tutorialStep);
+        if (tutorialStep >= 0)
+        {
+            // The tutorial is played on Level 1's layout, but clearing it does not clear Level 1.
+            MapHub.RefillHp();
+            NextTutorial(tutorialStep);
+        }
         else CompleteCurrentNode();
     }
+
 }

@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: WorldMap
   m_EditorClassIdentifier: Assembly-CSharp::WorldMap
   tutorialLevels:
-  - {fileID: 4900000, guid: 32442185507e4fd695f455198580e2ef, type: 3}
+  - {fileID: 4900000, guid: 7fd8de94e9f3497395be132314b8c778, type: 3}
+  afterTutorialNode: 
   hubLevel: {fileID: 4900000, guid: 077ef23e5f5f46a7a75a7a29683f4384, type: 3}
   nodes:
   - id: role_pick
@@ -22,31 +23,34 @@ MonoBehaviour:
     displayName: Pick Character
     mapPosition: {x: 0.5, y: 0.444}
     prerequisites:
-    - store_1
+    - battle_03
   - id: store_1
     type: 3
     levelAsset: {fileID: 0}
     displayName: Store
     mapPosition: {x: 0.5, y: 0.333}
     prerequisites: []
-  - id: battle_02
-    type: 1
-    levelAsset: {fileID: 4900000, guid: 7fd8de94e9f3497395be132314b8c778, type: 3}
-    displayName: Basic
-    mapPosition: {x: 0.18, y: 0.555}
-    prerequisites:
-    - role_pick
   - id: battle_03
     type: 1
-    levelAsset: {fileID: 4900000, guid: 7643b720c7ae4e54b271617b8a336b02, type: 3}
+    levelAsset: {fileID: 4900000, guid: 7fd8de94e9f3497395be132314b8c778, type: 3}
     displayName: Level 1
-    mapPosition: {x: 0.82, y: 0.555}
-    prerequisites:
-    - battle_02
+    mapPosition: {x: 0.18, y: 0.555}
+    prerequisites: []
   - id: battle_06
     type: 1
-    levelAsset: {fileID: 4900000, guid: 24ffbf985836433d9473ac61508a2cb7, type: 3}
+    levelAsset: {fileID: 4900000, guid: 7643b720c7ae4e54b271617b8a336b02, type: 3}
     displayName: Level 2
-    mapPosition: {x: 0.82, y: 0.666}
+    mapPosition: {x: 0.82, y: 0.555}
     prerequisites:
     - battle_03
+  - id: battle_02
+    type: 1
+    levelAsset: {fileID: 4900000, guid: 24ffbf985836433d9473ac61508a2cb7, type: 3}
+    displayName: Level 3
+    mapPosition: {x: 0.5, y: 0.666}
+    prerequisites:
+    - battle_06
+    unlockGoldFrom:
+    - battle_03
+    - battle_06
+    unlockGold: 1000

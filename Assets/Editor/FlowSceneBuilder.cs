@@ -27,7 +27,7 @@ public static class FlowSceneBuilder
     // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
     // The tutorials are not on the map: GameFlow plays them back to back, in this order, before the
     // map first opens (WorldMap.tutorialLevels).
-    static readonly string[] TutorialLevels = { "level_00_eat", "level_01a_dodge", "level_01b_block" };
+    static readonly string[] TutorialLevels = { "level_03" };
 
     // The world map you walk around in (MapHub): one portal per node below, placed in its grid
     const string HubLevelPath = "Assets/Resources/Hub/world_map.json";

@@ -3,7 +3,10 @@
   "hooks": [
     [-7.8, 2.8],
     [-7.8, -0.2],
-    [-7.8, -3.2]
+    [-7.8, -3.2],
+    [8.4, 2.6],
+    [8.4, 0.0],
+    [8.4, -2.6]
   ],
   "items": [
     { "type": "Rock", "x": 0.5, "y": -5.25 },
@@ -70,7 +73,18 @@
     "greedy": true,
     "hook_delay_1": 2.5,
     "hook_delay_2": 4.5,
-    "compete": 1
+    "compete": 1,
+    "pig_hunter": 3,
+    "pig_hunter_2": 4,
+    "pig_hunter_3": 5,
+    "hunter_pass_rocks": true,
+    "hunter_reach": 30.0,
+    "hunter_cooldown": 1.4,
+    "hunter_telegraph_min": 0.7,
+    "hunter_telegraph_max": 1.0,
+    "hook_delay_3": 1.5,
+    "hook_delay_4": 2.6,
+    "hook_delay_5": 3.7
   },
   "skills": {
     "block": true,

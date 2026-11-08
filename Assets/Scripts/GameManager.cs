@@ -118,6 +118,9 @@ public class GameManager : MonoBehaviour
     public void AddPlayerMoney(int amount) { if (IsPlaying) PlayerMoney += amount; }
     public void AddMinerMoney(int amount)  { if (IsPlaying) MinerMoney += amount; }
 
+    // A fresh money race inside the round (the tutorial's race stage starts and retries with this)
+    public void ResetMoney() { PlayerMoney = 0; MinerMoney = 0; }
+
     // Maze hub restore after returning from a battle (bypasses IsPlaying gate).
     public void RestoreHubTotals(int playerMoney, int lives)
     {
@@ -179,7 +182,8 @@ public class GameManager : MonoBehaviour
     {
         IsPlaying = false;
         EndReason = reason;
-        PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss        RoundMarginLog.Record(this);
+        PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
+        RoundMarginLog.Record(this);
         AnnounceEnd();
     }
 

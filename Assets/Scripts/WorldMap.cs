@@ -33,6 +33,10 @@ public class MapNode
     public bool comingSoon;
     [Tooltip("Deprecated: unlock is ProgressStore completed prerequisites only. Kept for asset compatibility.")]
     public int unlockCost;
+    [Tooltip("Earnings gate on top of the prerequisites: the best win margins of these levels (node ids) " +
+             "must add up to Unlock Gold. Each level counts only its best won round. Empty = no gate.")]
+    public string[] unlockGoldFrom = new string[0];
+    public int unlockGold;
 }
 
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]
@@ -61,20 +65,51 @@ public class WorldMap : ScriptableObject
 
     public int IndexOf(MapNode node) => nodes.IndexOf(node);
 
-    // A node is reachable if it has no parents (a start node), is already cleared (so it can be
-    // replayed / the store revisited), or ANY of its parents is cleared. "Any" is what lets the
-    // tree branch (one parent -> two children) and merge (two parents -> one child).
+    // A node is reachable if it is already cleared (so it can be replayed / the store revisited), or
+    // it has no parents or ANY of its parents is cleared, and its earnings gate is met. "Any" is what
+    // lets the tree branch (one parent -> two children) and merge (two parents -> one child).
     public bool IsUnlocked(int index)
     {
         if (index < 0 || index >= nodes.Count) return false;
         MapNode node = nodes[index];
         if (node == null || node.comingSoon) return false;
         if (ProgressStore.IsCompleted(node.id)) return true;
+        return PrerequisiteCleared(node) && GoldGateMet(node);
+    }
+
+    public bool IsUnlocked(MapNode node) => IsUnlocked(IndexOf(node));
+
+    public bool PrerequisiteCleared(MapNode node)
+    {
         if (node.prerequisites == null || node.prerequisites.Length == 0) return true;
         for (int i = 0; i < node.prerequisites.Length; i++)
             if (ProgressStore.IsCompleted(node.prerequisites[i])) return true;
         return false;
     }
 
-    public bool IsUnlocked(MapNode node) => IsUnlocked(IndexOf(node));
+    public bool HasGoldGate(MapNode node) => node != null && node.unlockGold > 0;
+
+    public bool GoldGateMet(MapNode node) => !HasGoldGate(node) || GoldTowardUnlock(node) >= node.unlockGold;
+
+    // Sum of the best won margins of the gate's levels; replaying a level only raises its own best
+    public int GoldTowardUnlock(MapNode node)
+    {
+        int sum = 0;
+        if (node == null || node.unlockGoldFrom == null) return sum;
+        foreach (string id in node.unlockGoldFrom)
+            sum += ProgressStore.GetBestMargin(id);
+        return sum;
+    }
+
+    public string GoldGateNames(MapNode node)
+    {
+        if (node == null || node.unlockGoldFrom == null) return "";
+        var names = new string[node.unlockGoldFrom.Length];
+        for (int i = 0; i < names.Length; i++)
+        {
+            MapNode n = Find(node.unlockGoldFrom[i]);
+            names[i] = n != null ? n.displayName : node.unlockGoldFrom[i];
+        }
+        return string.Join(" + ", names);
+    }
 }

@@ -29,8 +29,9 @@ public class TutorialUIDark : MonoBehaviour
         warned = false;
     }
 
-    // Darken the UI at `alpha`, except over the arena and around the holes. alpha 0 hides it
-    public static void Show(float alpha, List<TutorialUIHole> holes)
+    // Darken the UI at `alpha`, except over the arena and around the holes. alpha 0 hides it.
+    // arena false leaves the game view dark too, so only the holes stay lit (a money number).
+    public static void Show(float alpha, List<TutorialUIHole> holes, bool arena = true)
     {
         if (instance == null)
         {
@@ -38,7 +39,7 @@ public class TutorialUIDark : MonoBehaviour
             instance = Create();
             if (instance == null) return;
         }
-        instance.Apply(alpha, holes);
+        instance.Apply(alpha, holes, arena);
     }
 
     static TutorialUIDark Create()
@@ -72,17 +73,18 @@ public class TutorialUIDark : MonoBehaviour
         return dark;
     }
 
-    void Apply(float alpha, List<TutorialUIHole> holes)
+    void Apply(float alpha, List<TutorialUIHole> holes, bool arena)
     {
         canvas.enabled = alpha > 0f;
         if (!canvas.enabled) return;
         image.color = new Color(0f, 0f, 0f, alpha);
 
         int count = 0;
-        // The arena: its own (sprite) dark is there, with the world holes cut out of it
+        // The arena: its own (sprite) dark is there, with the world holes cut out of it.
+        // Skipped when the only things that should stay lit are the holes themselves.
         Camera cam = Camera.main;
         // (none in a scene without an arena, like the store: the dark covers the whole screen)
-        if (cam != null && (LevelLayout.Active != null || FindFirstObjectByType<PlayerCharacter>() != null))
+        if (arena && cam != null && (LevelLayout.Active != null || FindFirstObjectByType<PlayerCharacter>() != null))
             AddHole(ref count, cam.pixelRect, 0f, 0f);
 
         float scale = Screen.height / 1080f;   // the holes' sizes are in 1080p pixels

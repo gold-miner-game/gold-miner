@@ -844,6 +844,7 @@ public class LevelLoader : MonoBehaviour
                 if (minerTemplate.telegraph != null) minerTemplate.telegraph.gameObject.SetActive(false);
             }
             SpawnGreenMiners();
+            ApplyLaneHooks();
             return;
         }
         if (Survival)
@@ -902,9 +903,10 @@ public class LevelLoader : MonoBehaviour
     {
         int hunter = Mathf.RoundToInt(level.Param("pig_hunter", -1f));
         int hunterTwo = Mathf.RoundToInt(level.Param("pig_hunter_2", -1f));
-        bool IsHunter(int index) => index == hunter || index == hunterTwo;
+        int hunterThree = Mathf.RoundToInt(level.Param("pig_hunter_3", -1f));
+        bool IsHunter(int index) => index == hunter || index == hunterTwo || index == hunterThree;
         bool crossPig = level.Param("cross_pig", 0f) > 0.5f;
-        if (hunter >= 0 || hunterTwo >= 0)
+        if (hunter >= 0 || hunterTwo >= 0 || hunterThree >= 0)
         {
             for (int i = 0; i < miners.Count; i++)
             {
@@ -913,6 +915,13 @@ public class LevelLoader : MonoBehaviour
                     PaintHunter(miners[i]);
                     if (level.Has("hunter_delay"))
                         miners[i].startDelay = level.Param("hunter_delay", miners[i].startDelay);
+                    miners[i].cooldown = level.Param("hunter_cooldown", miners[i].cooldown);
+                    miners[i].telegraphMin = level.Param("hunter_telegraph_min", miners[i].telegraphMin);
+                    miners[i].telegraphMax = level.Param("hunter_telegraph_max", miners[i].telegraphMax);
+                    if (level.Param("hunter_pass_rocks", 0f) > 0.5f)
+                        miners[i].hook.passRocks = true;
+                    float reach = level.Param("hunter_reach", 0f);
+                    if (reach > 0f) miners[i].huntReach = reach;
                 }
                 else
                 {
@@ -972,6 +981,7 @@ public class LevelLoader : MonoBehaviour
         miner.huntPigOnly = true;
         miner.shootsPlayer = true;
         miner.hook.hitsPig = true;
+        miner.hook.grabsTreasure = false;   // passes gold; this hook only catches the pig
         miner.name = "Hostile Miner";
         Color red = new Color(0.92f, 0.08f, 0.06f, 1f);
         miner.playerColor = red;
@@ -1127,11 +1137,24 @@ public class LevelLoader : MonoBehaviour
         miner.shootsPlayer = kills;
         miner.hook.hitsPig = kills;
         // "hunt_player": every shot at the player, and the hook passes over gold (the world map's eye
-        // miners guard the one-time gold instead of taking it)
+        // miners guard the one-time gold instead of taking it). Red, so they read as the evil miners.
+        // A yellow miner only goes for gold.
         if (level.Param("hunt_player", 0f) > 0.5f)
         {
             miner.huntPigOnly = true;
+            miner.shootsPlayer = true;
+            miner.hook.hitsPig = true;
             miner.hook.grabsTreasure = false;
+            Color red = new Color(0.92f, 0.08f, 0.06f, 1f);
+            miner.playerColor = red;
+            miner.treasureColor = red;
+            miner.hook.Paint(red);
+            SpriteRenderer body = miner.GetComponent<SpriteRenderer>();
+            if (body != null)
+            {
+                body.sprite = HookHole.CreateSprite(new Color(0.62f, 0.07f, 0.05f), new Color(0.95f, 0.18f, 0.1f));
+                body.color = Color.white;
+            }
         }
         // "hook_wall_grace": how far a shot flies before wall rocks can stop it (0 on the world map,
         // so an eye miner's hook stops at the first rock, even the ones right beside it)

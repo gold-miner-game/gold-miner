@@ -634,6 +634,7 @@ public class HUDController : MonoBehaviour
         string text = "";
         if (node != null) text = node.displayName.ToUpperInvariant();
         else if (flow != null && flow.InHub) text = "WORLD MAP";
+        else if (flow != null && flow.InTutorialRun) text = "LEVEL 1 - TUTORIAL";
         else if (levelLoader != null && levelLoader.LevelCount > 0)
             text = "LV " + LevelLoader.CurrentLevel + "/" + levelLoader.LevelCount;
 

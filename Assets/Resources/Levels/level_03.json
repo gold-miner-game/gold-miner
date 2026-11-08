@@ -1,7 +1,8 @@
 {
   "pig_start": [0.0, -2.5],
   "hooks": [
-    [0.0, 3.4]
+    [0.0, 3.4],
+    [-7.6, -3.2]
   ],
   "items": [
     { "type": "Diamond", "x": 6.55, "y": -3.9 },
@@ -63,7 +64,13 @@
     "greedy": true,
     "wall_rocks": true,
     "still_time_scale": 0.3,
-    "compete": 1
+    "compete": 1,
+    "pig_hunter": 1,
+    "hunter_pass_rocks": true,
+    "hunter_delay": 4.0,
+    "hunter_cooldown": 1.8,
+    "hunter_telegraph_min": 0.8,
+    "hunter_telegraph_max": 1.1
   },
   "skills": {
     "block": true,

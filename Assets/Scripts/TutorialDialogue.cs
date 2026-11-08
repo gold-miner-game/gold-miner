@@ -697,6 +697,7 @@ public class TutorialDialogue : MonoBehaviour
         if (removeCharacters)
             foreach (GameObject go in spawned) if (go != null) Destroy(go);
         spawned.Clear();
+        TutorialEvents.Fire("dialogue_done");
         step.End();
         if (leaveWhenDone) Leave();
     }
@@ -863,6 +864,9 @@ public class TutorialDialogue : MonoBehaviour
             Transform at = c.spawnAt != null ? c.spawnAt : transform;
             GameObject go = SpawnLook(c.prefab, at.position);
             go.name = c.name;
+            // The spawn spot's scale sizes the picture (the evil cat stands a little bigger).
+            if (c.spawnAt != null && c.spawnAt.localScale != Vector3.one)
+                go.transform.localScale = Vector3.Scale(go.transform.localScale, c.spawnAt.localScale);
             // One sorting group: the prefab's own layering stays, the whole character draws on top
             SortingGroup group = go.GetComponent<SortingGroup>();
             if (group == null) group = go.AddComponent<SortingGroup>();
