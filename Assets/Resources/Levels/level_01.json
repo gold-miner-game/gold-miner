@@ -330,7 +330,8 @@
   "params": {
     "pig_speed": 5.2,
     "digest_time": 0.5,
-    "digest_per_value": 0.01,
+    "digest_per_value": 0.03,
+    "digest_max": 3.0,
     "hook_extend": 8.0,
     "hook_retract": 8.0,
     "overshoot": 0.25,

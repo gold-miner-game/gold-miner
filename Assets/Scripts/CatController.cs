@@ -43,7 +43,8 @@ public class CatController : PlayerCharacter
     public float CooldownRemaining => Mathf.Max(0f, nextRollTime - Time.time);
     // After a roll, until Space works again
     public bool IsTired => !IsRolling && CooldownRemaining > 0f;
-    public override string SkillHint => "[Space] roll";
+    public override bool CanCutRope => true;
+    public override string SkillHint => "[Space] cut rope / roll";
     public override bool SkillActive => IsRolling;
     public override float SkillReadyIn => CooldownRemaining;
     public override float SkillWait => RollDuration + RollCooldown;

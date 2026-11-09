@@ -49,6 +49,7 @@ public class CrossLevelStatus : MonoBehaviour
     bool swiftBoostOn;
     float digestTime;
     float digestPerValue;
+    float digestMaxTime = 3f;
     bool canBlock;
     float blockDuration = 0.8f;
     float blockCooldown = 1f;
@@ -213,6 +214,9 @@ public class CrossLevelStatus : MonoBehaviour
 
     public virtual float getDigestPerValue() { return digestPerValue; }
     public virtual void setDigestPerValue(float value) { digestPerValue = value; }
+
+    public virtual float getDigestMaxTime() { return digestMaxTime; }
+    public virtual void setDigestMaxTime(float value) { digestMaxTime = value; }
 
     public virtual bool hasNoDigest()
     {
@@ -423,6 +427,7 @@ public class CrossLevelStatus : MonoBehaviour
         swiftBoostOn = other.swiftBoostOn;
         digestTime = other.digestTime;
         digestPerValue = other.digestPerValue;
+        digestMaxTime = other.digestMaxTime;
         canBlock = other.canBlock;
         blockDuration = other.blockDuration;
         blockCooldown = other.blockCooldown;

@@ -802,6 +802,7 @@ public class LevelLoader : MonoBehaviour
             player.moveSpeed = levelSpeed * gameSpeed * player.speedScale;
             player.digestTime = level.Param("digest_time", 0f);
             player.digestPerValue = level.Param("digest_per_value", 0f);
+            player.digestMaxTime = level.Param("digest_max", player.digestMaxTime);
 
             // Only Mr. Hyde blocks
             if (player is MrHydeController hyde)
@@ -818,6 +819,7 @@ public class LevelLoader : MonoBehaviour
         record.setSpeed(level.Param("pig_speed", record.getSpeed()) * gameSpeed);
         record.setDigestTime(level.Param("digest_time", 0f));
         record.setDigestPerValue(level.Param("digest_per_value", 0f));
+        record.setDigestMaxTime(level.Param("digest_max", record.getDigestMaxTime()));
         // Keep the record's block (Mr. Hyde's default, or what the store set) unless the level says so
         if (level.Has("block")) record.setCanBlock(level.Param("block", 0f) > 0.5f);
         record.setBlockDuration(level.Param("block_duration", record.getBlockDuration()));
@@ -827,6 +829,7 @@ public class LevelLoader : MonoBehaviour
         player.moveSpeed = record.getSpeed() * player.speedScale;
         player.digestTime = record.getDigestTime();
         player.digestPerValue = record.getDigestPerValue();
+        player.digestMaxTime = record.getDigestMaxTime();
         if (player is MrHydeController blocker)
         {
             blocker.canBlock = record.getCanBlock();
@@ -928,8 +931,8 @@ public class LevelLoader : MonoBehaviour
                 else
                 {
                     miners[i].shootsPlayer = false;
-                    // Still yellow: it aims at treasure. yellow_hits makes that hook cost a life
-                    // when it touches the pig (Level 3). Other levels keep the hook passing through.
+                    // Still yellow: it aims at treasure. yellow_hits (Level 2+) makes that hook
+                    // cost a life when the tip touches the pig; without it the tip passes through.
                     miners[i].hook.hitsPig = level.Param("yellow_hits", 0f) > 0.5f;
                 }
             }
