@@ -14,7 +14,9 @@ public class MrHydeController : PlayerCharacter
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
 
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
-    public override string SkillHint => (CanBlock ? "[Space] block / cut  " : "") + "[Click] attack";
+    // Rope cut shares Space with block, but only when CanBlock is on for the level
+    public override bool CanCutRope => CanBlock;
+    public override string SkillHint => (CanBlock ? "[Space] cut rope / block tip  " : "") + "[Click] attack";
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;

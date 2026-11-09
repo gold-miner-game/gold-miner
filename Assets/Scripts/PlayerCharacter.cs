@@ -21,6 +21,8 @@ public abstract class PlayerCharacter : MonoBehaviour
     [Header("Digest (0 = off)")]
     public float digestTime = 0f;       // after eating, it can't eat for digestTime + digestPerValue * value
     public float digestPerValue = 0f;
+    [Tooltip("Cap on digest length in seconds (level param digest_max).")]
+    [Min(0f)] public float digestMaxTime = 3f;
     public Color digestTint = new Color(0.65f, 0.9f, 0.55f);
     [Tooltip("A \"Digesting\" label floats this high (world units) above the character while it can't eat.")]
     public float digestLabelHeight = 0.95f;
@@ -43,6 +45,9 @@ public abstract class PlayerCharacter : MonoBehaviour
     // Only Mr. Hyde can block
     // A timed block (Mr. Hyde's Space) or the brace item, which blocks for the whole level
     public virtual bool IsBlocking => Record != null && Record.isBracing();
+
+    // Space beside a rope can cut it (Mr. Hyde, JK. Rolling). Tip Space still uses UseSkill.
+    public virtual bool CanCutRope => false;
 
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
     public virtual bool IsInvulnerable => false;
@@ -258,8 +263,9 @@ public abstract class PlayerCharacter : MonoBehaviour
             digestUntil = Time.time;
             return;
         }
-        // Smallest gold (50) is 1 s, largest gold (250) is 3 s. Anything richer stops at 3 s.
-        DigestLength = Mathf.Min(3f, digestTime + digestPerValue * value);
+        // digestTime + digestPerValue * value, capped by digestMaxTime (level param digest_max).
+        float cap = digestMaxTime > 0f ? digestMaxTime : float.MaxValue;
+        DigestLength = Mathf.Min(cap, digestTime + digestPerValue * value);
         digestUntil = Time.time + DigestLength;
     }
 
@@ -320,7 +326,11 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         MoveInput = input;
 
-        if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame && IsPlaying) UseSkill();
+        // Beside a rope: cut only (no lasting skill). At the tip / elsewhere: character skill.
+        if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame && IsPlaying)
+        {
+            if (!(CanCutRope && Hook.TrySpaceCut(this))) UseSkill();
+        }
 
         // Flip only when the horizontal direction changes; keep facing when moving vertically
         if (!FlipsWhenTurning) return;

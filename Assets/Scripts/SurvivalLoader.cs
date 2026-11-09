@@ -35,6 +35,7 @@ public class SurvivalLoader : MonoBehaviour
     public float invincibleTime = 1.5f;
     public float digestTime = 0.48f;
     public float digestPerValue = 0.0045f;
+    public float digestMaxTime = 3f;
 
     [Header("Camera")]
     [Tooltip("Orthographic half height of the view, in world units")]
@@ -213,11 +214,13 @@ public class SurvivalLoader : MonoBehaviour
             record.setSpeed(playerSpeed * gameSpeed);
             record.setDigestTime(digestTime);
             record.setDigestPerValue(digestPerValue);
+            record.setDigestMaxTime(digestMaxTime);
             record.onLevelStarted();
         }
         player.moveSpeed = (record != null ? record.getSpeed() : playerSpeed * gameSpeed) * player.speedScale;
         player.digestTime = record != null ? record.getDigestTime() : digestTime;
         player.digestPerValue = record != null ? record.getDigestPerValue() : digestPerValue;
+        player.digestMaxTime = record != null ? record.getDigestMaxTime() : digestMaxTime;
         if (player is MrHydeController hyde)
         {
             hyde.canBlock = true;

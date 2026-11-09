@@ -40,10 +40,15 @@ public class Hook : MonoBehaviour
     public float clawCloseSpeed = 10f;   // how fast it opens/closes
 
     [Header("Cut")]
-    public float cutReach = 0.3f;     // a blocking pig this close to the rope cuts it
+    public float cutReach = 0.3f;     // a cutting character this close to the rope can cut it
+    [Tooltip("Space this close to the hook tip uses the character skill instead of a rope cut")]
+    public float tipSkillReach = 0.55f;
     public float cutFadeTime = 0.8f;  // seconds the claw's half takes to fade out
 
     public bool IsBusy => state != State.Idle;
+
+    // Busy hooks Space can cut without going through a lasting IsBlocking window
+    static readonly List<Hook> Active = new List<Hook>();
     public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
     public bool Defended { get; private set; }    // the player blocked this shot or cut its rope
     [HideInInspector] public bool AimedAtPlayer;  // set by MinerAI before each shot: a red shot
@@ -83,6 +88,8 @@ public class Hook : MonoBehaviour
 
     void OnEnable()
     {
+        if (!Active.Contains(this)) Active.Add(this);
+
         // The placeholder sprite is hidden and only lends its material and sorting.
         // forceRenderingOff is not serialized, so the scene file is left untouched.
         SpriteRenderer sprite = GetComponent<SpriteRenderer>();
@@ -126,6 +133,8 @@ public class Hook : MonoBehaviour
 
     void OnDisable()
     {
+        Active.Remove(this);
+
         SpriteRenderer sprite = GetComponent<SpriteRenderer>();
         if (sprite != null) sprite.forceRenderingOff = false;
 
@@ -133,6 +142,62 @@ public class Hook : MonoBehaviour
         clawLeft?.Destroy();
         clawRight?.Destroy();
         rope = clawLeft = clawRight = null;
+    }
+
+    // Space beside the rope (not at the tip): cut immediately without starting a character skill.
+    // Returns true when a rope was cut so the player should not also UseSkill this press.
+    public static bool TrySpaceCut(PlayerCharacter player)
+    {
+        if (player == null || !player.CanCutRope) return false;
+        Collider2D body = player.GetComponent<Collider2D>();
+        Vector2 centre = body != null ? (Vector2)body.bounds.center : (Vector2)player.transform.position;
+        for (int i = Active.Count - 1; i >= 0; i--)
+        {
+            Hook hook = Active[i];
+            if (hook == null) { Active.RemoveAt(i); continue; }
+            if (hook.TrySpaceCutBy(player, body, centre)) return true;
+        }
+        return false;
+    }
+
+    bool TrySpaceCutBy(PlayerCharacter player, Collider2D body, Vector2 centre)
+    {
+        if (!IsBusy || cut) return false;
+        Vector2 tip = transform.position;
+        Vector2 delta = tip - origin;
+        float length = delta.magnitude;
+        if (length < 0.05f) return false;
+
+        Vector2 probe = body != null ? body.ClosestPoint(ClosestOnRope(centre)) : centre;
+        Vector2 onRope = ClosestOnRope(probe);
+        if ((probe - onRope).sqrMagnitude > cutReach * cutReach) return false;
+
+        // At the tip: leave Space for block / roll / other skills
+        Vector2 tipProbe = body != null ? body.ClosestPoint(tip) : centre;
+        if ((tipProbe - tip).sqrMagnitude <= tipSkillReach * tipSkillReach) return false;
+
+        // Behind the tip along the rope (same slice half as CutAlongRope)
+        Vector2 toPlayer = centre - tip;
+        float facing = toPlayer.sqrMagnitude < 0.0001f ? 0f : Vector2.Dot(delta / length, toPlayer.normalized);
+        if (facing >= BothBand) return false;
+
+        if (body != null && !touched.Add(body)) return false;
+
+        Defended = true;
+        if (carried != null)
+        {
+            PlayAnalytics.Steal();
+            ReportCut();
+            DropCarried();
+            player.OnTreasureKnocked();
+        }
+        else
+        {
+            Report("cut");
+            player.OnHookBlocked();
+        }
+        CutRope(onRope, player);
+        return true;
     }
 
     public void Fire(Vector2 from, Vector2 direction, float length)
@@ -312,11 +377,9 @@ public class Hook : MonoBehaviour
         transform.rotation = Quaternion.identity;
     }
 
-    // A blocking pig near the rope or head. With a = miner to hook head and b = hook head to pig:
-    // a·b > 0 (the pig is in front of the head) blocks, the half sphere and a bounce home;
-    // a·b < 0 (the pig is beside the rope, behind the head) cuts the rope where it touches;
-    // close to 0 (or the pig right on the head) shows both. Treasure in the claw falls where the
-    // claw holds it. Returns true when the hook reacted this frame.
+    // While a character is actively blocking (tip Space / brace), contact along the rope or head
+    // still resolves here. Rope-only Space cuts go through TrySpaceCut instead, so they do not
+    // open a lasting IsBlocking window. a·b > 0 blocks at the tip; a·b < 0 cuts beside the rope.
     bool CutAlongRope()
     {
         if (cut) return false;
@@ -331,6 +394,7 @@ public class Hook : MonoBehaviour
             if (hit.collider == null) continue;
             if (hit.collider.transform.IsChildOf(transform)) continue;
             PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
+            // Lasting block only — rope-only cuts are handled on the Space press via TrySpaceCut
             if (player == null || !player.IsBlocking) continue;
             if (!touched.Add(hit.collider)) continue;
 
