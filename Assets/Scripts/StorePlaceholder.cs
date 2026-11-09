@@ -2,7 +2,8 @@ using UnityEngine;
 
 // The map's Store scene. Buying spends CrossLevelStatus wallet and arms that skill,
 // so the next level actually changes (speed, digest, shield, or block).
-// Leave goes back to the map without clearing the node, so the shop stays open.
+// Leave clears the node (the next node on the map unlocks) and goes back to the map; a cleared
+// node stays open, so the shop can be visited again.
 public class StorePlaceholder : MonoBehaviour
 {
     void Start()
@@ -14,6 +15,6 @@ public class StorePlaceholder : MonoBehaviour
     static void Leave()
     {
         StoreView.Hide();
-        if (GameFlow.Instance != null) GameFlow.Instance.ReturnToMap();
+        if (GameFlow.Instance != null) GameFlow.Instance.CompleteCurrentNode();
     }
 }

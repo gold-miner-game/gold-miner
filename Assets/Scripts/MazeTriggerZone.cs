@@ -254,6 +254,7 @@ public class MazeTriggerZone : MonoBehaviour
             // Missed block: refund diamond, clear eaten mark, respawn, and re-run the lesson.
             if (pig.IsDigesting) pig.CancelDigest();
             if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(-600);
+            CrossLevelStatus.Ensure().addWallet(-600);
             MazeHubState.UnmarkTreasureEaten(diamondId);
             maze.RespawnTreasure(diamondId);
             maze.ShowHint("Block with Space to keep the diamond!");

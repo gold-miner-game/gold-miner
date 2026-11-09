@@ -1,92 +1,94 @@
 {
-  "pig_start": [
-    0.0,
-    -1.0
-  ],
+  "pig_start": [-4.0, 0.0],
   "hooks": [
-    [
-      -5.82162017412602,
-      -2.3688482292648874
-    ],
-    [
-      2.8665183706173707,
-      -4.150171363918502
-    ]
+    [-7.8, 2.8],
+    [-7.8, -0.2],
+    [-7.8, -3.2],
+    [8.4, 2.6],
+    [8.4, 0.0],
+    [8.4, -2.6]
   ],
   "items": [
-    {
-      "type": "Gold_Small",
-      "x": -4.08190917779288,
-      "y": -0.9050512413027355
-    },
-    {
-      "type": "Gold_Medium",
-      "x": -2.9121772572571714,
-      "y": -4.501626509148288
-    },
-    {
-      "type": "Gold_Large",
-      "x": 7.922817562314746,
-      "y": 2.2438092385146637
-    },
-    {
-      "type": "Gold_Large",
-      "x": 4.1798951110779035,
-      "y": 1.298882993080525
-    },
-    {
-      "type": "Diamond",
-      "x": -6.000640235576861,
-      "y": -3.2380992985003494
-    },
-    {
-      "type": "Gold_Large",
-      "x": 5.502,
-      "y": 0.578
-    },
-    {
-      "type": "Gold_Small",
-      "x": 5.803,
-      "y": -2.764
-    }
+    { "type": "Rock", "x": 0.5, "y": -5.25 },
+    { "type": "Rock", "x": 0.5, "y": -4.9 },
+    { "type": "Rock", "x": 0.5, "y": -4.55 },
+    { "type": "Rock", "x": 0.5, "y": -4.2 },
+    { "type": "Rock", "x": 0.5, "y": -3.85 },
+    { "type": "Rock", "x": 0.5, "y": -3.5 },
+    { "type": "Rock", "x": 0.5, "y": -3.15 },
+    { "type": "Rock", "x": 0.5, "y": -2.8 },
+    { "type": "Rock", "x": 0.5, "y": -2.45 },
+    { "type": "Rock", "x": 0.5, "y": -2.1 },
+    { "type": "Rock", "x": 0.5, "y": -1.75 },
+    { "type": "Rock", "x": 0.5, "y": -1.4 },
+    { "type": "Rock", "x": 0.5, "y": -1.05 },
+    { "type": "Rock", "x": 0.5, "y": -0.7 },
+    { "type": "Rock", "x": 0.5, "y": -0.35 },
+    { "type": "Rock", "x": 0.5, "y": -0.0 },
+    { "type": "Rock", "x": 0.5, "y": 0.35 },
+    { "type": "Rock", "x": 0.5, "y": 0.7 },
+    { "type": "Rock", "x": 0.5, "y": 1.05 },
+    { "type": "Rock", "x": 0.5, "y": 1.4 },
+    { "type": "Rock", "x": 0.5, "y": 1.75 },
+    { "type": "Rock", "x": 0.5, "y": 2.1 },
+    { "type": "Rock", "x": 0.5, "y": 2.45 },
+    { "type": "Rock", "x": 0.5, "y": 2.8 },
+    { "type": "Rock", "x": 0.5, "y": 3.15 },
+    { "type": "Rock", "x": 0.5, "y": 3.5 },
+    { "type": "Rock", "x": 0.5, "y": 3.85 },
+    { "type": "Rock", "x": 0.5, "y": 4.2 },
+    { "type": "Rock", "x": 0.5, "y": 4.55 },
+    { "type": "Rock", "x": 0.5, "y": 4.9 },
+    { "type": "Rock", "x": 0.5, "y": 5.25 },
+    { "type": "Diamond", "x": 7.4, "y": 0.0 },
+    { "type": "Gold_Large", "x": 5.6, "y": 3.2 },
+    { "type": "Gold_Large", "x": 5.6, "y": -3.2 },
+    { "type": "Gold_Medium", "x": 3.4, "y": 1.7 },
+    { "type": "Gold_Medium", "x": 3.4, "y": -1.7 },
+    { "type": "Gold_Small", "x": 2.0, "y": 3.9 },
+    { "type": "Gold_Small", "x": 2.0, "y": -3.9 },
+    { "type": "Gold_Small", "x": 7.2, "y": 3.9 }
   ],
   "params": {
-    "pig_speed": 6.5,
-    "digest_time": 0.3,
-    "digest_per_value": 0.003,
+    "pig_speed": 5.2,
+    "digest_time": 0.5,
+    "digest_per_value": 0.01,
     "hook_extend": 8.0,
-    "hook_retract": 8.0,
-    "overshoot": 0.45,
-    "start_delay": 2.2,
-    "telegraph_min": 2.2,
-    "telegraph_max": 3.4,
-    "cooldown": 1.8,
-    "pig_shot_chance": 0.04,
-    "min_treasure_shots": 3,
-    "max_treasure_shots": 4,
-    "round_time": 110.0,
-    "starting_lives": 4,
-    "invincible_time": 2.0,
-    "hook_kills": true
+    "hook_retract": 6.0,
+    "overshoot": 0.25,
+    "start_delay": 0.8,
+    "telegraph_min": 0.6,
+    "telegraph_max": 0.9,
+    "pig_shot_chance": 0.0,
+    "cooldown": 0.8,
+    "min_treasure_shots": 8,
+    "max_treasure_shots": 8,
+    "round_time": 90.0,
+    "starting_lives": 3,
+    "invincible_time": 0.4,
+    "hook_kills": true,
+    "yellow_hits": true,
+    "wall_rocks": true,
+    "hooks_pass_rocks": true,
+    "greedy": true,
+    "hook_delay_1": 2.5,
+    "hook_delay_2": 4.5,
+    "compete": 1,
+    "pig_hunter": 3,
+    "pig_hunter_2": 4,
+    "pig_hunter_3": 5,
+    "hunter_pass_rocks": true,
+    "hunter_reach": 30.0,
+    "hunter_cooldown": 1.4,
+    "hunter_telegraph_min": 0.7,
+    "hunter_telegraph_max": 1.0,
+    "hook_delay_3": 1.5,
+    "hook_delay_4": 2.6,
+    "hook_delay_5": 3.7
   },
   "skills": {
     "block": true,
-    "block_duration": 0.8,
-    "block_cooldown": 1.0
-  },
-  "level": {
-    "level": 2,
-    "gold": 7,
-    "value": 1550,
-    "hooks": 3,
-    "try_": 3,
-    "target_win": 0.5714,
-    "pig_win": 0.5469,
-    "margin": 4.7,
-    "margin_se": 0.8,
-    "digest_time": 0.9724,
-    "digest_per_value": 0.008,
-    "hook_extend": 15.9453,
-    "hook_retract": 11.2747
+    "block_duration": 1.5,
+    "block_cooldown": 0.25
   }
 }

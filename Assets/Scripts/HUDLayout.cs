@@ -2,9 +2,9 @@ using UnityEngine;
 
 // Owner: Doeun (UI)
 // The screen split shared by the HUD and the camera: a bar across the top, a sidebar on the right,
-// and the arena in what is left (bottom left). Fractions are of the screen; Gap is in canvas units
-// (the HUD canvas scales a 1920x1080 reference). The screen edge, the top bar, the sidebar and the
-// arena are all Gap apart
+// and the arena in what is left (bottom left). Fractions are of the 16:9 frame (ScreenFrame); Gap is
+// in canvas units (inside the frame the HUD canvas is always 1920x1080). The frame edge, the top bar,
+// the sidebar and the arena are all Gap apart.
 // HUD Beta has no sidebar and a taller top bar; its HUDController sets TopBarOnly on Awake
 public static class HUDLayout
 {
@@ -18,23 +18,19 @@ public static class HUDLayout
     // Maze world map: hide the battle top bar so the arena can use the full height.
     public static bool HideTopBar;
 
-    // Canvas units to screen pixels, as the HUD's CanvasScaler does it (1920x1080, match 0.5)
-    public static float CanvasScale => Mathf.Sqrt(Screen.width / 1920f * (Screen.height / 1080f));
-
-    // In viewport space (0..1, origin bottom left), as Camera.rect wants it: Gap in from the left
-    // and bottom edges; the panels' own Gap insets make the gaps to the top bar and the sidebar
+    // 0..1 of the frame (origin bottom left; ScreenFrame.ToViewport turns it into a Camera.rect): Gap
+    // in from the left and bottom edges; the panels' own Gap insets make the gaps to the top bar and sidebar
     public static Rect GameplayViewport
     {
         get
         {
-            float gapX = Gap * CanvasScale / Mathf.Max(1f, Screen.width);
-            float gapY = Gap * CanvasScale / Mathf.Max(1f, Screen.height);
+            float gapX = Gap / 1920f;
+            float gapY = Gap / 1080f;
             float right = TopBarOnly ? 1f - gapX : 1f - SidebarWidth;
             float top = HideTopBar ? 1f - gapY : 1f - TopBarHeight;
             return new Rect(gapX, gapY, right - gapX, top - gapY);
         }
     }
-
     // Places the HUD panels and the backdrops that fill the gaps (the camera only clears the arena).
     // Any of them may be null. HUDBuilder calls this when it builds the HUD, and HUDController at
     // runtime, so a HUD saved before the gaps were even gets them too

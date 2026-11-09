@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Owner: Penny (Level map & tutorial)
-// Tools > Gold Miner > Build Flow Scenes: creates the Boot, Map, RolePick (legacy OnGUI), Store,
-// and Survival scenes, builds the WorldMap asset in Resources (wired to the level JSONs), and
-// registers every scene in Build Settings with Boot first. The map's RolePick node loads the
-// existing Select scene ("WHO ARE U"), not RolePick.unity — RolePick.unity is only kept so a
-// rebuild does not drop it from the project. Same pattern as GameSceneBuilder / HUDBuilder.
-// Re-running keeps an existing WorldMap so hand-tuned icon positions are not overwritten.
+// Tools > Gold Miner > Build Flow Scenes: creates the Boot, Menu, Map, RolePick, Store and Survival scenes, builds
+// the WorldMap asset in Resources (wired to the level JSONs), and registers every scene in Build
+// Settings with Boot first. Same pattern as GameSceneBuilder / HUDBuilder. Re-running keeps an
+// existing WorldMap, and the existing Map scene, so hand-tuned nodes and map layout are not overwritten.
 public static class FlowSceneBuilder
 {
     const string SceneDir = "Assets/Scenes";
@@ -19,14 +19,32 @@ public static class FlowSceneBuilder
     const string LevelDir = "Assets/Resources/Levels/";
 
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
-    // The maze (tut_maze) IS the world map hub (always). Level portals live on that maze.
-    // Currently two battles: Level 1 + Level 2 (stone → polygon). Unlock uses MapMoney thresholds.
-    // x = branch spread (0..1), y = depth (kept for the legacy Map scene tree if opened).
+    // The map is a tree. It starts at the Store (open once the tutorial run is over), then role
+    // pick. MapUIBuilder draws the Store card in the top-left corner (its x/y here are unused). Role
+    // pick opens three modes, one column each in the hub (world_map.json): Attack 1 -> 4 -> 7,
+    // Survival 2 -> 5 -> 8 -> Survive Mode (SurvivalLoader), Compete 3 -> 6. Add a level = add a row
+    // here (and drop a level JSON); point its prereqs at whatever should unlock it.
+    // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
+    // The tutorials are not on the map: GameFlow plays them back to back, in this order, before the
+    // map first opens (WorldMap.tutorialLevels).
+    static readonly string[] TutorialLevels = { "level_03" };
+
+    // The world map you walk around in (MapHub): one portal per node below, placed in its grid
+    const string HubLevelPath = "Assets/Resources/Hub/world_map.json";
+
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
-        ("tut_maze",   NodeType.Tutorial, "level_tutorial",  "World Map",       0.50f, 0.000f, new string[0]),
-        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.143f, new[]{ "tut_maze" }),
-        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.18f, 0.286f, new[]{ "battle_01" }),
+        ("store_1",    NodeType.Store,    null,              "Store",           0.50f, 0.333f, new string[0]),
+        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.444f, new[]{ "store_1" }),
+        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.444f, new[]{ "role_pick" }),
+        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.18f, 0.555f, new[]{ "role_pick" }),
+        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.82f, 0.555f, new[]{ "role_pick" }),
+        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.18f, 0.666f, new[]{ "battle_01" }),
+        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.82f, 0.666f, new[]{ "battle_02" }),
+        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.18f, 0.777f, new[]{ "battle_03" }),
+        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.82f, 0.777f, new[]{ "battle_04" }),
+        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.888f, new[]{ "battle_05" }),
+        ("survival",   NodeType.Survival, null,              "Survive Mode",    0.50f, 1.000f, new[]{ "battle_08" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]
@@ -41,16 +59,17 @@ public static class FlowSceneBuilder
         BuildWorldMap();
 
         BuildScene("Boot", typeof(Boot));
-        BuildScene("Map", typeof(WorldMapController));
+        BuildScene("Menu", typeof(MainMenu));
+        BuildMapScene();
         BuildScene("RolePick", typeof(RolePickController));
         BuildScene("Store", typeof(StorePlaceholder));
-        BuildScene("Survival", typeof(SurvivalPlaceholder));
+        BuildScene("Survival", typeof(SurvivalLoader), c => WireSurvival((SurvivalLoader)c));
 
         RegisterBuildScenes();
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
-        Debug.Log("FlowSceneBuilder: built Boot / Map / RolePick (legacy) / Store / Survival scenes, WorldMap asset, and Build Settings. Map role pick opens Select. Open Boot and press Play.");
+        Debug.Log("FlowSceneBuilder: built Boot / Menu / Map / RolePick / Store / Survival scenes, WorldMap asset, and Build Settings. Open Boot and press Play.");
     }
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes", true)]
@@ -67,6 +86,15 @@ public static class FlowSceneBuilder
         }
 
         WorldMap map = ScriptableObject.CreateInstance<WorldMap>();
+
+        foreach (string level in TutorialLevels)
+        {
+            TextAsset asset = AssetDatabase.LoadAssetAtPath<TextAsset>(LevelDir + level + ".json");
+            if (asset == null) Debug.LogWarning("FlowSceneBuilder: missing tutorial level " + LevelDir + level + ".json");
+            map.tutorialLevels.Add(asset);
+        }
+        map.hubLevel = AssetDatabase.LoadAssetAtPath<TextAsset>(HubLevelPath);
+        if (map.hubLevel == null) Debug.LogWarning("FlowSceneBuilder: missing hub level " + HubLevelPath);
 
         for (int i = 0; i < Nodes.Length; i++)
         {
@@ -92,7 +120,40 @@ public static class FlowSceneBuilder
         Debug.Log("FlowSceneBuilder: created " + MapAssetPath + " with " + map.nodes.Count + " nodes.");
     }
 
-    static void BuildScene(string name, Type controller)
+    // Survival builds its arena at runtime; it only needs the prefabs
+    static void WireSurvival(SurvivalLoader loader)
+    {
+        const string dir = "Assets/Prefabs/";
+        loader.champions = new[] { "MrHyde", "Cat", "Squirrel", "Frog" }
+            .Select(n => AssetDatabase.LoadAssetAtPath<GameObject>(dir + n + ".prefab")).ToArray();
+        (string name, float weight)[] items =
+            { ("Gold_Small", 40f), ("Gold_Medium", 28f), ("Gold_Large", 14f), ("Diamond", 10f), ("Life", 3f) };
+        loader.items = items.Select(i => new SurvivalLoader.ItemChance
+        {
+            prefab = AssetDatabase.LoadAssetAtPath<GameObject>(dir + i.name + ".prefab"),
+            weight = i.weight,
+        }).ToArray();
+        loader.telegraphDot = AssetDatabase.LoadAssetAtPath<GameObject>(dir + "TelegraphDot.prefab");
+    }
+
+    // The map is edited by hand in the Scene view, so an existing Map scene is kept: it only gets the
+    // map UI if it has none yet, plus a card for any new WorldMap node (MapUIBuilder)
+    static void BuildMapScene()
+    {
+        string path = SceneDir + "/Map.unity";
+        if (!File.Exists(path))
+        {
+            BuildScene("Map", typeof(WorldMapController), c => MapUIBuilder.Build((WorldMapController)c));
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(path, OpenSceneMode.Single);
+        MapUIBuilder.Build(null);
+        if (!EditorSceneManager.SaveScene(scene))
+            Debug.LogError("FlowSceneBuilder: could not save " + path);
+    }
+
+    static void BuildScene(string name, Type controller, Action<Component> configure = null)
     {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -106,19 +167,21 @@ public static class FlowSceneBuilder
         camera.clearFlags = CameraClearFlags.SolidColor;
 
         var controllerObject = new GameObject(controller.Name);
-        controllerObject.AddComponent(controller);
+        Component added = controllerObject.AddComponent(controller);
+        configure?.Invoke(added);
 
         string path = SceneDir + "/" + name + ".unity";
         if (!EditorSceneManager.SaveScene(scene, path))
             Debug.LogError("FlowSceneBuilder: could not save " + path);
     }
 
-    // Boot first (index 0 = the launch scene), then the hub scenes, then the existing Game scene.
+    // Boot first (index 0 = the launch scene; it opens the Menu), then the hub scenes, then the existing Game scene.
     static void RegisterBuildScenes()
     {
         string[] order =
         {
             SceneDir + "/Boot.unity",
+            SceneDir + "/Menu.unity",
             SceneDir + "/Map.unity",
             SceneDir + "/RolePick.unity",
             SceneDir + "/Store.unity",

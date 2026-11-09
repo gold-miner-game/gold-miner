@@ -42,6 +42,7 @@ public class MinerAI : MonoBehaviour
             yield break;
         }
 
+        hook.AimedAtPlayer = aimAtPlayer;
         hook.Fire(origin, dir, length, color);
         while (hook.IsBusy && (GameManager.Instance == null || GameManager.Instance.IsPlaying))
             yield return null;
@@ -77,6 +78,11 @@ public class MinerAI : MonoBehaviour
     [Header("Targeting")]
     public Strategy strategy = Strategy.Weighted;
     public bool shootsPlayer = true;   // false: only treasure shots (no-kill levels)
+    public bool huntPigOnly;          // never gold: every shot aims at the pig
+    public float huntReach;           // 0: stop just past the pig. Above 0: the rope travels at least this far
+    public bool aimThroughPig;        // only treasure whose line crosses the pig's start
+    public bool greedyValue;          // biggest treasure first, then keep competing for the rest
+    public bool resumeAfterScripted;  // a scripted opening pull, then shoot on its own
     public bool autoShoot = true;      // false: the miner waits (a tutorial drives the hook itself)
 
     [Header("Colors")]
@@ -88,30 +94,85 @@ public class MinerAI : MonoBehaviour
 
     // Treasure each miner is going for, until its hook is home (Efficient strategy)
     private static readonly Dictionary<MinerAI, Treasure> claims = new Dictionary<MinerAI, Treasure>();
+    private static readonly List<MinerAI> miners = new List<MinerAI>();
 
-    void OnDisable() { claims.Remove(this); }
+    // From the telegraph until the hook is home: the hook's origin must stay put (a walking enemy waits)
+    public bool Aiming { get; private set; }
+
+    // Where the lane was when the level started. Gold hooks keep aiming through this spot
+    // after the pig runs off to wait.
+    Vector2 lanePoint;
+    bool lanePointSet;
+
+    void OnEnable()
+    {
+        if (!miners.Contains(this)) miners.Add(this);
+    }
+
+    void OnDisable()
+    {
+        miners.Remove(this);
+        claims.Remove(this);
+        Aiming = false;
+    }
 
     void Start()
     {
+        if (pig != null)
+        {
+            lanePoint = pig.position;
+            lanePointSet = true;
+        }
         treasureShotsLeft = Random.Range(minTreasureShots, maxTreasureShots + 1);
         StartCoroutine(Loop());
     }
 
+    // Waits in game time, except during bullet time (TimeMovesWithPlayer slowing the world while the
+    // player stands still): then in real time, so the miner keeps aiming and firing at its usual pace
+    // and only the hook flies in slow motion. A pause (time scale 0) still holds it.
+    static IEnumerator Wait(float seconds)
+    {
+        float t = 0f;
+        while (t < seconds)
+        {
+            yield return null;
+            if (Time.timeScale <= 0f) continue;
+            t += TimeMovesWithPlayer.Slowness > 0f ? Time.unscaledDeltaTime : Time.deltaTime;
+        }
+    }
+
     IEnumerator Loop()
     {
-        yield return new WaitForSeconds(startDelay);
+        yield return Wait(startDelay);
 
         while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
-            if (!autoShoot) { yield return null; continue; }
+            if (!autoShoot)
+            {
+                // The opening diamond was this hook's first grab. Once that pull is over, it
+                // goes back out for whatever gold is still lying around.
+                if (resumeAfterScripted && hook != null && !hook.IsBusy)
+                {
+                    autoShoot = true;
+                    aimThroughPig = false;
+                }
+                else
+                {
+                    yield return null;
+                    continue;
+                }
+            }
 
-            // 1. Pick a target
-            bool aimAtPlayer = shootsPlayer && PigShotDue();
+            // 1. Pick a target. A hunter never looks at gold.
+            bool aimAtPlayer = huntPigOnly || (shootsPlayer && PigShotDue());
             Vector2 targetPos = Vector2.zero;
+
+            if (huntPigOnly && pig == null) { yield return null; continue; }
 
             if (!aimAtPlayer)
             {
-                Treasure t = strategy == Strategy.Efficient ? PickEfficient() : PickTreasure();
+                Treasure t = greedyValue ? PickGreedy()
+                    : strategy == Strategy.Efficient ? PickEfficient() : PickTreasure();
                 if (t != null)
                 {
                     targetPos = t.transform.position;
@@ -127,25 +188,35 @@ public class MinerAI : MonoBehaviour
                 treasureShotsLeft = Random.Range(minTreasureShots, maxTreasureShots + 1);
             }
             lastShotAtPig = aimAtPlayer;
+            Aiming = true;
 
             // 2. Lock the trajectory now, so the player can react to it
             Vector2 origin = hookOrigin.position;
             Vector2 toTarget = targetPos - origin;
             Vector2 dir = toTarget.normalized;
             float length = toTarget.magnitude + overshoot;
+            // A hunter's rope crosses the whole arena, so the pig is in range from anywhere on screen.
+            if (aimAtPlayer && huntReach > 0f) length = Mathf.Max(length, huntReach);
 
             // 3. Telegraph: yellow = treasure, red = player
             telegraph.Show(origin, origin + dir * length, aimAtPlayer ? playerColor : treasureColor);
-            yield return new WaitForSeconds(Random.Range(telegraphMin, telegraphMax));
+            if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.AimEvent);
+            yield return Wait(Random.Range(telegraphMin, telegraphMax));
             telegraph.Hide();
-            if (!GameManager.Instance.IsPlaying) yield break;
+            if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
             // 4. Fire, then wait for the hook to come back
+            hook.AimedAtPlayer = aimAtPlayer;
             hook.Fire(origin, dir, length, aimAtPlayer ? playerColor : treasureColor);
+            if (aimAtPlayer) TutorialEvents.Fire(SurvivalHookAI.FireEvent);
+            TutorialEvents.Fire(SurvivalHookAI.ShotEvent);   // every shot, the gold ones too
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
             claims.Remove(this);
-
-            yield return new WaitForSeconds(cooldown);
+            Aiming = false;
+            // The lane shot (the caged gold) is done. Later shots chase whatever is left.
+            if (greedyValue && aimThroughPig && !lastShotAtPig) aimThroughPig = false;
+            if (aimAtPlayer && GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(SurvivalHookAI.DodgedEvent);
+            yield return Wait(cooldown);
         }
     }
 
@@ -155,6 +226,67 @@ public class MinerAI : MonoBehaviour
     {
         if (pigShotChance > 0f) return !lastShotAtPig && Random.value < pigShotChance;
         return treasureShotsLeft <= 0;
+    }
+
+    // Biggest piece whose line still crosses the pig, then the biggest piece nobody else is
+    // lining up through the pig. Claimed gold is skipped until nothing else is left.
+    Treasure PickGreedy()
+    {
+        if (aimThroughPig)
+        {
+            Treasure lane = BestValue(true, true, false);
+            if (lane != null) return lane;
+        }
+        Treasure free = BestValue(true, false, true);
+        return free != null ? free : BestValue(false, false, true);
+    }
+
+    Treasure BestValue(bool skipClaimed, bool laneOnly, bool skipReserved)
+    {
+        Treasure best = null;
+        int bestValue = int.MinValue;
+        float bestDist = float.PositiveInfinity;
+        Vector2 origin = hookOrigin.position;
+        foreach (Treasure t in Treasure.Active)
+        {
+            if (t == null) continue;
+            if (laneOnly && !CrossesPig(t)) continue;
+            if (skipReserved && ReservedForOtherLane(t)) continue;
+            if (skipClaimed && ClaimedByOther(t)) continue;
+            float d = Vector2.Distance(origin, t.transform.position);
+            if (t.value > bestValue || (t.value == bestValue && d < bestDist))
+            {
+                bestValue = t.value;
+                bestDist = d;
+                best = t;
+            }
+        }
+        return best;
+    }
+
+    bool ReservedForOtherLane(Treasure t)
+    {
+        foreach (MinerAI other in miners)
+        {
+            if (other == this || other == null || !other.aimThroughPig || other.huntPigOnly) continue;
+            if (other.CrossesPig(t)) return true;
+        }
+        return false;
+    }
+
+    bool CrossesPig(Treasure t)
+    {
+        if (!lanePointSet && pig == null) return false;
+        Vector2 p = lanePointSet ? lanePoint : (Vector2)pig.position;
+        Vector2 a = hookOrigin.position;
+        Vector2 b = t.transform.position;
+        Vector2 ab = b - a;
+        float len2 = ab.sqrMagnitude;
+        if (len2 < 0.01f) return false;
+        float u = Vector2.Dot(p - a, ab) / len2;
+        if (u < 0.12f || u > 0.88f) return false;
+        Vector2 closest = a + ab * u;
+        return (p - closest).sqrMagnitude < 0.45f * 0.45f;
     }
 
     // Value per second of a full shot at it (telegraph, out, back with its weight, cooldown), as if

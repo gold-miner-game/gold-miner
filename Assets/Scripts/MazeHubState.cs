@@ -3,12 +3,10 @@ using System.Text;
 using UnityEngine;
 
 // Snapshot of the maze world-map hub so leaving for a battle and returning does not reset
-// maze-collected money, pig position, eaten treasure, or cleared tutorial lessons.
+// pig position, eaten treasure, or cleared tutorial lessons.
 //
-// World-map MONEY shown to the player =
-//   MazeBank  (gold/diamonds eaten on the maze before battles)
-// + ProgressStore.MapMoney  (sum of each battle's best player−miner margin)
-//
+// Single currency: Hub MONEY = CrossLevelStatus.wallet (same pool the store spends).
+// Maze eats credit the wallet directly; best margins only decide new-record gains.
 // Stored in PlayerPrefs as well as statics — Apply must run AFTER GameManager.Awake (new scene).
 public static class MazeHubState
 {
@@ -16,7 +14,7 @@ public static class MazeHubState
 
     public static bool HasSave { get; private set; }
     public static Vector2 PlayerPos;
-    // Maze-only bank (not battle scores). Prefs still serialize this as the money field.
+    // Legacy field kept in prefs layout for older saves; no longer part of DisplayMoney.
     public static int MazeBank;
     public static int Lives;
     // After returning from a battle, ignore portal triggers until this time (avoids instant re-entry).
@@ -25,8 +23,18 @@ public static class MazeHubState
     public static readonly HashSet<string> EatenTreasureIds = new HashSet<string>();
     public static readonly HashSet<string> ClearedLessons = new HashSet<string>();
 
-    // What the HUD / gate should show on the world map.
-    public static int DisplayMoney => Mathf.Max(0, MazeBank) + Mathf.Max(0, ProgressStore.MapMoney);
+    // Spendable wallet (store + hub MONEY). Active may be null on a fresh hub load before Ensure.
+    public static int WalletBalance
+    {
+        get
+        {
+            if (CrossLevelStatus.Active != null) return CrossLevelStatus.Active.getWallet();
+            return PlayerPrefs.GetInt("gm.wallet", 0);
+        }
+    }
+
+    // What the HUD should show on the world map — same number as the store.
+    public static int DisplayMoney => WalletBalance;
 
     public static bool LessonCleared(string id) => ClearedLessons.Contains(id);
 
@@ -47,7 +55,7 @@ public static class MazeHubState
     {
         if (string.IsNullOrEmpty(id)) return;
         if (!EatenTreasureIds.Add(id)) return;
-        SnapshotBankFromGame();
+        SnapshotLivesFromGame();
         HasSave = true;
         WritePrefs();
         Debug.Log("MazeHubState: marked eaten " + id + " (total " + EatenTreasureIds.Count + ")");
@@ -63,7 +71,7 @@ public static class MazeHubState
             if (EatenTreasureIds.Add(id)) any = true;
         }
         if (!any) return;
-        SnapshotBankFromGame();
+        SnapshotLivesFromGame();
         HasSave = true;
         WritePrefs();
         Debug.Log("MazeHubState: marked eaten batch (total " + EatenTreasureIds.Count + ")");
@@ -74,18 +82,17 @@ public static class MazeHubState
     {
         if (string.IsNullOrEmpty(id)) return;
         if (!EatenTreasureIds.Remove(id)) return;
-        SnapshotBankFromGame();
+        SnapshotLivesFromGame();
         if (HasSave) WritePrefs();
         Debug.Log("MazeHubState: unmarked eaten " + id + " (total " + EatenTreasureIds.Count + ")");
     }
 
-    // GM on the hub holds DisplayMoney; strip battle margins to keep MazeBank pure.
-    static void SnapshotBankFromGame()
+    static void SnapshotLivesFromGame()
     {
         GameManager gm = GameManager.Instance;
         if (gm == null) return;
-        MazeBank = Mathf.Max(0, gm.PlayerMoney - ProgressStore.MapMoney);
-        Lives = gm.Lives;
+        // Never persist the Brace preview pip — it is re-applied from the armed skill on hub load.
+        Lives = Mathf.Max(0, gm.Lives - gm.BonusLives);
     }
 
     public static void CaptureFromScene()
@@ -93,11 +100,7 @@ public static class MazeHubState
         PlayerCharacter pig = Object.FindFirstObjectByType<PlayerCharacter>();
         GameManager gm = GameManager.Instance;
         if (pig != null) PlayerPos = pig.transform.position;
-        if (gm != null)
-        {
-            MazeBank = Mathf.Max(0, gm.PlayerMoney - ProgressStore.MapMoney);
-            Lives = gm.Lives;
-        }
+        if (gm != null) Lives = Mathf.Max(0, gm.Lives - gm.BonusLives);
 
         // Never Clear() the eaten set here — merge any treasures already gone from the live maze.
         MazeRuntime maze = MazeRuntime.Active;
@@ -109,7 +112,7 @@ public static class MazeHubState
 
         HasSave = true;
         WritePrefs();
-        Debug.Log("MazeHubState: captured bank=$" + MazeBank + " display=$" + DisplayMoney
+        Debug.Log("MazeHubState: captured wallet=$" + DisplayMoney
                   + " lives=" + Lives + " eaten=" + EatenTreasureIds.Count + " pos=" + PlayerPos);
     }
 
@@ -128,22 +131,25 @@ public static class MazeHubState
             if (body != null) body.position = PlayerPos;
         }
 
-        if (gm != null)
-        {
-            int show = DisplayMoney;
-            gm.RestoreHubTotals(show, Lives);
-            Debug.Log("MazeHubState: restored display=$" + show
-                      + " (bank=$" + MazeBank + " + margins=$" + ProgressStore.MapMoney + ")"
-                      + " lives=" + Lives + " eaten=" + EatenTreasureIds.Count
-                      + " (gm now $" + gm.PlayerMoney + ")");
-        }
-        else
-        {
-            Debug.LogWarning("MazeHubState: Apply skipped money — GameManager missing");
-        }
+        ApplyDisplayMoney(gm, Lives);
 
         if (maze == null) return;
         maze.RemoveEatenTreasures();
+    }
+
+    // Push wallet onto GameManager so the hub MONEY sidebar matches the store.
+    public static void ApplyDisplayMoney(GameManager gm, int lives = 0)
+    {
+        if (gm == null)
+        {
+            Debug.LogWarning("MazeHubState: ApplyDisplayMoney skipped — GameManager missing");
+            return;
+        }
+        CrossLevelStatus.Ensure();
+        ProgressStore.EnsureSingleWalletMigration();
+        int show = DisplayMoney;
+        gm.RestoreHubTotals(show, lives);
+        Debug.Log("MazeHubState: hub MONEY=$" + show + " (wallet) (gm now $" + gm.PlayerMoney + ")");
     }
 
     public static void Clear()

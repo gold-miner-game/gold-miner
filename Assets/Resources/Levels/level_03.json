@@ -1,87 +1,79 @@
 {
-  "pig_start": [
-    0.0,
-    -1.0
-  ],
+  "pig_start": [0.0, -2.5],
   "hooks": [
-    [
-      -7.963543462432863,
-      -4.451707025023084
-    ],
-    [
-      6.097888950095136,
-      0.1913159376256468
-    ]
+    [0.0, 3.4],
+    [-7.6, -3.2]
   ],
   "items": [
-    {
-      "type": "Gold_Small",
-      "x": -6.50586721048329,
-      "y": 0.6386484885499807
-    },
-    {
-      "type": "Gold_Small",
-      "x": 6.722638825717503,
-      "y": -0.8794422374803179
-    },
-    {
-      "type": "Gold_Medium",
-      "x": 7.035442915141144,
-      "y": 1.7684569272551474
-    },
-    {
-      "type": "Gold_Small",
-      "x": -3.854902323342514,
-      "y": 1.636518504465712
-    },
-    {
-      "type": "Gold_Small",
-      "x": -0.6898962414404026,
-      "y": -4.559719046671017
-    },
-    {
-      "type": "Gold_Small",
-      "x": -4.105210150131219,
-      "y": -1.5462470616164878
-    }
+    { "type": "Diamond", "x": 6.55, "y": -3.9 },
+    { "type": "Gold_Large", "x": 0.0, "y": -4.3 },
+    { "type": "Gold_Medium", "x": -5.5, "y": -1.0 },
+    { "type": "Gold_Medium", "x": 4.0, "y": 1.0 },
+    { "type": "Gold_Small", "x": -6.0, "y": 2.5 },
+    { "type": "Gold_Small", "x": -2.5, "y": -4.0 },
+    { "type": "Rock", "x": -3.5, "y": -3.0 },
+    { "type": "Rock", "x": -3.5, "y": -2.65 },
+    { "type": "Rock", "x": -3.5, "y": -2.3 },
+    { "type": "Rock", "x": -3.5, "y": -1.95 },
+    { "type": "Rock", "x": -3.5, "y": -1.6 },
+    { "type": "Rock", "x": -3.5, "y": -1.25 },
+    { "type": "Rock", "x": -3.5, "y": -0.9 },
+    { "type": "Rock", "x": -3.5, "y": -0.55 },
+    { "type": "Rock", "x": -3.5, "y": -0.2 },
+    { "type": "Rock", "x": 2.5, "y": -3.0 },
+    { "type": "Rock", "x": 2.5, "y": -2.65 },
+    { "type": "Rock", "x": 2.5, "y": -2.3 },
+    { "type": "Rock", "x": 2.5, "y": -1.95 },
+    { "type": "Rock", "x": 2.5, "y": -1.6 },
+    { "type": "Rock", "x": 2.5, "y": -1.25 },
+    { "type": "Rock", "x": 2.5, "y": -0.9 },
+    { "type": "Rock", "x": 2.5, "y": -0.55 },
+    { "type": "Rock", "x": 7.6, "y": -4.7 },
+    { "type": "Rock", "x": 7.6, "y": -4.35 },
+    { "type": "Rock", "x": 7.6, "y": -4.0 },
+    { "type": "Rock", "x": 7.6, "y": -3.65 },
+    { "type": "Rock", "x": 7.6, "y": -3.3 },
+    { "type": "Rock", "x": 5.5, "y": -4.8 },
+    { "type": "Rock", "x": 5.85, "y": -4.8 },
+    { "type": "Rock", "x": 6.2, "y": -4.8 },
+    { "type": "Rock", "x": 6.55, "y": -4.8 },
+    { "type": "Rock", "x": 6.9, "y": -4.8 },
+    { "type": "Rock", "x": 7.25, "y": -4.8 },
+    { "type": "Rock", "x": 7.6, "y": -4.8 },
+    { "type": "Rock", "x": 5.5, "y": -4.45 },
+    { "type": "Rock", "x": 5.5, "y": -4.1 },
+    { "type": "Rock", "x": 5.5, "y": -3.75 }
   ],
   "params": {
-    "pig_speed": 6.5,
-    "digest_time": 0.35,
-    "digest_per_value": 0.003,
-    "hook_extend": 8.5,
-    "hook_retract": 8.0,
-    "overshoot": 0.45,
-    "start_delay": 2.0,
-    "telegraph_min": 2.0,
-    "telegraph_max": 3.2,
-    "cooldown": 1.6,
-    "pig_shot_chance": 0.06,
-    "min_treasure_shots": 2,
-    "max_treasure_shots": 4,
-    "round_time": 110.0,
-    "starting_lives": 4,
-    "invincible_time": 2.0,
-    "hook_kills": true
+    "pig_speed": 5.0,
+    "digest_time": 0.3,
+    "digest_per_value": 0.0,
+    "hook_extend": 6.0,
+    "hook_retract": 4.0,
+    "overshoot": 0.3,
+    "start_delay": 1.5,
+    "telegraph_min": 0.8,
+    "telegraph_max": 1.2,
+    "pig_shot_chance": 0.0,
+    "cooldown": 1.5,
+    "round_time": 60.0,
+    "starting_lives": 3,
+    "invincible_time": 0.5,
+    "hook_kills": true,
+    "greedy": true,
+    "wall_rocks": true,
+    "still_time_scale": 0.06,
+    "compete": 1,
+    "pig_hunter": 1,
+    "hunter_pass_rocks": true,
+    "hunter_delay": 4.0,
+    "hunter_cooldown": 1.8,
+    "hunter_telegraph_min": 0.8,
+    "hunter_telegraph_max": 1.1
   },
   "skills": {
     "block": true,
-    "block_duration": 0.8,
-    "block_cooldown": 1.0
-  },
-  "level": {
-    "level": 3,
-    "gold": 6,
-    "value": 350,
-    "hooks": 4,
-    "try_": 2,
-    "target_win": 0.5429,
-    "pig_win": 0.5305,
-    "margin": 38.9,
-    "margin_se": 1.6,
-    "digest_time": 0.9787,
-    "digest_per_value": 0.0054,
-    "hook_extend": 19.6482,
-    "hook_retract": 8.0532
+    "block_duration": 1.5,
+    "block_cooldown": 0.25
   }
 }

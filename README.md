@@ -29,6 +29,67 @@ Map Design Concepts
 <img width="2182" height="1514" alt="image" src="https://github.com/user-attachments/assets/07d28617-8d5d-457f-8f44-8f76a9d9b8cb" />
 UI Redesign
 
+## Beta Design (goldMiner-beta)
+
+Play it: https://gold-miner-game.github.io/gold-miner/goldMiner-beta/
+
+### Logline
+A competitive action game where players control an underground animal against AI miners: clear sectors of enemies, survive waves of hooks, and race the miners for treasure, using character abilities to block, attack, roll or steal.
+
+### Player Goals / Win Conditions
+Each battle level belongs to one of three modes, and each mode has its own goal:
+- Attack: defeat every enemy in the sector. The player loses if they lose their last Life.
+- Survival: stay alive until the timer runs out. Money does not decide the result.
+- Compete: finish with more money than the miners combined when the timer runs out or all treasure is gone. A tie counts as a loss.
+
+In every mode, losing the last Life ends the round immediately. In tutorial levels, the player wins by completing the assigned objectives.
+
+### Game Description
+Oinky Oinky reverses the roles of the classic Gold Miner. Instead of controlling the miner, the player controls an underground animal fighting AI miners for the same gold and diamonds. Players collect treasure by moving into it, with a digestion cooldown between pickups. Miners fire hooks to retrieve treasure or attack the player, and each shot is preceded by a dotted line that shows its locked trajectory: yellow for treasure and red for the player.
+
+The game starts with three tutorials played back to back: eating treasure, dodging hooks, and blocking and attacking. The player then goes to the store and enters the world map, a maze the player walks through. Portals in the maze lead to the store, the character pick, and the battle levels. The map has three areas: Attack on the left (red), Survival in the middle (yellow), and Compete on the right (green). Most levels are hidden behind rocks and are revealed as earlier levels are cleared. In the beta, Levels 1, 2 and 3 are open, one per mode.
+
+### Controls
+| Input | Action |
+|---|---|
+| W/A/S/D | Move the character |
+| Space | Mr. Hyde: block hooks and Red Squares (no damage). JK. Rolling: roll through hooks at a faster speed. Scrat: hold hooks in place with a firm tail. Rero Rero: use the tongue to collect or steal treasure. |
+| Left mouse click | Mr. Hyde: attack. A fast slash sweeps a sixth of a circle around the pig. It points right, or at the closest enemy in reach, damages every enemy it touches and pushes them back. Also used to select menu items, buy store items, turn story pages, and use the Pause/Quit menu. |
+| R | Restart the current level |
+
+Note: Treasure is collected automatically on contact when the character is not digesting. Walk into a portal on the world map to enter it.
+
+### Mechanics
+
+- **Miner AI & Hook** (Core): AI miners compete with the player for treasure and target the player. In attack and survival levels, the miners walk: they follow the player around walls (A* pathfinding) and fire hooks from wherever they stand. Hooks travel along fixed paths and collect the first treasure they touch. Heavier treasure slows the hook's return, and miners earn points only when the hook reaches them.
+
+- **Character Abilities** (Core): Mr. Hyde (the pig) blocks with Space and attacks with a left click; he is described as "defend and attack". JK. Rolling (the cat) rolls through hooks at a faster speed and damages enemies by rolling into them. Scrat and Rero Rero are still locked in the beta: they show as black silhouettes marked "???" on the character pick screen. Hovering over a character on the pick screen plays a preview of its skill.
+
+- **Attack & Enemy HP** (Core): Attack levels place the player in a sector four times the size of the screen, with walls, and the camera follows the player. Two enemy types chase the player: the Red Round, a slow walking hook hole that shoots red hooks and has 4 HP, and the Red Square, which has no hook, moves faster, rams the player for a Life unless Mr. Hyde blocks it, and has 2 HP. Each enemy shows an HP bar over its head. Attack levels are always played as Mr. Hyde. Clearing every enemy wins the level.
+
+- **Survival** (Core): Survival levels last one minute in a large walled arena. Six Red Squares that cannot be killed chase the player from the start, and more and more walking hook holes crawl out of the ground (one every 6 seconds, up to 10). Their hooks get faster and their warnings get shorter as the round goes on. Surviving until the timer runs out wins.
+
+- **Compete & Time Control** (Core): Compete levels are a money race against green miners. Time moves only when the player moves: when the player stands still, the miners, their hooks and the timer slow to 6% of normal speed, so the player can stop and plan the next move.
+
+- **Score Competition** (Core): In compete levels the player competes against the miners' combined score. Both totals remain visible throughout the round, and a top-bar money bar shows each side's share of the level's gold. The player wins only by finishing with more money. A tie counts as a loss.
+
+- **Life & Damage** (Supporting): Each hit from a hook or a Red Square removes one Life unless the character is protected, followed by temporary invincibility. A Life bar over the player's head has one red segment per Life (three Lives = three segments); each hit empties one, and picking up a red heart fills one again. Losing the final Life ends the round immediately.
+
+- **Level Progression** (Game System): After the tutorials, the player walks through the world-map maze. Portals lead to the store, the character pick, and the levels of the three mode areas (Attack, Survival, Compete). Clearing a level reveals the next portal hidden behind the rocks. Levels 1-3 are open in the beta; the rest are marked as coming soon.
+
+- **Story** (Game System): Short story dialogues play in the tutorials, on the world map, in the store, and in each level. They explain the mode and introduce the characters. Pressing Start from the menu replays all of them.
+
+### Twist & Mechanics Matrix (new mechanics)
+| Mechanic | Description | Interaction with Twist | Affected Genre Elements | Supports |
+|---|---|---|---|---|
+| Attack & Enemy HP (Core) | The pig slashes enemies with a left click; walking enemies have HP bars. | The player hunts the miners instead of only avoiding them. | Combat, enemy AI, positioning | Character Abilities, Movement, Lives & Damage |
+| Survival (Core) | Survive one minute against unkillable chasers and more and more hooks. | Turns the miners' hooks into a pure hazard to outlast. | Survival, evasion, escalation | Hook Telegraph, Movement, Lives & Damage |
+| Compete & Time Control (Core) | Time slows to 6% while the player stands still. | Lets the player stop and plan each move in the money race. | Timing, planning, collection | Score Competition, Treasure Collection, Hook Telegraph |
+
+### Mechanic Interaction Matrix (new mechanics)
+- **Attack (Mr. Hyde)**: Treasure: none. Miner Hook: damages walking hook holes and miners and pushes them back. Player: points at the closest enemy in reach. Miner Score: a destroyed miner stops scoring.
+- **Time Control (Compete)**: Treasure: none. Miner Hook: hooks and telegraphs slow to 6% while the player stands still. Player: time runs at full speed while the player moves. Miner Score: the miners collect more slowly while the player waits.
+
 ## Current Status
 ![Maze world map](figures/world_map_maze.png)
 
@@ -90,3 +151,6 @@ Each shot has a 30% chance to aim at the pig instead of treasure (never twice in
 - **The aim is locked when the red dots appear.** The miner at the top aimed at the spot where the pig was, and the dots run a little past it. The hook will fly along that line no matter where the pig goes.
 - **Two ways to survive:** move out of the red line before the hook fires, as the pig here has already started to do, or press **Space** as the hook arrives to block it (the pig turns blue and the hook bounces off).
 - **Yellow dots** are ordinary shots at treasure. Here, the left miner is going for a large gold and the bottom-right miner for the diamond. They aren't aimed at the pig, but any hook that touches it still costs a life, so don't stand in a yellow path either. If a hook drags treasure past you on the way back, press Space to knock it loose and eat it.
+
+
+--- Penny Level Map ---

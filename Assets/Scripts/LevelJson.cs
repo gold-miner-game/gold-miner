@@ -13,8 +13,20 @@ using UnityEngine;
 // "guide" is optional too: text shown on screen during the level (tutorial levels).
 // "stages" (tutorials) is a list of steps played in order, each with its own guide and goal:
 //   {"guide": "...", "goal": "block" | "steal", "count": 2, "pig_speed": 0, "items": [...]}
+//   goal "none": the stage never ends by itself; something in the level scene wins it (SqueezePhase)
 // "block" counts hooks bounced off the pig, "steal" counts treasure knocked off a hook. A stage's
 // items are spawned when it starts, and again whenever none are left. Clearing the last stage wins.
+// "grid" (the world-map hub, after Penny's maze on feature/penny-level-map) makes it a maze: a list of
+// strings, row 0 at the top, one character per tile of "tile_size" world units:
+//   # wall   R / Y / G red / yellow / green wall (the attack / survival / compete areas)
+//   P player start   < > ^ v one-way tile (passable only
+//   that way)   anything else floor
+// plus "portals": [{"target": "battle_01", "x": col, "y": row, "hidden": true}], each a WorldMap
+// node id. A hidden portal is a rock, coloured like the walls around it (or "stone": "G" / "R" / "Y"),
+// until its node unlocks. And "labels": [{"text": "ATTACK", "x": col, "y": row}], words on the floor.
+// "honeycomb": true shifts every odd row half a tile to the right, so the hexagon rocks pack like a
+// honeycomb and slanted edges (the evil cat's ears, eyes and teeth) come out straight. A grid level
+// has no hooks unless it lists some ("hooks" in world units, or "miners": [{"x": col, "y": row}]).
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.
 public class LevelData
 {
@@ -43,7 +55,7 @@ public class LevelData
         public string dir = "";       // OneWay: Left / Right / Up / Down
         public string target = "";    // Gate / LevelPortal → WorldMap node id (battle_01)
         public string requires = "";  // LevelPortal: previous battle id that reveals this stone
-        public int unlockCost;        // LevelPortal: MapMoney threshold (not spent)
+        public int unlockCost;        // Deprecated: portals unlock via ProgressStore completed nodes
         public bool autoFire;
         public float hookSpeed;
         public float windup;
@@ -75,9 +87,23 @@ public class LevelData
     public readonly List<MazeTrigger> mazeTriggers = new List<MazeTrigger>();
     public readonly List<string> creditSources = new List<string>();
     public bool IsMaze;
+    public bool Honeycomb;   // odd grid rows sit half a tile to the right
     public float TileSize = 1f;
     public int GridRows;
     public int EntryCredit;
+
+    // Grid maze (the world-map hub)
+    public struct Portal { public string target; public Vector2 position; public bool hidden; public char stone; }
+    public struct ColoredWall { public Vector2 position; public char color; }   // R red, Y yellow, G green
+    public struct Label { public string text; public Vector2 position; }
+    public struct OneWay { public Vector2 position; public Vector2 dir; }
+    public Vector2 MazeSize;   // world units
+    public readonly List<Vector2> walls = new List<Vector2>();
+    public readonly List<ColoredWall> coloredWalls = new List<ColoredWall>();
+    public readonly List<OneWay> oneWays = new List<OneWay>();
+    public readonly List<Portal> portals = new List<Portal>();
+    public readonly List<Label> labels = new List<Label>();
+    public readonly List<Vector2> mapGold = new List<Vector2>();   // the hub's one-time gold ("gold" spots)
 
     public static LevelData Parse(string json)
     {
@@ -92,20 +118,17 @@ public class LevelData
             level.parameters["pig_speed"] = spd;
         if (root.TryGetValue("tileSize", out object tileSize) && tileSize is double ts && !level.Has("tile_size"))
             level.parameters["tile_size"] = ts;
-
-        // Grid maze levels (Penny tutorial): '#' = Rock, entities list places pig / gold / miners.
-        List<object> gridLines = null;
-        bool fromGrid = root.TryGetValue("grid", out object gridObj) && gridObj is List<object>;
-        if (fromGrid) gridLines = (List<object>)gridObj;
-        if (fromGrid) ReadGrid(level, gridLines, root);
-
         if (root.TryGetValue("pig_start", out object pig)) level.pigStart = ToVector(pig);
-        // No "hooks" key: one default hook. An empty list: no miner at all (the eat tutorial).
-        // Grid levels already filled hooks from Miner entities, so leave them alone.
+        // No "hooks" key: one default hook. An empty list: no miner at all (the eat tutorial)
         if (root.TryGetValue("hooks", out object hooks))
             foreach (object h in (List<object>)hooks) level.hooks.Add(ToVector(h));
-        else if (!fromGrid) level.hooks.Add(new Vector2(0f, 3.4f));
+        else level.hooks.Add(new Vector2(0f, 3.4f));
         if (root.TryGetValue("items", out object items)) ReadItems(items, level.items);
+        if (root.TryGetValue("grid", out object grid) && grid is List<object> rows)
+        {
+            if (!root.ContainsKey("hooks")) level.hooks.Clear();   // the hub has no miner, unless its "miners" place some
+            ReadGrid(level, rows, root);
+        }
         if (root.TryGetValue("stages", out object stages))
             foreach (object s in (List<object>)stages) level.stages.Add(ReadStage((Dictionary<string, object>)s));
         if (root.TryGetValue("level", out object info) && info is Dictionary<string, object> dict)
@@ -113,137 +136,103 @@ public class LevelData
         return level;
     }
 
-    // ASCII maze: row 0 is the top. World origin is the centre of the grid so it sits in the arena.
-    static void ReadGrid(LevelData level, List<object> gridLines, Dictionary<string, object> root)
+    // The grid is centred on the world origin, so it sits in the middle of the arena
+    static void ReadGrid(LevelData level, List<object> rows, Dictionary<string, object> root)
     {
-        if (gridLines == null) return;
-        level.IsMaze = true;
-        float tile = level.Param("tile_size", 1f);
-        level.TileSize = tile;
-        int rows = gridLines.Count;
-        level.GridRows = rows;
+        float tile = level.Param("tile_size", 0.5f);
         int cols = 0;
-        for (int r = 0; r < rows; r++)
-            if (gridLines[r] is string line) cols = Mathf.Max(cols, line.Length);
+        foreach (object r in rows) if (r is string line) cols = Mathf.Max(cols, line.Length);
+        level.IsMaze = true;
+        level.TileSize = tile;
+        level.Honeycomb = root.TryGetValue("honeycomb", out object hc) && hc is bool hb2 && hb2;
+        // a honeycomb's shifted rows reach half a tile further right
+        level.MazeSize = new Vector2(cols + (level.Honeycomb && rows.Count > 1 ? 0.5f : 0f), rows.Count) * tile;
 
-        float originX = cols * tile * 0.5f;
-        float originY = rows * tile * 0.5f;
-        level.parameters["arena_w"] = cols * tile;
-        level.parameters["arena_h"] = rows * tile;
-
-        for (int row = 0; row < rows; row++)
+        for (int row = 0; row < rows.Count; row++)
         {
-            if (!(gridLines[row] is string line)) continue;
+            if (!(rows[row] is string line)) continue;
             for (int col = 0; col < line.Length; col++)
             {
-                if (line[col] != '#') continue;
-                level.items.Add(new Item
+                Vector2 at = GridToWorld(level, col, row);
+                switch (line[col])
                 {
-                    type = "Rock",
-                    position = GridToWorld(col, row, rows, tile, originX, originY),
-                    scale = tile,
-                });
-            }
-        }
-
-        if (root.TryGetValue("creditSources", out object credits) && credits is List<object> creditList)
-            foreach (object c in creditList)
-                if (c is string id) level.creditSources.Add(id);
-
-        if (root.TryGetValue("entities", out object ents) && ents is List<object> list)
-        {
-            foreach (object o in list)
-            {
-                if (!(o is Dictionary<string, object> e)) continue;
-                var ent = ReadMazeEntity(e, rows, tile, originX, originY);
-                level.mazeEntities.Add(ent);
-                switch (ent.type)
-                {
-                    case "Pig":
-                        level.pigStart = ent.worldPos;
-                        break;
-                    case "Gold":
-                        level.items.Add(new Item { type = "Gold_Medium", position = ent.worldPos });
-                        break;
-                    case "Diamond":
-                        level.items.Add(new Item { type = "Diamond", position = ent.worldPos });
-                        break;
-                    case "Miner":
-                        level.hooks.Add(ent.worldPos);
-                        break;
+                    case '#': level.walls.Add(at); break;
+                    case 'R': case 'Y': case 'G': level.coloredWalls.Add(new ColoredWall { position = at, color = line[col] }); break;
+                    case 'P': level.pigStart = at; break;
+                    case '<': level.oneWays.Add(new OneWay { position = at, dir = Vector2.left }); break;
+                    case '>': level.oneWays.Add(new OneWay { position = at, dir = Vector2.right }); break;
+                    case '^': level.oneWays.Add(new OneWay { position = at, dir = Vector2.up }); break;
+                    case 'v': level.oneWays.Add(new OneWay { position = at, dir = Vector2.down }); break;
                 }
             }
         }
 
-        level.EntryCredit = ComputeEntryCredit(level);
+        if (root.TryGetValue("portals", out object portals) && portals is List<object> list)
+            foreach (object o in list)
+            {
+                if (!(o is Dictionary<string, object> p) || !(p.TryGetValue("target", out object t) && t is string target)) continue;
+                int x = p.TryGetValue("x", out object xv) ? Mathf.RoundToInt(ToFloat(xv)) : 0;
+                int y = p.TryGetValue("y", out object yv) ? Mathf.RoundToInt(ToFloat(yv)) : 0;
+                level.portals.Add(new Portal
+                {
+                    target = target,
+                    position = GridToWorld(level, x, y),
+                    hidden = p.TryGetValue("hidden", out object h) && h is bool hb && hb,
+                    stone = p.TryGetValue("stone", out object st) && st is string s && s.Length > 0 ? s[0] : WallAround(rows, x, y),
+                });
+            }
 
-        if (root.TryGetValue("triggers", out object trigs) && trigs is List<object> triggerList)
-            foreach (object o in triggerList)
-                if (o is Dictionary<string, object> t)
-                    level.mazeTriggers.Add(ReadMazeTrigger(t, rows, tile, originX, originY));
+        // "miners": [{"x": col, "y": row}]: a miner's hook origin on that tile (the evil cat's eyes)
+        if (root.TryGetValue("miners", out object miners) && miners is List<object> spots)
+            foreach (object o in spots)
+            {
+                if (!(o is Dictionary<string, object> m)) continue;
+                float x = m.TryGetValue("x", out object mx) ? ToFloat(mx) : 0f;
+                float y = m.TryGetValue("y", out object my) ? ToFloat(my) : 0f;
+                level.hooks.Add(GridToWorld(level, x, y));
+            }
+
+        // "gold": [{"x": col, "y": row}]: one-time small gold on that tile (MapGold, baked into the scene)
+        if (root.TryGetValue("gold", out object gold) && gold is List<object> pieces)
+            foreach (object o in pieces)
+            {
+                if (!(o is Dictionary<string, object> g)) continue;
+                float x = g.TryGetValue("x", out object gx) ? ToFloat(gx) : 0f;
+                float y = g.TryGetValue("y", out object gy) ? ToFloat(gy) : 0f;
+                level.mapGold.Add(GridToWorld(level, x, y));
+            }
+
+        if (root.TryGetValue("labels", out object labels) && labels is List<object> words)
+            foreach (object o in words)
+            {
+                if (!(o is Dictionary<string, object> w) || !(w.TryGetValue("text", out object t) && t is string text)) continue;
+                float x = w.TryGetValue("x", out object xv) ? ToFloat(xv) : 0f;
+                float y = w.TryGetValue("y", out object yv) ? ToFloat(yv) : 0f;
+                level.labels.Add(new Label { text = text, position = GridToWorld(level, x, y) });
+            }
     }
 
-    static MazeEntity ReadMazeEntity(Dictionary<string, object> e, int rows, float tile, float originX, float originY)
+    // The coloured wall (R / Y / G) among the 8 tiles around (col, row), else '#'
+    static char WallAround(List<object> rows, int col, int row)
     {
-        var ent = new MazeEntity();
-        if (e.TryGetValue("id", out object id) && id is string ids) ent.id = ids;
-        if (e.TryGetValue("type", out object type) && type is string ts) ent.type = ts;
-        if (e.TryGetValue("hook", out object hook) && hook is string hs) ent.hook = hs;
-        if (e.TryGetValue("dir", out object dir) && dir is string ds) ent.dir = ds;
-        if (e.TryGetValue("target", out object target) && target is string tgs) ent.target = tgs;
-        if (e.TryGetValue("requires", out object req) && req is string rs) ent.requires = rs;
-        if (e.TryGetValue("unlockCost", out object uc) && uc is double ud) ent.unlockCost = (int)ud;
-        if (e.TryGetValue("autoFire", out object af) && af is bool ab) ent.autoFire = ab;
-        if (e.TryGetValue("hookSpeed", out object speed) && speed is double sd) ent.hookSpeed = (float)sd;
-        if (e.TryGetValue("windup", out object wind) && wind is double wd) ent.windup = (float)wd;
-        ent.gridX = e.TryGetValue("x", out object xv) && xv is double xd ? (int)xd : 0;
-        ent.gridY = e.TryGetValue("y", out object yv) && yv is double yd ? (int)yd : 0;
-        ent.worldPos = GridToWorld(ent.gridX, ent.gridY, rows, tile, originX, originY);
-        return ent;
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                int r = row + dy, x = col + dx;
+                if ((dx != 0 || dy != 0) && r >= 0 && r < rows.Count && rows[r] is string line && x >= 0 && x < line.Length
+                    && (line[x] == 'R' || line[x] == 'Y' || line[x] == 'G'))
+                    return line[x];
+            }
+        return '#';
     }
 
-    static MazeTrigger ReadMazeTrigger(Dictionary<string, object> t, int rows, float tile, float originX, float originY)
+    // Tile centre of (col, row); row 0 is the top. In a honeycomb, odd rows are half a tile to the right.
+    public static Vector2 GridToWorld(LevelData level, float col, float row)
     {
-        var trig = new MazeTrigger();
-        if (t.TryGetValue("id", out object id) && id is string ids) trig.id = ids;
-        if (t.TryGetValue("type", out object type) && type is string ts) trig.type = ts;
-        if (t.TryGetValue("text", out object text) && text is string tx) trig.text = tx;
-        if (t.TryGetValue("param", out object param) && param is double pd) trig.param = (float)pd;
-        int x = t.TryGetValue("x", out object xv) && xv is double xd ? (int)xd : 0;
-        int y = t.TryGetValue("y", out object yv) && yv is double yd ? (int)yd : 0;
-        int w = t.TryGetValue("w", out object wv) && wv is double wd ? (int)wd : 1;
-        int h = t.TryGetValue("h", out object hv) && hv is double hd ? (int)hd : 1;
-        trig.worldCenter = GridToWorld(x + (w - 1) * 0.5f, y + (h - 1) * 0.5f, rows, tile, originX, originY);
-        trig.worldSize = new Vector2(w, h) * tile;
-        if (t.TryGetValue("targets", out object targets) && targets is List<object> list)
-        {
-            trig.targets = new string[list.Count];
-            for (int i = 0; i < list.Count; i++)
-                trig.targets[i] = list[i] is string s ? s : "";
-        }
-        return trig;
-    }
-
-    // G1/G2/G3 are medium gold ($100), D2 is a diamond ($600) — matches the prefab values.
-    static int ComputeEntryCredit(LevelData level)
-    {
-        var typeById = new Dictionary<string, string>();
-        foreach (MazeEntity e in level.mazeEntities) typeById[e.id] = e.type;
-        int sum = 0;
-        foreach (string id in level.creditSources)
-        {
-            if (!typeById.TryGetValue(id, out string type)) continue;
-            if (type == "Gold") sum += 100;
-            else if (type == "Diamond") sum += 600;
-        }
-        return sum;
-    }
-
-    static Vector2 GridToWorld(float col, float row, int rows, float tile, float originX, float originY)
-    {
-        float x = (col + 0.5f) * tile - originX;
-        float y = ((rows - 1 - row) + 0.5f) * tile - originY;
-        return new Vector2(x, y);
+        float tile = level.TileSize;
+        if (level.Honeycomb && Mathf.RoundToInt(row) % 2 == 1) col += 0.5f;
+        return new Vector2((col + 0.5f) * tile - level.MazeSize.x * 0.5f,
+                           level.MazeSize.y * 0.5f - (row + 0.5f) * tile);
     }
 
     static void ReadItems(object list, List<Item> into)

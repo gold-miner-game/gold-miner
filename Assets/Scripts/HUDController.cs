@@ -398,7 +398,11 @@ public class HUDController : MonoBehaviour
         if (playerMoneyText != null) playerMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
         if (minerMoneyText != null) minerMoneyText.text = "$" + gm.MinerMoney.ToString("N0");
         if (mazeMoneyText != null)
-            mazeMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
+        {
+            // World map: same wallet the store spends.
+            int show = (flow != null && flow.InHub) ? MazeHubState.DisplayMoney : gm.PlayerMoney;
+            mazeMoneyText.text = "$" + show.ToString("N0");
+        }
 
         playerMoney.Apply(moneyFlashScale);
         minerMoney.Apply(moneyFlashScale);
@@ -409,9 +413,20 @@ public class HUDController : MonoBehaviour
         if (timerText == null || !timerText.gameObject.activeInHierarchy) return;
         if (!gm.UseRoundTimer) return;
 
+        // No clock running out (attack mode): the time taken so far, counting up
+        if (gm.endless && !(flow != null && flow.InHub))
+        {
+            int up = Mathf.FloorToInt(gm.TimeSurvived);
+            timerText.text = (up / 60) + ":" + (up % 60).ToString("00");
+            timerText.color = timerBaseColor;
+            timerText.transform.localScale = timerBaseScale;
+            PlaceMapButton();
+            return;
+        }
+
         // Judge by the number on screen, so "0:10" is never red
         int seconds = Mathf.CeilToInt(gm.TimeLeft);
-        timerText.text = (seconds / 60) + ":" + (seconds % 60).ToString("00");
+        timerText.text = flow != null && flow.InHub ? "" : (seconds / 60) + ":" + (seconds % 60).ToString("00");   // the hub has no clock
         timerText.color = seconds < timerWarningTime ? timerWarningColor : timerBaseColor;
 
         // Heartbeat: pop right after each second ticks over, settle within ~0.3 s
@@ -494,7 +509,7 @@ public class HUDController : MonoBehaviour
     {
         if (mapButton == null || timerText == null) return;
 
-        bool show = flow != null && flow.CurrentNode != null;
+        bool show = flow != null && (flow.CurrentNode != null || flow.InHub);
         if (mapButton.gameObject.activeSelf != show) mapButton.gameObject.SetActive(show);
         if (Beta) return;   // Beta: Pause has its own panel; the timer stays centered in the score
 
@@ -531,6 +546,7 @@ public class HUDController : MonoBehaviour
     void QuitToMap()
     {
         ResumeFromPause();
+        if (flow != null && flow.InHub) { flow.OpenMenu(); return; }   // quitting the map goes to the menu
         if (flow == null || flow.CurrentNode == null) return;
 
         GameManager gm = GameManager.Instance;
@@ -661,9 +677,26 @@ public class HUDController : MonoBehaviour
         // The whole section when there is one (the sidebar), else just the label (an older HUD)
         GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
         shown.SetActive(roundHasLives);
-        if (lifeSection == null) livesText.text = "Life: " + gm.Lives;
-        else livesText.text = (StatRows ? "\u00D7" : "x") + gm.Lives;
-        lives.Apply(moneyFlashScale);
+        int bonus = gm.BonusLives;
+        if (bonus <= 0 && ((flow != null && flow.InHub) || MazeRuntime.Active != null))
+            bonus = LevelLoader.PendingBraceBonusLives();
+        // If Brace is only armed (not yet written into gm.Lives), still show core+bonus.
+        int shownLives = gm.Lives;
+        if (bonus > 0 && gm.BonusLives <= 0) shownLives = gm.Lives + bonus;
+        int baseLives = Mathf.Max(0, shownLives - bonus);
+        // Brace bonus: orange +N (matches the orange pip on the over-head life bar).
+        if (bonus > 0 && shownLives > 0)
+        {
+            string mark = StatRows || lifeSection != null ? "\u00D7" : "x";
+            livesText.richText = true;
+            // Keep face color white so TMP <color=#FF8C14> stays orange (Label.Apply multiplies tint).
+            livesText.color = Color.white;
+            livesText.text = lifeSection == null
+                ? "Life: <color=#FFFFFF>" + baseLives + "</color> <color=#FF8C14>+" + bonus + "</color>"
+                : "<color=#FFFFFF>" + mark + baseLives + "</color> <color=#FF8C14>+" + bonus + "</color>";
+        }
+        else if (lifeSection == null) { livesText.text = "Life: " + gm.Lives; lives.Apply(moneyFlashScale); }
+        else { livesText.text = (StatRows ? "\u00D7" : "x") + gm.Lives; lives.Apply(moneyFlashScale); }
     }
 
     // The map node's name ("LEVEL 4") when the map sent us here, else "LV 4/10" for editor N/P play;
@@ -675,6 +708,8 @@ public class HUDController : MonoBehaviour
         MapNode node = flow != null ? flow.CurrentNode : null;
         string text = "";
         if (node != null) text = node.displayName.ToUpperInvariant();
+        else if (flow != null && flow.InHub) text = "WORLD MAP";
+        else if (flow != null && flow.InTutorialRun) text = "LEVEL 1 - TUTORIAL";
         else if (levelLoader != null && levelLoader.LevelCount > 0)
             text = "LV " + LevelLoader.CurrentLevel + "/" + levelLoader.LevelCount;
 
@@ -903,6 +938,12 @@ public class HUDController : MonoBehaviour
     void UpdateEndPanel(GameManager gm)
     {
         if (gm.IsPlaying || endPanel == null) return;
+        // A story is told instead of the result, or the level goes straight on (to the store)
+        if (TutorialDialogue.HidesResult || (levelLoader != null && levelLoader.SkipsResult))
+        {
+            if (endPanel.activeSelf) endPanel.SetActive(false);
+            return;
+        }
 
         if (!endPanel.activeSelf)
         {
@@ -917,8 +958,14 @@ public class HUDController : MonoBehaviour
             if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) endDetail += "\nTie - the miner wins ties";
         }
 
+        // NewRecordLine is set in SettleWallet after the round ends — often one frame after this
+        // panel first opens — so append it every frame, not only when the panel activates.
+        string detail = endDetail;
+        if (!string.IsNullOrEmpty(gm.NewRecordLine))
+            detail += "\n" + gm.NewRecordLine;
+
         // Every frame: the next-level countdown ticks
-        if (detailText != null) detailText.text = endDetail + "\n" + NextStep(gm);
+        if (detailText != null) detailText.text = detail + "\n" + NextStep(gm);
     }
 
     // The one place that says what happens next (LevelLoader no longer draws it under the arena)
