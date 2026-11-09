@@ -4,12 +4,16 @@ using UnityEngine;
 // The screen split shared by the HUD and the camera: a bar across the top, a sidebar on the right,
 // and the arena in what is left (bottom left). Fractions are of the 16:9 frame (ScreenFrame); Gap is
 // in canvas units (inside the frame the HUD canvas is always 1920x1080). The frame edge, the top bar,
-// the sidebar and the arena are all Gap apart
+// the sidebar and the arena are all Gap apart.
+// HUD Beta has no sidebar and a taller top bar; its HUDController sets TopBarOnly on Awake
 public static class HUDLayout
 {
-    public const float TopBarHeight = 0.08f;
-    public const float SidebarWidth = 0.143f;
     public const float Gap = 8f;
+
+    // HUD Beta (Figma "HUD - v3 topbar"): a 92 px row of panels, Gap above and below (108 of 1080)
+    public static bool TopBarOnly;
+    public static float TopBarHeight => TopBarOnly ? 0.1f : 0.08f;
+    public static float SidebarWidth => TopBarOnly ? 0f : 0.143f;
 
     // Maze world map: hide the battle top bar so the arena can use the full height.
     public static bool HideTopBar;
@@ -22,7 +26,7 @@ public static class HUDLayout
         {
             float gapX = Gap / 1920f;
             float gapY = Gap / 1080f;
-            float right = 1f - SidebarWidth;
+            float right = TopBarOnly ? 1f - gapX : 1f - SidebarWidth;
             float top = HideTopBar ? 1f - gapY : 1f - TopBarHeight;
             return new Rect(gapX, gapY, right - gapX, top - gapY);
         }
@@ -41,7 +45,8 @@ public static class HUDLayout
         // Backdrops: the bands outside the arena
         if (full) Place(topBackdrop, new Vector2(0f, 1f), new Vector2(side, 1f), new Vector2(0f, -Gap), Vector2.zero);
         else Place(topBackdrop, new Vector2(0f, top), Vector2.one, Vector2.zero, Vector2.zero);
-        Place(sideBackdrop, new Vector2(side, 0f), new Vector2(1f, sideTop), Vector2.zero, Vector2.zero);
+        // Without a sidebar the side band is just the Gap down the right edge
+        Place(sideBackdrop, new Vector2(side, 0f), new Vector2(1f, sideTop), new Vector2(TopBarOnly ? -Gap : 0f, 0f), Vector2.zero);
         Place(leftBackdrop, Vector2.zero, new Vector2(0f, sideTop), Vector2.zero, new Vector2(Gap, 0f));
         Place(bottomBackdrop, Vector2.zero, new Vector2(side, 0f), Vector2.zero, new Vector2(0f, Gap));
 

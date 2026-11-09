@@ -1,14 +1,16 @@
+using System.IO;
 using TMPro;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
 // Owner: D (Hook & UI)
-// Tools > Gold Miner > Create HUD > Version A / B: builds the HUD canvas in the open scene from that
+// Tools > Gold Miner > Create HUD > Version A / B / Beta: builds the HUD canvas in the open scene from that
 // version's HUDTheme and wires HUDController.
 // Layout (HUDLayout): a bar across the top (level, pig $ VS miner $, timer + Pause), a sidebar on the
 // right (StatusSection: Wallet + Life rows, SkillsSection: Skill + Digest meters, ItemsSection: item rows), and the arena in the rest, which GameplayCamera draws into.
-// Design source: Figma "Oinky Oinky - HUD Redesign", frames "HUD / A" and "HUD / B". The values live in HUDTheme
+// Design source: Figma "Oinky Oinky - HUD Redesign", frames "HUD / A" and "HUD / B". The values live in HUDTheme.
+// Beta (Figma Version3 "HUD - v3 topbar") has no sidebar: see CreateBetaHUD
 public static class HUDBuilder
 {
     // The version being built; the names below read from it
@@ -35,6 +37,9 @@ public static class HUDBuilder
 
     [MenuItem("Tools/Gold Miner/Create HUD/Version B")]
     static void CreateHUDVersionB() { CreateHUD(HUDVariant.B); }
+
+    [MenuItem("Tools/Gold Miner/Create HUD/Version Beta")]
+    static void CreateHUDVersionBeta() { CreateHUD(HUDVariant.Beta); }
 
     static void CreateHUD(HUDVariant variant)
     {
@@ -66,6 +71,11 @@ public static class HUDBuilder
         scaler.matchWidthOrHeight = 0.5f;
 
         Transform canvas = root.transform;
+        if (variant == HUDVariant.Beta)
+        {
+            CreateBetaHUD(root);
+            return;
+        }
         Vector2 center = new Vector2(0.5f, 0.5f);
         float top = 1f - HUDLayout.TopBarHeight;
         float side = 1f - HUDLayout.SidebarWidth;
@@ -185,6 +195,338 @@ public static class HUDBuilder
         EditorUtility.SetDirty(hud);
         Selection.activeGameObject = root;
         Debug.Log("HUDBuilder: HUD version " + variant + " created. Save the scene to keep it.");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // HUD Beta: Figma "Oinky Oinky - HUD Redesign" > Version3 > "HUD - v3 topbar".
+    // No sidebar. One 92 px row of panels across the top (HUDLayout.TopBarOnly), left to right:
+    //   PigStatus  : pig avatar, SKILL pill (READY / ACTIVE / seconds), DIGEST pill (CAN EAT / seconds)
+    //   Money      : "YOU $320"  timer  "$230 MINER", the tug bar under them (split by each side's share)
+    //   LevelPause : LEVEL n and the pause button
+    // The Figma Coins panel is not built yet (no coins in the game). Life and Items are not shown.
+    // Positions are Figma's, in canvas units from each panel's top left corner
+    static void CreateBetaHUD(GameObject root)
+    {
+        Transform canvas = root.transform;
+        Vector2 center = new Vector2(0.5f, 0.5f);
+        bool wasTopBarOnly = HUDLayout.TopBarOnly;
+        HUDLayout.TopBarOnly = true;   // PlaceFrame and the end panel read the Beta split
+        try
+        {
+            float top = 1f - HUDLayout.TopBarHeight;
+
+            GameObject topBackdrop = CreateImage(canvas, "TopBackdrop", Backdrop, new Vector2(0f, top), Vector2.one, 0f, false);
+            GameObject sideBackdrop = CreateImage(canvas, "SideBackdrop", Backdrop, Vector2.zero, Vector2.zero, 0f, false);
+            GameObject leftBackdrop = CreateImage(canvas, HUDController.LeftBackdropName, Backdrop, Vector2.zero, Vector2.zero, 0f, false);
+            GameObject bottomBackdrop = CreateImage(canvas, HUDController.BottomBackdropName, Backdrop, Vector2.zero, Vector2.zero, 0f, false);
+
+            // The bar itself is see-through: the panels sit on the backdrop
+            GameObject topBarGo = new GameObject("TopBar", typeof(RectTransform));
+            RectTransform topBar = (RectTransform)topBarGo.transform;
+            topBar.SetParent(canvas, false);
+            HUDLayout.PlaceFrame(topBar, null, (RectTransform)topBackdrop.transform, (RectTransform)sideBackdrop.transform,
+                (RectTransform)leftBackdrop.transform, (RectTransform)bottomBackdrop.transform);
+
+            // PigStatus ----------------------------------------------------------------------------
+            RectTransform pig = BetaPanel(topBar, "PigStatus", new Vector2(0f, 0.5f), 0f, 360f);
+            CreatePigAvatar(pig);
+
+            RectTransform skillRow = Stretch(pig, "Skill");
+            BetaText(skillRow, "SkillLabel", "SKILL", 90f, 10f, 86f, 32f, 14f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
+            TMP_Text skill = BetaPill(skillRow, "SkillBar", 182f, 10f, 160f, 32f, SkillColor, "READY", 15f, theme.betaSkillInk, out RectTransform skillFill);
+
+            RectTransform digestRow = Stretch(pig, "Digest");
+            BetaText(digestRow, "DigestLabel", "DIGEST", 90f, 52f, 86f, 18f, 12f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
+            TMP_Text digest = BetaPill(digestRow, "DigestBar", 182f, 52f, 160f, 18f, DigestColor, "CAN EAT", 11f, theme.betaDigestInk, out RectTransform digestFill);
+
+            // Money --------------------------------------------------------------------------------
+            const float moneyWidth = 1016f;
+            RectTransform money = BetaPanel(topBar, "Money", center, 0f, moneyWidth);
+            Transform playerSide = BetaMoneySide(money, "PlayerSide", 24f, 0f);
+            BetaText(playerSide, "YouLabel", "YOU", 0f, 0f, 0f, 0f, 13f, TextAlignmentOptions.Center, theme.betaLabel, 10f);
+            TMP_Text playerMoney = BetaText(playerSide, "PlayerMoney", "$0", 0f, 0f, 0f, 0f, 30f, TextAlignmentOptions.Center, PigColor, 0f);
+            Transform minerSide = BetaMoneySide(money, "MinerSide", -24f, 1f);
+            TMP_Text minerMoney = BetaText(minerSide, "MinerMoney", "$0", 0f, 0f, 0f, 0f, 30f, TextAlignmentOptions.Center, MinerColor, 0f);
+            BetaText(minerSide, "MinerLabel", "MINER", 0f, 0f, 0f, 0f, 13f, TextAlignmentOptions.Center, theme.betaLabel, 10f);
+
+            TMP_Text timer = BetaText(money, "Timer", "1:30", (moneyWidth - 200f) / 2f, 10f, 200f, 40f, 32f, TextAlignmentOptions.Center, Color.white, 0f);
+
+            // The tug bar always spans the panel; HUDController splits it player : miner
+            GameObject bar = new GameObject("MoneyBar", typeof(RectTransform));
+            RectTransform barRect = (RectTransform)bar.transform;
+            barRect.SetParent(money, false);
+            barRect.anchorMin = new Vector2(0f, 1f);
+            barRect.anchorMax = new Vector2(1f, 1f);
+            barRect.pivot = new Vector2(0.5f, 1f);
+            barRect.sizeDelta = new Vector2(-48f, 8f);
+            barRect.anchoredPosition = new Vector2(0f, -58f);
+            RectTransform playerFill = (RectTransform)CreateImage(barRect, "PlayerFill", theme.betaPlayerBar, Vector2.zero, new Vector2(0.5f, 1f), 0f, false).transform;
+            RectTransform minerFill = (RectTransform)CreateImage(barRect, "MinerFill", theme.betaMinerBar, new Vector2(0.5f, 0f), Vector2.one, 0f, false).transform;
+            Round(playerFill.GetComponent<Image>(), 4f);
+            Round(minerFill.GetComponent<Image>(), 4f);
+            playerFill.offsetMax = new Vector2(-2f, 0f);
+            minerFill.offsetMin = new Vector2(2f, 0f);
+
+            // LevelPause ---------------------------------------------------------------------------
+            RectTransform levelPanel = BetaPanel(topBar, "LevelPause", new Vector2(1f, 0.5f), 0f, 230f);
+            TMP_Text level = BetaText(levelPanel, "Level", "LEVEL 1", 22f, 20f, 130f, 40f, 17f, TextAlignmentOptions.Left, theme.betaLevel, 12f);
+            Button pause = CreatePauseButton(levelPanel);
+
+            // End panel: covers the arena only, so the score in the bar stays readable
+            GameObject endPanel = CreateImage(canvas, "EndPanel", new Color(0f, 0f, 0f, 0.65f), Vector2.zero, new Vector2(1f, top), 0f, false);
+            TMP_Text result = CreateText(endPanel.transform, "Result", "YOU WIN", center, new Vector2(0f, 90f), new Vector2(1200f, 140f), 110f, TextAlignmentOptions.Center);
+            TMP_Text detail = CreateText(endPanel.transform, "Detail", "Time's up!\nPress R to restart", center, new Vector2(0f, -80f), new Vector2(1400f, 300f), 40f, TextAlignmentOptions.Center);
+            endPanel.SetActive(false);
+
+            HUDController hud = root.AddComponent<HUDController>();
+            hud.variant = HUDVariant.Beta;
+            hud.topBar = topBar;
+            hud.moneyPanel = money.gameObject;
+            hud.levelPanel = levelPanel.gameObject;
+            hud.playerMoneyText = playerMoney;
+            hud.minerMoneyText = minerMoney;
+            hud.playerBarFill = playerFill;
+            hud.minerBarFill = minerFill;
+            hud.timerText = timer;
+            hud.mapButton = pause;
+            hud.levelText = level;
+            hud.skillSection = pig.gameObject;   // the whole panel hides when the character has neither
+            hud.skillBlock = skillRow.gameObject;
+            hud.skillText = skill;
+            hud.skillBarFill = skillFill;
+            hud.digestBlock = digestRow.gameObject;
+            hud.digestText = digest;
+            hud.digestBarFill = digestFill;
+            hud.pillSkillInk = theme.betaSkillInk;
+            hud.pillDigestInk = theme.betaDigestInk;
+            hud.playerPopupColor = PigColor;
+            hud.moneyFlashColor = new Color32(0xD4, 0xC6, 0xFF, 0xFF);   // miner flash: a light purple
+            hud.endPanel = endPanel;
+            hud.resultText = result;
+            hud.detailText = detail;
+
+            EditorUtility.SetDirty(hud);
+            Selection.activeGameObject = root;
+            Debug.Log("HUDBuilder: HUD version Beta created. Save the scene to keep it.");
+        }
+        finally
+        {
+            HUDLayout.TopBarOnly = wasTopBarOnly;
+        }
+    }
+
+    // An 80 px tall rounded panel, vertically centered in the top bar, pinned at anchorX (0 left, 0.5 center, 1 right)
+    static RectTransform BetaPanel(Transform topBar, string name, Vector2 anchor, float x, float width)
+    {
+        GameObject go = CreateImage(topBar, name, theme.betaPanel, anchor, anchor, 0f, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.pivot = anchor;
+        rect.sizeDelta = new Vector2(width, 80f);
+        rect.anchoredPosition = new Vector2(x, 0f);
+        Round(go.GetComponent<Image>(), 12f);
+        return rect;
+    }
+
+    // An empty child filling its parent, so a group of children can be hidden together
+    static RectTransform Stretch(Transform parent, string name)
+    {
+        GameObject go = new GameObject(name, typeof(RectTransform));
+        RectTransform rect = (RectTransform)go.transform;
+        rect.SetParent(parent, false);
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        return rect;
+    }
+
+    // Puts a rect at Figma coordinates: x, y from the parent's top left corner
+    static void TopLeft(RectTransform rect, float x, float y, float width, float height)
+    {
+        rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.sizeDelta = new Vector2(width, height);
+        rect.anchoredPosition = new Vector2(x, -y);
+    }
+
+    // Bold text at Figma coordinates (a zero size means a layout group places it)
+    static TMP_Text BetaText(Transform parent, string name, string text, float x, float y, float width, float height,
+        float size, TextAlignmentOptions alignment, Color color, float spacing)
+    {
+        TMP_Text label = CreateText(parent, name, text, new Vector2(0f, 1f), Vector2.zero, Vector2.zero, size, alignment);
+        if (width > 0f) TopLeft(label.rectTransform, x, y, width, height);
+        label.color = color;
+        label.fontStyle = FontStyles.Bold;
+        label.characterSpacing = spacing;
+        return label;
+    }
+
+    // "SkillBar": a rounded track that masks a fill (HUDController sets its anchorMax.x) with the
+    // state centered on top. Returns the state text
+    static TMP_Text BetaPill(Transform parent, string name, float x, float y, float width, float height, Color color,
+        string state, float size, Color ink, out RectTransform fill)
+    {
+        GameObject track = CreateImage(parent, name, theme.betaPillTrack, Vector2.zero, Vector2.zero, 0f, false);
+        TopLeft((RectTransform)track.transform, x, y, width, height);
+        Round(track.GetComponent<Image>(), height / 2f);
+        track.AddComponent<Mask>().showMaskGraphic = true;
+
+        fill = (RectTransform)CreateImage(track.transform, "Fill", color, Vector2.zero, Vector2.one, 0f, false).transform;
+
+        TMP_Text text = StretchText(track.transform, "State", state, size);
+        text.color = ink;
+        text.fontStyle = FontStyles.Bold;
+        text.characterSpacing = 14f;
+        return text;
+    }
+
+    // A label stretched over its parent
+    static TMP_Text StretchText(Transform parent, string name, string text, float size)
+    {
+        TMP_Text label = CreateText(parent, name, text, Vector2.zero, Vector2.zero, Vector2.zero, size, TextAlignmentOptions.Center);
+        RectTransform rect = label.rectTransform;
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        return label;
+    }
+
+    // "YOU $0" pinned 24 px in from the left, "$0 MINER" from the right; amounts grow inward
+    static Transform BetaMoneySide(RectTransform panel, string name, float x, float pivotX)
+    {
+        GameObject side = new GameObject(name, typeof(RectTransform));
+        RectTransform rect = (RectTransform)side.transform;
+        rect.SetParent(panel, false);
+        rect.anchorMin = rect.anchorMax = new Vector2(pivotX, 1f);
+        rect.pivot = new Vector2(pivotX, 0.5f);
+        rect.anchoredPosition = new Vector2(x, -32f);   // the row's middle, 32 px down (Figma $320: y 12, 40 tall)
+        HorizontalLayoutGroup line = side.AddComponent<HorizontalLayoutGroup>();
+        line.childAlignment = pivotX > 0.5f ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
+        line.spacing = 10f;
+        line.childControlWidth = true;
+        line.childControlHeight = true;
+        line.childForceExpandWidth = false;
+        line.childForceExpandHeight = false;
+        ContentSizeFitter fit = side.AddComponent<ContentSizeFitter>();
+        fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return side.transform;
+    }
+
+    // The pig face from Figma, in a 64 px dark circle. Pink circles for the head and snout; the ears
+    // use the project's Triangle sprite when it is there
+    static void CreatePigAvatar(RectTransform panel)
+    {
+        Color pink = theme.pig;
+        RectTransform avatar = Shape(panel, "PigAvatar", new Color32(0x2A, 0x26, 0x22, 0xFF), 10f, 8f, 64f, 64f, 32f);
+        Sprite triangle = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Triangle.png");
+        if (triangle != null)
+        {
+            Shape(avatar, "EarL", pink, 13f, 8f, 16f, 16f, 0f).GetComponent<Image>().sprite = triangle;
+            Shape(avatar, "EarR", pink, 35f, 8f, 16f, 16f, 0f).GetComponent<Image>().sprite = triangle;
+        }
+        Shape(avatar, "Head", pink, 10f, 14f, 44f, 40f, 20f);
+        Color dark = new Color32(0x2A, 0x26, 0x22, 0xFF);
+        Shape(avatar, "EyeL", dark, 22f, 26f, 5f, 5f, 2.5f);
+        Shape(avatar, "EyeR", dark, 37f, 26f, 5f, 5f, 2.5f);
+        Shape(avatar, "Snout", new Color32(0xE0, 0x70, 0x9A, 0xFF), 23f, 35f, 18f, 12f, 6f);
+        Color nostril = new Color32(0x7A, 0x2E, 0x48, 0xFF);
+        Shape(avatar, "NostrilL", nostril, 28f, 39f, 3f, 4f, 1.5f);
+        Shape(avatar, "NostrilR", nostril, 35f, 39f, 3f, 4f, 1.5f);
+    }
+
+    static RectTransform Shape(Transform parent, string name, Color color, float x, float y, float width, float height, float radius)
+    {
+        GameObject go = CreateImage(parent, name, color, Vector2.zero, Vector2.zero, 0f, false);
+        RectTransform rect = (RectTransform)go.transform;
+        TopLeft(rect, x, y, width, height);
+        if (radius > 0f) Round(go.GetComponent<Image>(), radius);
+        return rect;
+    }
+
+    // 56 px dark rounded button with a white pause icon, 12 px in from the panel's right edge.
+    // HUDController hooks it up (Pause popup) and shows it only when the map opened this round
+    static Button CreatePauseButton(RectTransform panel)
+    {
+        GameObject go = CreateImage(panel, "MapButton", Color.white, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), 0f, false);
+        RectTransform rect = (RectTransform)go.transform;
+        rect.pivot = new Vector2(1f, 0.5f);
+        rect.sizeDelta = new Vector2(56f, 56f);
+        rect.anchoredPosition = new Vector2(-12f, 0f);
+        Image image = go.GetComponent<Image>();
+        Round(image, 10f);
+        image.raycastTarget = true;
+
+        Button button = go.AddComponent<Button>();
+        button.targetGraphic = image;
+        ColorBlock colors = button.colors;
+        colors.normalColor = theme.betaButton;
+        colors.highlightedColor = new Color32(0x2C, 0x36, 0x31, 0xFF);
+        colors.pressedColor = new Color32(0x12, 0x17, 0x14, 0xFF);
+        colors.selectedColor = theme.betaButton;
+        colors.fadeDuration = 0.08f;
+        button.colors = colors;
+
+        foreach (float x in new[] { -6f, 6f })
+        {
+            GameObject barGo = CreateImage(rect, x < 0f ? "BarL" : "BarR", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 0f, false);
+            RectTransform bar = (RectTransform)barGo.transform;
+            bar.sizeDelta = new Vector2(6f, 20f);
+            bar.anchoredPosition = new Vector2(x, 0f);
+            Round(barGo.GetComponent<Image>(), 1.5f);
+        }
+        return button;
+    }
+
+    // Rounded corners of `radius` canvas units from one shared sprite (a 32 px radius circle,
+    // 9-sliced); pixelsPerUnitMultiplier scales its corners down to the radius asked for
+    const string RoundedSpritePath = "Assets/Sprites/HUDRounded.png";
+    const float RoundedSpriteRadius = 32f;
+
+    static void Round(Image image, float radius)
+    {
+        Sprite sprite = RoundedSprite();
+        if (sprite == null || radius <= 0f) return;
+        image.sprite = sprite;
+        image.type = Image.Type.Sliced;
+        image.pixelsPerUnitMultiplier = RoundedSpriteRadius / radius;
+    }
+
+    static Sprite RoundedSprite()
+    {
+        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(RoundedSpritePath);
+        if (sprite != null) return sprite;
+
+        const int size = 66;   // 32 px corners and a 2 px middle to stretch
+        float r = RoundedSpriteRadius;
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Max(0f, Mathf.Max(r - (x + 0.5f), x + 0.5f - (size - r)));
+                float dy = Mathf.Max(0f, Mathf.Max(r - (y + 0.5f), y + 0.5f - (size - r)));
+                float alpha = Mathf.Clamp01(r - Mathf.Sqrt(dx * dx + dy * dy) + 0.5f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        tex.Apply();
+        Directory.CreateDirectory(Path.GetDirectoryName(RoundedSpritePath));
+        File.WriteAllBytes(RoundedSpritePath, tex.EncodeToPNG());
+        Object.DestroyImmediate(tex);
+
+        AssetDatabase.ImportAsset(RoundedSpritePath);
+        TextureImporter importer = (TextureImporter)AssetImporter.GetAtPath(RoundedSpritePath);
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.spritePixelsPerUnit = 100f;
+        importer.spriteBorder = new Vector4(r, r, r, r);
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.SaveAndReimport();
+        return AssetDatabase.LoadAssetAtPath<Sprite>(RoundedSpritePath);
     }
 
     // A white TMP label anchored and pivoted at the same corner, so position is the margin from it

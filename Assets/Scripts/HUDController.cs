@@ -10,6 +10,16 @@ public class HUDController : MonoBehaviour
 {
     public HUDVariant variant;      // which HUDTheme HUDBuilder built this HUD from (A/B playtests)
 
+    [Header("HUD Beta (top bar only; HUDBuilder wires these)")]
+    public RectTransform topBar;     // Beta: the row of panels. Else the timer's parent is the top bar
+    public GameObject moneyPanel;    // Beta: YOU $ / timer / $ MINER + tug bar, hidden on the maze
+    public GameObject levelPanel;    // Beta: LEVEL n + Pause, hidden on the maze
+    public Color pillSkillInk = new Color(0.086f, 0.196f, 0.302f);   // READY / ACTIVE on the full skill pill
+    public Color pillDigestInk = new Color(0.118f, 0.251f, 0.071f);  // CAN EAT on the full digest pill
+    public Color pillWaitInk = Color.white;                          // the seconds while a pill refills
+    public float tugGap = 4f;        // between the two sides of the tug bar
+    public float tugSpeed = 10f;     // how fast the split follows the score
+
     public TMP_Text playerMoneyText;
     public TMP_Text minerMoneyText;
     public RectTransform playerBarFill;   // version B: the score bar's fills (null on version A)
@@ -102,11 +112,22 @@ public class HUDController : MonoBehaviour
     public const string LeftBackdropName = "LeftBackdrop";
     public const string BottomBackdropName = "BottomBackdrop";
 
+    bool Beta => variant == HUDVariant.Beta;
+
+    // Before any camera fits: Beta has no sidebar and a taller top bar
+    void Awake()
+    {
+        HUDLayout.TopBarOnly = Beta;
+    }
+
     void Start()
     {
         // The arena goes in the space the top bar and sidebar leave (HUDLayout)
+        HUDLayout.TopBarOnly = Beta;
         GameplayCamera.Ensure(Camera.main);
         ApplyFrame();
+        GameplayCamera fit = Camera.main != null ? Camera.main.GetComponent<GameplayCamera>() : null;
+        if (fit != null) fit.Fit();   // a camera saved in the scene may have fitted before Awake
 
         if (endPanel != null) endPanel.SetActive(false);
         if (timerText != null)
@@ -158,6 +179,20 @@ public class HUDController : MonoBehaviour
         if (!maze) return;
         mazeHudApplied = true;
 
+        // Beta: the skill / digest pills live in the top bar, so keep it and drop only the score,
+        // timer, level and Pause
+        if (Beta)
+        {
+            if (moneyPanel != null) moneyPanel.SetActive(false);
+            if (levelPanel != null) levelPanel.SetActive(false);
+            if (mapButton != null) mapButton.gameObject.SetActive(false);
+            roundHasLives = true;
+            ApplyFrame();
+            GameplayCamera betaCam = FindFirstObjectByType<GameplayCamera>();
+            if (betaCam != null) betaCam.Fit();
+            return;
+        }
+
         HUDLayout.HideTopBar = true;
         if (timerText != null)
         {
@@ -191,7 +226,8 @@ public class HUDController : MonoBehaviour
     // Adds the left and bottom backdrops a HUD saved by an older HUDBuilder doesn't have
     void ApplyFrame()
     {
-        RectTransform topBar = timerText != null ? timerText.transform.parent as RectTransform : null;
+        RectTransform topBar = this.topBar != null ? this.topBar
+            : timerText != null ? timerText.transform.parent as RectTransform : null;
         RectTransform sidebar = SidebarRect;
         RectTransform topBackdrop = transform.Find("TopBackdrop") as RectTransform;
         RectTransform sideBackdrop = transform.Find("SideBackdrop") as RectTransform;
@@ -299,6 +335,11 @@ public class HUDController : MonoBehaviour
     void UpdateMoneyBar(GameManager gm)
     {
         if (playerBarFill == null && minerBarFill == null) return;
+        if (Beta)
+        {
+            UpdateTugBar(gm);
+            return;
+        }
         if (Time.unscaledTime >= nextGoldCount)
         {
             nextGoldCount = Time.unscaledTime + 0.25f;
@@ -311,6 +352,39 @@ public class HUDController : MonoBehaviour
         float miner = levelGold > 0f ? Mathf.Clamp01(gm.MinerMoney / levelGold) : 0f;
         if (playerBarFill != null) playerBarFill.anchorMax = new Vector2(player, 1f);
         if (minerBarFill != null) minerBarFill.anchorMin = new Vector2(1f - miner, 0f);
+    }
+
+    // Beta score bar: always the full width, split between the two sides by what each has collected
+    // (player / (player + miner)); half and half while both have $0. The split slides to the new
+    // share, and a side with nothing disappears
+    private float tugShare = -1f;
+
+    void UpdateTugBar(GameManager gm)
+    {
+        int player = Mathf.Max(0, gm.PlayerMoney);
+        int miner = Mathf.Max(0, gm.MinerMoney);
+        float target = player + miner > 0 ? (float)player / (player + miner) : 0.5f;
+        if (tugShare < 0f) tugShare = target;
+        else tugShare = Mathf.Lerp(tugShare, target, 1f - Mathf.Exp(-tugSpeed * Time.unscaledDeltaTime));
+        if (Mathf.Abs(tugShare - target) < 0.001f) tugShare = target;
+
+        float half = tugShare > 0f && tugShare < 1f ? tugGap * 0.5f : 0f;
+        if (playerBarFill != null)
+        {
+            playerBarFill.gameObject.SetActive(tugShare > 0f);
+            playerBarFill.anchorMin = Vector2.zero;
+            playerBarFill.anchorMax = new Vector2(tugShare, 1f);
+            playerBarFill.offsetMin = Vector2.zero;
+            playerBarFill.offsetMax = new Vector2(-half, 0f);
+        }
+        if (minerBarFill != null)
+        {
+            minerBarFill.gameObject.SetActive(tugShare < 1f);
+            minerBarFill.anchorMin = new Vector2(tugShare, 0f);
+            minerBarFill.anchorMax = Vector2.one;
+            minerBarFill.offsetMin = new Vector2(half, 0f);
+            minerBarFill.offsetMax = Vector2.zero;
+        }
     }
 
     void UpdateMoney(GameManager gm)
@@ -437,6 +511,7 @@ public class HUDController : MonoBehaviour
 
         bool show = flow != null && (flow.CurrentNode != null || flow.InHub);
         if (mapButton.gameObject.activeSelf != show) mapButton.gameObject.SetActive(show);
+        if (Beta) return;   // Beta: Pause has its own panel; the timer stays centered in the score
 
         // HUD v2: Pause takes the timer's old spot at the right edge; the timer (right aligned)
         // moves left by the button's width plus a 50 px gap
@@ -692,6 +767,15 @@ public class HUDController : MonoBehaviour
         if (!shown) return false;
 
         float readyIn = player.SkillReadyIn;
+        if (Beta)
+        {
+            // The pill refills like the bar did; dark ink on the full pill, white while it refills
+            float pill = readyIn > 0f && player.SkillWait > 0f ? Mathf.Clamp01(1f - readyIn / player.SkillWait) : 1f;
+            string state = player.SkillActive ? "ACTIVE" : readyIn > 0f ? Seconds(readyIn) : "READY";
+            SetValue(skillText, state, pill >= 0.999f ? pillSkillInk : pillWaitInk);
+            if (skillBarFill != null) skillBarFill.anchorMax = new Vector2(pill, 1f);
+            return true;
+        }
         // HUD v2 states are all caps, like the digest's CAN EAT (seconds keep their lowercase s)
         bool v2 = skillBlock != null;
         if (player.SkillActive) SetValue(skillText, v2 ? "ACTIVE" : "Active", activeColor);
@@ -712,6 +796,16 @@ public class HUDController : MonoBehaviour
         if (digestBlock != null) digestBlock.SetActive(shown);
         else SetRow(digestText, shown);
         if (!shown) return false;
+
+        if (Beta)
+        {
+            // The pill fills back up while the pig digests and is full again at CAN EAT
+            float pill = player.IsDigesting ? Mathf.Clamp01(player.DigestProgress01) : 1f;
+            string state = player.CanEat ? "CAN EAT" : Seconds(player.DigestLeft);
+            SetValue(digestText, state, pill >= 0.999f ? pillDigestInk : pillWaitInk);
+            if (digestBarFill != null) digestBarFill.anchorMax = new Vector2(pill, 1f);
+            return true;
+        }
 
         // HUD v2: the same green the character's body drains in while it digests (digestTint)
         bool v2 = digestBlock != null;
