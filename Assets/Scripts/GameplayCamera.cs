@@ -88,6 +88,10 @@ public class GameplayCamera : MonoBehaviour
     void FitInEditor()
     {
         if (cam == null) cam = GetComponent<Camera>();
+        // HUDController sets the split on Awake, which doesn't run in edit mode: read it off the
+        // scene's HUD instead, so a Beta HUD (no sidebar) gets the full width here too
+        HUDController hud = FindFirstObjectByType<HUDController>();
+        HUDLayout.TopBarOnly = hud != null && hud.variant == HUDVariant.Beta;
         Rect viewport = HUDLayout.GameplayViewport;
         float aspect = ScreenFrame.Aspect * viewport.width / viewport.height;
         float size = Mathf.Max(arenaSize.y * 0.5f, arenaSize.x * 0.5f / aspect);
