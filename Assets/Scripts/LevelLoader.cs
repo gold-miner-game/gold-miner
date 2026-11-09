@@ -111,11 +111,13 @@ public class LevelLoader : MonoBehaviour
     // champion is picked on the select screen
     public static bool Tutorial { get; private set; }
 
-    // Wallet: every map Battle (Basic / Level 1 / …) pays and charges. Tutorials in the
-    // intro run (eat, dodge, block) and character pick do not — unless the level asset is a
-    // plain level_N battle file (N >= 1), e.g. editor N/P without a GameFlow node.
+    // Wallet: map Battle nodes (and editor level_N files) can pay. The scripted tutorial run
+    // never touches the wallet, even when it reuses a battle layout like Level 1.
     public static bool CountsMoney(string levelName)
     {
+        if (GameFlow.Instance != null && GameFlow.Instance.InTutorialRun) return false;
+        if (ScriptedTutorial == true || Tutorial) return false;
+
         if (GameFlow.Instance != null && GameFlow.Instance.CurrentNode != null
             && GameFlow.Instance.CurrentNode.type == NodeType.Battle)
             return true;
@@ -1367,32 +1369,28 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    // Single wallet: a win credits only the improvement over this battle's best margin; a loss
-    // subtracts the gap. Tutorials and character pick do not move it.
+    // Single wallet: only a win with a positive (player − miner) margin can credit money, and
+    // only the improvement over this battle's best. A loss / tie / negative margin never adds
+    // (or subtracts) — negative scores must not enter the wallet.
     void SettleWallet(GameManager gm)
     {
         string name = LevelName();
         if (!CountsMoney(name)) return;
 
-        CrossLevelStatus record = CrossLevelStatus.Ensure();
         int delta = gm.PlayerMoney - gm.MinerMoney;
-        if (gm.PlayerWon)
-        {
-            // Prefer the map node id (battle_*) so replays share one best-margin key.
-            string creditId = name;
-            if (GameFlow.Instance != null && GameFlow.Instance.CurrentNode != null
-                && !string.IsNullOrEmpty(GameFlow.Instance.CurrentNode.id))
-                creditId = GameFlow.Instance.CurrentNode.id;
-
-            int gain = ProgressStore.TryCreditBestMargin(creditId, delta);
-            if (gain > 0) gm.SetNewRecordLine("New record! You earned $" + gain + ".");
-            else gm.SetNewRecordLine("");
-
-            if (!Tutorial && LevelWon != null) LevelWon();
-            return;
-        }
         gm.SetNewRecordLine("");
-        record.addWallet(-Mathf.Abs(delta));
+        if (!gm.PlayerWon || delta <= 0) return;
+
+        // Prefer the map node id (battle_*) so replays share one best-margin key.
+        string creditId = name;
+        if (GameFlow.Instance != null && GameFlow.Instance.CurrentNode != null
+            && !string.IsNullOrEmpty(GameFlow.Instance.CurrentNode.id))
+            creditId = GameFlow.Instance.CurrentNode.id;
+
+        int gain = ProgressStore.TryCreditBestMargin(creditId, delta);
+        if (gain > 0) gm.SetNewRecordLine("New record! You earned $" + gain + ".");
+
+        if (!Tutorial && LevelWon != null) LevelWon();
     }
 
     public string LevelName()
