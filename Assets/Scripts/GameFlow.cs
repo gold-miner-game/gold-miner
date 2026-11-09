@@ -39,6 +39,7 @@ public class GameFlow : MonoBehaviour
     public MapNode CurrentNode { get; private set; }
     // True while the world-map hub (a walkable level, MapHub) is open
     public bool InHub => flow == Flow.Hub || MapHub.Active != null;   // or its scene was played directly
+    // True while the first-time tutorialLevels run is playing (not a map Battle node).
     public bool InTutorialRun => tutorialStep >= 0;
 
     Flow flow = Flow.None;
@@ -210,7 +211,8 @@ public class GameFlow : MonoBehaviour
                 {
                     MapHub.RefillHp();   // every won level refills the world map's HP
                     int margin = gm.PlayerMoney - gm.MinerMoney;
-                    int gain = ProgressStore.TryCreditBestMargin(node.id, margin);
+                    // Negative / zero margins must never credit the wallet.
+                    int gain = margin > 0 ? ProgressStore.TryCreditBestMargin(node.id, margin) : 0;
                     Debug.Log("GameFlow: best margin for " + node.id + " = " + margin
                               + " (credit $" + gain + ", wallet $" + MazeHubState.WalletBalance + ")");
                 }

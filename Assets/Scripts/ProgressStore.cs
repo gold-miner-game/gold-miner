@@ -104,12 +104,13 @@ public static class ProgressStore
     }
 
     // If margin beats the saved best for this battle, raise the best and credit the wallet by the
-    // improvement. Returns the $ added (0 if no new record). Idempotent for the same margin.
+    // improvement. Returns the $ added (0 if no new record). Never credits a non-positive margin.
+    // Idempotent for the same margin.
     public static int TryCreditBestMargin(string levelId, int margin)
     {
         EnsureSingleWalletMigration();
         if (string.IsNullOrEmpty(levelId) || margin <= 0) return 0;
-        int prev = GetBestMargin(levelId);
+        int prev = Mathf.Max(0, GetBestMargin(levelId));
         int gain = margin - prev;
         if (gain <= 0) return 0;
         BestMargins()[levelId] = margin;
