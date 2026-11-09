@@ -258,7 +258,8 @@ public abstract class PlayerCharacter : MonoBehaviour
             digestUntil = Time.time;
             return;
         }
-        DigestLength = digestTime + digestPerValue * value;
+        // Smallest gold (50) is 1 s, largest gold (250) is 3 s. Anything richer stops at 3 s.
+        DigestLength = Mathf.Min(3f, digestTime + digestPerValue * value);
         digestUntil = Time.time + DigestLength;
     }
 

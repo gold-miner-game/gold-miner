@@ -928,7 +928,9 @@ public class LevelLoader : MonoBehaviour
                 else
                 {
                     miners[i].shootsPlayer = false;
-                    miners[i].hook.hitsPig = false;
+                    // Still yellow: it aims at treasure. yellow_hits makes that hook cost a life
+                    // when it touches the pig (Level 3). Other levels keep the hook passing through.
+                    miners[i].hook.hitsPig = level.Param("yellow_hits", 0f) > 0.5f;
                 }
             }
         }

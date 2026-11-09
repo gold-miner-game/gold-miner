@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 // Owner: Zhan (Level 1)
 // Level 1's first visit, in the map tutorial's style: the level goes dark except the one spot
@@ -9,9 +10,9 @@ using UnityEngine;
 //   1. The pig. "You're the pig."
 //   2. Every gold and the diamond at once, each with its own arrow. Eating gold raises the money.
 //   3. The digest timer: it takes time, and they cannot eat again until it ends.
-//   4. Where they stand: stopping makes the rope crawl. Time to think.
-//   5. Walk onto the rope. "Press space to cut the rope." Then they can eat it.
-//   6. Both money numbers: get more than the miner.
+//   4. One forced stop, 2 seconds, movement locked: "Stopping slows the hook." After every lesson, stopping shows those words under the pig, with no circle.
+//   5. Walk onto the rope. Arriving shows "Press [space bar] to cut the rope." at once, and it stays up.
+//   6. Both money numbers: get more than the miner. That line stays up for the rest of the level.
 //   7. The life bar over the pig: at 0, they die.
 // The evil miner stays hidden here. The same level from the map keeps it.
 public class Level1Tutorial : MonoBehaviour
@@ -38,6 +39,10 @@ public class Level1Tutorial : MonoBehaviour
     Transform arrow;
     TextMeshPro label;
     bool shown;
+    bool slowHintLive;
+    Canvas keysCanvas;
+    GameObject wasdKeys;
+    GameObject cutLine;
 
     class Callout
     {
@@ -75,10 +80,49 @@ public class Level1Tutorial : MonoBehaviour
 
     void OnDestroy()
     {
+        UnlockMovement();
         if (Time.timeScale == 0f || Time.timeScale < 0.2f) Time.timeScale = 1f;
         TutorialUIDark.Show(0f, null);
+        if (keysCanvas != null) Destroy(keysCanvas.gameObject);
         Running = false;
     }
+
+    // After every lesson. Same path as the "Digesting…" label: small GUI text under the pig, no ring.
+    void OnGUI()
+    {
+        if (!slowHintLive || player == null) return;
+        if (player.MoveInput.sqrMagnitude > 0.0001f) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Collider2D body = player.GetComponent<Collider2D>();
+        Vector3 feet = body != null
+            ? new Vector3(body.bounds.center.x, body.bounds.min.y, 0f)
+            : player.transform.position + Vector3.down * 0.45f;
+        Vector3 screen = cam.WorldToScreenPoint(feet);
+        if (screen.z <= 0f) return;
+        if (slowStyle == null)
+        {
+            slowStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 16,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+            };
+            slowStyle.normal.textColor = Color.white;
+        }
+        ScreenFrame.BeginGUI();
+        Vector2 at = ScreenFrame.ScreenToGui(screen);
+        // Start under the body, and keep the line inside the frame so it cannot fall off the screen.
+        float y = Mathf.Min(at.y + 8f, ScreenFrame.GuiHeight - 28f);
+        var rect = new Rect(at.x - 140f, y, 280f, 22f);
+        Color ink = slowStyle.normal.textColor;
+        slowStyle.normal.textColor = new Color(0f, 0f, 0f, 0.9f);
+        GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), "Stopping slows the hook.", slowStyle);
+        slowStyle.normal.textColor = ink;
+        GUI.Label(rect, "Stopping slows the hook.", slowStyle);
+    }
+
+    GUIStyle slowStyle;
 
     IEnumerator Run()
     {
@@ -92,9 +136,11 @@ public class Level1Tutorial : MonoBehaviour
         miner.autoShoot = false;
         miner.hook.hitsPig = false;
         BuildVisuals();
+        BuildKeys();
         Vector2 origin = miner.hookOrigin.position;
 
-        // 1. Who you are. One second, everything else dark.
+        // 1. Who you are. One second, everything else dark. The WASD keys stay in the corner.
+        ShowWasd(true);
         yield return Show(new[] { (Vector2)player.transform.position }, 0.9f, "You're the pig.", 1f);
         Time.timeScale = 1f;
         Prompted();
@@ -102,20 +148,22 @@ public class Level1Tutorial : MonoBehaviour
         // 2. Every gold and the diamond, each with its own arrow. They eat a gold first.
         yield return UntilGoldEaten();
         Acted("eat_gold", true);
+        ShowWasd(false);
 
         // The pink number just went up. Time stays frozen, so the digest they just started is still on screen.
         yield return ShowMoney("Your money goes up.", 2f, "PlayerMoney");
         yield return ShowMoney("Digest takes time.", 2f, "DigestBlock");
 
-        // 3. Right where they are: the rope crawls, so stopping is time to think.
+        // 3. One forced stop. The hook eases for 2 seconds, then "Go here." starts at once.
         yield return SlowRope(origin);
 
-        // 4. Walk to the spot first. The key is said only once they are standing on it.
+        // 4. Walk to the spot. Arriving opens the cut; cutting opens the eat. No pause between those.
         Treasure prize = TheDiamond() ?? NearestGold(player.transform.position);
         if (prize != null)
         {
             bool wasDiamond = prize.type == TreasureType.Diamond;
             Vector2 spot = OnThePath(origin, prize.transform.position);
+            ShowWasd(true);
             Prompted();
             while (Vector2.Distance(player.transform.position, spot) > Reach)
             {
@@ -123,13 +171,13 @@ public class Level1Tutorial : MonoBehaviour
                 yield return null;
             }
             Acted("go_here", true);
-            while (miner.hook.IsBusy) yield return null;
             miner.hook.PullBack(origin, prize, miner.treasureColor, 0f);
+            ShowCutLine(true);
             Prompted();
             int stolen = player.TreasureStolen;
             while (miner.hook.IsBusy && player.TreasureStolen == stolen)
             {
-                Point(player.transform.position, 0.85f, "Press space to cut the rope.", true);
+                Point(player.transform.position, 0.85f, "", true);
                 if (hyde == null || !hyde.IsBlocking) miner.hook.Hold(0.05f);
                 yield return null;
             }
@@ -144,10 +192,11 @@ public class Level1Tutorial : MonoBehaviour
                 yield return null;
             }
             Acted("eat_drop", player.Eaten != eaten);
+            ShowWasd(false);
         }
 
-        while (miner.hook.IsBusy) yield return null;
-        yield return ShowMoney("Get more money than the miner.", 2f, "PlayerMoney", "MinerMoney");
+        keepMoneyLine = true;
+        yield return ShowMoney("Get more money than the miner to pass.", 2f, "PlayerMoney", "MinerMoney");
         yield return Show(new[] { LifeBarAt() }, 0.55f, "At 0, you die.", 2f);
 
         GameManager gm = GameManager.Instance;
@@ -157,6 +206,8 @@ public class Level1Tutorial : MonoBehaviour
         Time.timeScale = 1f;
         Running = false;
         Hide();
+        ShowWasd(false);
+        slowHintLive = true;
     }
 
     // Every gold and the diamond lit at once. Words only on the biggest gold and the diamond.
@@ -239,6 +290,7 @@ public class Level1Tutorial : MonoBehaviour
     readonly List<TutorialUIHole> moneyHoles = new List<TutorialUIHole>();
     readonly List<TutorialUIHole> moneyShown = new List<TutorialUIHole>();
     TextMeshProUGUI moneyLine;
+    bool keepMoneyLine;
 
     void PrepareMoney(string[] targets)
     {
@@ -264,7 +316,7 @@ public class Level1Tutorial : MonoBehaviour
         var canvasGo = new GameObject("MoneyLine", typeof(RectTransform), typeof(Canvas));
         Canvas canvas = canvasGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 520;
+        canvas.sortingOrder = 560;
         moneyLine = new GameObject("Text", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
         moneyLine.transform.SetParent(canvasGo.transform, false);
         moneyLine.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
@@ -295,17 +347,38 @@ public class Level1Tutorial : MonoBehaviour
             bottom = Mathf.Min(bottom, Mathf.Min(a.y, b.y));
             count++;
         }
-        if (count == 0) return;
+        if (count == 0 && !keepMoneyLine) return;
         RectTransform line = moneyLine.rectTransform;
+        if (keepMoneyLine)
+        {
+            // Just under the HUD top bar, and it stays there for the rest of the level.
+            Rect frame = ScreenFrame.Pixels;
+            float belowBar = (Screen.height - frame.yMax) + frame.height * HUDLayout.TopBarHeight + 12f;
+            line.anchorMin = line.anchorMax = new Vector2(0.5f, 1f);
+            line.pivot = new Vector2(0.5f, 1f);
+            line.anchoredPosition = new Vector2(0f, -belowBar);
+            line.sizeDelta = new Vector2(900f, 56f);
+            return;
+        }
+        if (count == 0) return;
         RectTransform parent = (RectTransform)line.parent;
         RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, new Vector2(midX / count, bottom - 36f), null, out Vector2 local);
+        line.pivot = new Vector2(0.5f, 0.5f);
         line.anchoredPosition = local;
     }
 
     void ClearMoney()
     {
         TutorialUIDark.Show(0f, null);
-        if (moneyLine != null) moneyLine.gameObject.SetActive(false);
+        if (moneyLine != null)
+        {
+            if (keepMoneyLine)
+            {
+                moneyLine.gameObject.SetActive(true);
+                PlaceMoneyLine();
+            }
+            else moneyLine.gameObject.SetActive(false);
+        }
         if (dark != null && !shown) dark.enabled = false;
     }
 
@@ -321,25 +394,85 @@ public class Level1Tutorial : MonoBehaviour
         }
     }
 
-    // The player stays put and watches one rope crawl. Then they can move again.
+    // Once: the player is locked still and the hook eases for 2 seconds, with the circled hint.
+    // The rope is home again before "Go here.", and it does not take the gold. Later stops show the words only.
     IEnumerator SlowRope(Vector2 origin)
     {
         TimeMovesWithPlayer pace = FindFirstObjectByType<TimeMovesWithPlayer>();
-        float savedSpeed = player.moveSpeed;
         if (pace != null) pace.enabled = false;
-        player.moveSpeed = 0f;
-        FireNow(origin + Vector2.down * 3.2f, false);
-        float until = Time.unscaledTime + 2.5f;
+        float slow = pace != null ? pace.stillScale : 0.06f;
+        LockMovement();
+
+        bool savedGrab = miner.hook.grabsTreasure;
+        miner.hook.grabsTreasure = false;
+        FireNow(origin + Vector2.down * 8f, false);
+        float until = Time.unscaledTime + 2f;
         while (Time.unscaledTime < until)
         {
-            Time.timeScale = 0.07f;
-            Point(player.transform.position, 0.9f, "When you stop, the miner slows down too.", true);
+            Time.timeScale = slow;
+            HoldStill();
+            Point(player.transform.position, 0.9f, "Stopping slows the hook.", true);
             yield return null;
         }
-        player.moveSpeed = savedSpeed;
+
+        // Home in a flash, so the walk is not waiting on this rope, and the gold is still there to cut.
+        float savedExtend = miner.hook.extendSpeed;
+        float savedRetract = miner.hook.retractSpeed;
+        miner.hook.extendSpeed = 400f;
+        miner.hook.retractSpeed = 400f;
+        Time.timeScale = 1f;
+        float safety = Time.unscaledTime + 0.4f;
+        while (miner.hook.IsBusy && Time.unscaledTime < safety)
+        {
+            HoldStill();
+            yield return null;
+        }
+        miner.hook.extendSpeed = savedExtend;
+        miner.hook.retractSpeed = savedRetract;
+        miner.hook.grabsTreasure = savedGrab;
+
+        UnlockMovement();
         Time.timeScale = 1f;
         if (pace != null) pace.enabled = true;
         Hide();
+    }
+
+    bool movementLocked;
+    float savedMoveSpeed;
+    Rigidbody2D lockedBody;
+    RigidbodyConstraints2D savedConstraints;
+
+    void LockMovement()
+    {
+        if (movementLocked || player == null) return;
+        savedMoveSpeed = player.moveSpeed;
+        player.moveSpeed = 0f;
+        lockedBody = player.GetComponent<Rigidbody2D>();
+        if (lockedBody != null)
+        {
+            savedConstraints = lockedBody.constraints;
+            lockedBody.linearVelocity = Vector2.zero;
+            lockedBody.constraints = RigidbodyConstraints2D.FreezeAll;
+        }
+        movementLocked = true;
+    }
+
+    void HoldStill()
+    {
+        if (lockedBody == null) return;
+        lockedBody.linearVelocity = Vector2.zero;
+    }
+
+    void UnlockMovement()
+    {
+        if (!movementLocked) return;
+        if (player != null) player.moveSpeed = savedMoveSpeed;
+        if (lockedBody != null)
+        {
+            lockedBody.constraints = savedConstraints;
+            lockedBody.linearVelocity = Vector2.zero;
+        }
+        movementLocked = false;
     }
 
     // Grabs on the same frame. telegraphMin is read before the first yield, so 0 means no windup.
@@ -712,6 +845,129 @@ public class Level1Tutorial : MonoBehaviour
         label.GetComponent<MeshRenderer>().sortingOrder = 112;
         labelGo.SetActive(false);
         callouts.Add(new Callout { hole = hole, ring = ring, arrow = arrow, label = label });
+    }
+
+    // WASD in the corner, and "Press [space bar] to cut the rope." fixed at the top so it stays put.
+    void BuildKeys()
+    {
+        var root = new GameObject("TutorialKeys", typeof(RectTransform), typeof(Canvas));
+        keysCanvas = root.GetComponent<Canvas>();
+        keysCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        keysCanvas.sortingOrder = 530;
+        CanvasScaler scaler = root.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        wasdKeys = new GameObject("WASD", typeof(RectTransform));
+        wasdKeys.transform.SetParent(root.transform, false);
+        RectTransform pad = wasdKeys.GetComponent<RectTransform>();
+        pad.anchorMin = pad.anchorMax = new Vector2(0f, 0f);
+        pad.pivot = new Vector2(0f, 0f);
+        pad.anchoredPosition = new Vector2(48f, 48f);
+        Key(pad, "W", new Vector2(70f, 70f));
+        Key(pad, "A", new Vector2(0f, 0f));
+        Key(pad, "S", new Vector2(70f, 0f));
+        Key(pad, "D", new Vector2(140f, 0f));
+        wasdKeys.SetActive(false);
+
+        cutLine = new GameObject("CutLine", typeof(RectTransform));
+        cutLine.transform.SetParent(root.transform, false);
+        RectTransform line = cutLine.GetComponent<RectTransform>();
+        line.anchorMin = line.anchorMax = new Vector2(1f, 0.5f);
+        line.pivot = new Vector2(1f, 0.5f);
+        line.anchoredPosition = new Vector2(-40f, 0f);
+        line.sizeDelta = new Vector2(760f, 64f);
+        Caption(line, "Press", new Vector2(-208f, 0f), new Vector2(160f, 52f), new Vector2(1f, 0.5f));
+        var bar = new GameObject("Space", typeof(RectTransform), typeof(Image));
+        bar.transform.SetParent(line, false);
+        RectTransform barRect = bar.GetComponent<RectTransform>();
+        barRect.anchorMin = barRect.anchorMax = new Vector2(0.5f, 0.5f);
+        barRect.pivot = new Vector2(0.5f, 0.5f);
+        barRect.anchoredPosition = new Vector2(-112f, 0f);
+        barRect.sizeDelta = new Vector2(168f, 46f);
+        Image cap = bar.GetComponent<Image>();
+        cap.sprite = KeyCap();
+        cap.color = Color.white;
+        cap.raycastTarget = false;
+        Caption(barRect, "space", Vector2.zero, new Vector2(156f, 40f), new Vector2(0.5f, 0.5f), 22f,
+            new Color(0.16f, 0.13f, 0.1f));
+        Caption(line, "to cut the rope.", new Vector2(-16f, 0f), new Vector2(380f, 52f), new Vector2(0f, 0.5f));
+        cutLine.SetActive(false);
+    }
+
+    void Key(RectTransform pad, string letter, Vector2 at)
+    {
+        var key = new GameObject(letter, typeof(RectTransform), typeof(Image));
+        key.transform.SetParent(pad, false);
+        RectTransform rect = key.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = new Vector2(0f, 0f);
+        rect.pivot = new Vector2(0f, 0f);
+        rect.anchoredPosition = at;
+        rect.sizeDelta = new Vector2(62f, 62f);
+        Image face = key.GetComponent<Image>();
+        face.sprite = KeyCap();
+        face.color = Color.white;
+        face.raycastTarget = false;
+        Caption(rect, letter, Vector2.zero, new Vector2(62f, 62f), new Vector2(0.5f, 0.5f), 30f,
+            new Color(0.16f, 0.13f, 0.1f));
+    }
+
+    void Caption(RectTransform parent, string text, Vector2 at, Vector2 size, Vector2 pivot, float fontSize = 34f, Color? color = null)
+    {
+        var words = new GameObject("Caption", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+        words.transform.SetParent(parent, false);
+        words.font = label != null ? label.font : Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
+        words.fontSize = fontSize;
+        words.alignment = pivot.x > 0.9f ? TextAlignmentOptions.MidlineRight
+            : pivot.x < 0.1f ? TextAlignmentOptions.MidlineLeft
+            : TextAlignmentOptions.Center;
+        words.color = color ?? Color.white;
+        words.text = text;
+        words.raycastTarget = false;
+        RectTransform rect = words.rectTransform;
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = pivot;
+        rect.sizeDelta = size;
+        rect.anchoredPosition = at;
+    }
+
+    void ShowWasd(bool on)
+    {
+        if (wasdKeys != null) wasdKeys.SetActive(on);
+    }
+
+    void ShowCutLine(bool on)
+    {
+        if (cutLine != null) cutLine.SetActive(on);
+    }
+
+    static Sprite keyCap;
+
+    static Sprite KeyCap()
+    {
+        if (keyCap != null) return keyCap;
+        const int n = 64;
+        var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        float radius = 12f;
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
+            {
+                float px = x + 0.5f, py = y + 0.5f;
+                float inset = 2f;
+                float left = inset + radius, right = n - inset - radius, bottom = inset + radius, top = n - inset - radius;
+                float cx = Mathf.Clamp(px, left, right), cy = Mathf.Clamp(py, bottom, top);
+                float dist = Vector2.Distance(new Vector2(px, py), new Vector2(cx, cy));
+                float alpha = Mathf.Clamp01(radius - dist + 0.6f);
+                float edge = Mathf.Clamp01(radius - dist);
+                Color fill = edge < 1.4f ? new Color(0.72f, 0.72f, 0.7f, alpha) : new Color(0.97f, 0.97f, 0.95f, alpha);
+                tex.SetPixel(x, y, fill);
+            }
+        }
+        tex.Apply();
+        keyCap = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), n);
+        return keyCap;
     }
 
     static Sprite MakeSprite(int size, System.Func<float, float, float> alpha)

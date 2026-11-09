@@ -3,8 +3,8 @@ using UnityEngine.InputSystem;
 
 // Owner: Butian (main menu)
 // The Menu scene: the first page a build shows (Boot opens it). Start / Continue goes to the world
-// map, New Game wipes the saved progress first (after a confirm), How to Play shows the controls
-// and rules, and Quit closes the app (not on the web, where a page can't close itself).
+// map, New Game wipes the saved progress first (after a confirm), and Quit closes the app
+// (not on the web, where a page can't close itself).
 // Same palette as the map (WorldMapController): OnGUI in ScreenFrame's 1280x720 space.
 public class MainMenu : MonoBehaviour
 {
@@ -23,17 +23,7 @@ public class MainMenu : MonoBehaviour
     const float ButtonHeight = 54f;
     const float ButtonGap = 14f;
 
-    const string HowToPlay =
-        "You are the one under the hooks. Eat the gold before the miner reels it in.\n\n" +
-        "W A S D  -  move\n" +
-        "SPACE  -  your character's skill\n" +
-        "R  -  retry the level\n\n" +
-        "A red dotted line shows where a hook will fly: step out of it before it fires.\n" +
-        "Eating makes you digest (green): you can't eat again until it drains.\n" +
-        "Finish a level with more money than the miner to clear it on the map.\n" +
-        "After Level 8, Survive Mode: an endless field where every hook hunts you.";
-
-    enum Page { Main, HowTo, ConfirmNew }
+    enum Page { Main, ConfirmNew }
 
     Page page = Page.Main;
     Texture2D gradient;
@@ -65,13 +55,12 @@ public class MainMenu : MonoBehaviour
         float h = ScreenFrame.GuiHeight;
         GUI.DrawTexture(new Rect(0, 0, w, h), gradient, ScaleMode.StretchToFill);
 
-        GUI.Label(new Rect(0, 120, w, 90), "GOLD MINER", titleStyle);
+        GUI.Label(new Rect(0, 120, w, 90), "Oinky Oinky", titleStyle);
         GUI.Label(new Rect(0, 205, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
 
         switch (page)
         {
             case Page.Main: DrawMain(w); break;
-            case Page.HowTo: DrawHowTo(w); break;
             case Page.ConfirmNew: DrawConfirm(w); break;
         }
 
@@ -94,18 +83,7 @@ public class MainMenu : MonoBehaviour
             if (DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), "New Game", false)) page = Page.ConfirmNew;
             y += ButtonHeight + ButtonGap;
         }
-        if (DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), "How to Play", false)) page = Page.HowTo;
-        y += ButtonHeight + ButtonGap;
         if (CanQuit && DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), "Quit", false)) Application.Quit();
-    }
-
-    void DrawHowTo(float w)
-    {
-        Rect panel = new Rect((w - 760f) * 0.5f, 260f, 760f, 380f);
-        DrawPanel(panel);
-        GUI.Label(new Rect(panel.x + 36f, panel.y + 28f, panel.width - 72f, panel.height - 110f), HowToPlay, bodyStyle);
-        Rect back = new Rect(panel.center.x - ButtonWidth * 0.5f, panel.yMax - 74f, ButtonWidth, ButtonHeight);
-        if (DrawButton(back, "Back", true)) page = Page.Main;
     }
 
     void DrawConfirm(float w)
