@@ -29,6 +29,8 @@ public class CatController : PlayerCharacter
     [Min(1)] public int rotationsPerRoll = 2;
     [Tooltip("Spin is counterclockwise; clockwise when rolling left (including left diagonals)")]
     public bool reverseSpinWhenRollingLeft = true;
+    [Tooltip("Rolling this close to a destroyable miner (HookHealth) hits it, in world units from the cat's centre to its box")]
+    public float rollHitReach = 0.7f;
 
     // After the tutorial her record decides (the store can change them); before, these Inspector values
     public float RollMultiplier => Record is CatStatus s ? s.getRollSpeedMultiplier() : speedMultiplier;
@@ -106,6 +108,13 @@ public class CatController : PlayerCharacter
     {
         base.Update();
         if (MoveInput.sqrMagnitude > 0f) lastDirection = MoveInput.normalized;
+        // A roll into a miner that can be destroyed (HookHealth: attack mode, the hook holes) hits it,
+        // once per roll (it blinks meanwhile and ignores more hits)
+        if (IsRolling)
+        {
+            HookHealth target = HookHealth.InReach(transform.position, rollHitReach);
+            if (target != null && target.Damage()) MrHydeController.ShowHit(this, target);
+        }
         if (wasRolling && !IsRolling) EndRollDigest();
         wasRolling = IsRolling;
         SetTired(IsTired);

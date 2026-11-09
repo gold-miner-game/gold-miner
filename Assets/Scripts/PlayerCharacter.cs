@@ -59,8 +59,10 @@ public abstract class PlayerCharacter : MonoBehaviour
     // Hooks bounced off a block, and treasure knocked off a hook, this round (the tutorial's goals)
     public int HooksBlocked { get; private set; }
     public int TreasureStolen { get; private set; }
-    public void OnHookBlocked() { HooksBlocked++; }
-    public void OnTreasureKnocked() { TreasureStolen++; }
+    public int Eaten { get; private set; }
+    public void OnHookBlocked() { HooksBlocked++; TutorialEvents.Fire("hook_blocked"); }
+    public void OnTreasureKnocked() { TreasureStolen++; TutorialEvents.Fire("treasure_stolen"); }
+    public void OnTreasureEaten() { Eaten++; }
 
     // WASD this frame (not normalized)
     public Vector2 MoveInput { get; private set; }
@@ -108,6 +110,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         Body.sleepMode = RigidbodySleepMode2D.NeverSleep;
 
         if (body == null) body = GetComponent<SpriteRenderer>();
+        if (GetComponent<PlayerLifeBar>() == null) gameObject.AddComponent<PlayerLifeBar>();   // the Lives over the head
         if (body != null)
         {
             BaseColor = body.color;
@@ -255,7 +258,8 @@ public abstract class PlayerCharacter : MonoBehaviour
             digestUntil = Time.time;
             return;
         }
-        DigestLength = digestTime + digestPerValue * value;
+        // Smallest gold (50) is 1 s, largest gold (250) is 3 s. Anything richer stops at 3 s.
+        DigestLength = Mathf.Min(3f, digestTime + digestPerValue * value);
         digestUntil = Time.time + DigestLength;
     }
 
@@ -296,8 +300,10 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         digestLabelStyle.normal.textColor = digestLabelColor;
 
-        // GUI y grows downward, the opposite of screen-space y
-        Rect rect = new Rect(screen.x - 70f, Screen.height - screen.y - 24f, 140f, 22f);
+        // In ScreenFrame's 1280x720 space, so the label keeps its size next to the character on any screen
+        ScreenFrame.BeginGUI();
+        Vector2 at = ScreenFrame.ScreenToGui(screen);
+        Rect rect = new Rect(at.x - 70f, at.y - 24f, 140f, 22f);
         GUI.Label(rect, "Digesting\u2026", digestLabelStyle);
     }
 

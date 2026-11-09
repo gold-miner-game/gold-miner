@@ -11,6 +11,11 @@ public class Rock : MonoBehaviour
     public float pieceSpeed = 3.5f;
 
     private SpriteRenderer sr;
+    [Tooltip("A maze wall (the world map): planted, and it never breaks")]
+    public bool isWall;
+    [Tooltip("A hook flies through this rock (the world map's green rocks: levels not disclosed yet). The player still can't")]
+    public bool hookPasses;
+
     private bool shattered;
     private bool indestructible;
 
@@ -20,11 +25,13 @@ public class Rock : MonoBehaviour
         // Prefab ships Dynamic; that lets the pig shove rocks into corridors. Keep them planted.
         Rigidbody2D body = GetComponent<Rigidbody2D>();
         if (body != null) body.bodyType = RigidbodyType2D.Static;
+        if (isWall) MakeWall();
     }
 
-    // Maze '#': permanent wall. Hook still stops; rock never moves or breaks.
+    // Maze walls (the world map, '#' tiles): planted, and they never break
     public void MakeWall()
     {
+        isWall = true;
         indestructible = true;
         Rigidbody2D body = GetComponent<Rigidbody2D>();
         if (body != null) body.bodyType = RigidbodyType2D.Static;
@@ -33,7 +40,7 @@ public class Rock : MonoBehaviour
     // Called by Hook when this rock blocks it
     public void OnHookBlocked()
     {
-        if (indestructible || shattered) return;
+        if (indestructible || shattered || isWall) return;
         shattered = true;
 
         SpawnPieces();

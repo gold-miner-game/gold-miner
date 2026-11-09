@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 #endif
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
 
 // Posts one row per analytics event to a Google Form, which lands in the form's
 // response sheet. The same rows are kept on this machine so a chart can be drawn
@@ -12,7 +13,7 @@ using UnityEngine.Networking;
 //
 // Create one Google Form with these short-answer questions, in any order:
 //   player, session, level, character, event, value,
-//   player_money, miner_money, won, end_reason, tutorial, source
+//   player_money, miner_money, won, end_reason, tutorial, source, seq, t, attempt, build
 // Send a prefilled link, copy the formResponse URL (replace viewform with
 // formResponse) into FormUrl, and copy each entry.123 id into the matching field.
 // Leave FormUrl empty until then: rows stay on this machine only.
@@ -31,6 +32,16 @@ public class PlayAnalytics : MonoBehaviour
     const string EEndReason = "entry.1647763650";
     const string ETutorial = "entry.2094911153";
     const string ESource = "entry.1166496251";
+    // Traceability columns: seq, t, attempt, build. A row still posts if one of these is left empty.
+    const string ESeq = "entry.2051268683";
+    const string ET = "entry.269200636";
+    const string EAttempt = "entry.1402664207";
+    const string EBuild = "entry.1461135230";
+
+    const string Build = "beta-1110";
+    const float HeartbeatSeconds = 30f;
+    const float StuckSeconds = 15f;
+    const float UnderstoodSeconds = 8f;   // a tutorial action done slower than this was not understood
 
     const string PlayerKey = "gm.analytics.player";
     const string PrefsKey = "gm.analytics.events";
@@ -45,6 +56,37 @@ public class PlayAnalytics : MonoBehaviour
     string sessionId = "";
     float levelStart;
     bool sawGold;
+
+    // Traceability: rows in order, seconds since the session began, and which try at this level
+    int rowCount;
+    float sessionStart;
+    float nextHeartbeat;
+    readonly Dictionary<string, int> attempts = new Dictionary<string, int>();
+
+    // Stuck: no eat and no block for StuckSeconds while a round plays
+    PlayerCharacter watched;
+    int progressMark = -1;
+    float progressSince;
+    Vector2 windowStart;
+
+    // This round so far: every hook's outcome ("yellow:banked"), skill presses, the store items in play,
+    // and treasure the player knocked off a hook (instance id -> when)
+    readonly SortedDictionary<string, int> hookResults = new SortedDictionary<string, int>();
+    readonly Dictionary<int, float> freedAt = new Dictionary<int, float>();
+    readonly List<string> freedEaten = new List<string>();
+    PlayerCharacter roundPlayer;
+    int skillUses;
+    bool skillWasOn;
+    string itemsInPlay;
+    int shieldHits;
+    bool braceSpent;
+
+    // Store: what happened since the last battle, and how the last lost round was lost
+    string storeChance;
+    string lastLoss = "none";
+    int storeAffordable;
+    readonly List<string> storeBought = new List<string>();
+    readonly HashSet<string> storeHovered = new HashSet<string>();
 
     [Serializable]
     public class EventRow
@@ -61,6 +103,10 @@ public class PlayAnalytics : MonoBehaviour
         public string endReason;
         public string tutorial;
         public string source;
+        public int seq;
+        public float t;
+        public int attempt;
+        public string build;
     }
 
     [Serializable]
@@ -86,8 +132,146 @@ public class PlayAnalytics : MonoBehaviour
         log.sawGold = false;
         log.touching.Clear();
         log.levelStart = Time.time;
+        log.watched = null;
+        log.hookResults.Clear();
+        log.freedAt.Clear();
+        log.freedEaten.Clear();
+        log.roundPlayer = null;
+        log.skillUses = 0;
+        log.skillWasOn = false;
+        log.itemsInPlay = null;
+        log.shieldHits = 0;
+        log.braceSpent = false;
+        string level = LevelName();
+        log.attempts[level] = log.attempts.TryGetValue(level, out int n) ? n + 1 : 1;
         log.Send("level_start", 0f, 0, 0, "", "");
     }
+
+    // Tutorial: the time from a prompt appearing to the player doing it. value = seconds,
+    // won = 1 when done within UnderstoodSeconds, end_reason = the step
+    public static void TutorialAction(string step, float seconds, bool done)
+    {
+        string understood = done && seconds <= UnderstoodSeconds ? "1" : "0";
+        Ensure().Send("tutorial_action", seconds, 0, 0, understood, step, null, true);
+    }
+
+    // Every hook, yellow (aimed at treasure) or red (aimed at the player). Counted through the round
+    // and sent as hook_result rows when it ends. Outcomes: hit, blocked, cut, banked, empty, dodge
+    public static void HookShot(bool red, string outcome)
+    {
+        if (!Counting()) return;
+        string key = (red ? "red:" : "yellow:") + outcome;
+        PlayAnalytics log = Ensure();
+        log.hookResults[key] = log.hookResults.TryGetValue(key, out int n) ? n + 1 : 1;
+    }
+
+    // The player knocked this treasure off a hook (cut the rope or blocked the claw).
+    // value = seconds the hook had held it, end_reason = its type
+    public static void ItemCut(Treasure item, float heldSeconds)
+    {
+        if (item == null || !Counting()) return;
+        PlayAnalytics log = Ensure();
+        log.freedAt[item.GetInstanceID()] = Time.time;
+        log.Send("item_cut", heldSeconds, 0, 0, "", item.type.ToString());
+    }
+
+    // The player ate a treasure. won = freed (it came off a hook first) or ground.
+    // value = seconds from the cut to the eat, 0 for ground
+    public static void ItemEaten(Treasure item)
+    {
+        if (item == null || !Counting()) return;
+        PlayAnalytics log = Ensure();
+        bool freed = log.freedAt.TryGetValue(item.GetInstanceID(), out float cutAt);
+        if (freed) log.freedEaten.Add(item.type.ToString());
+        log.Send("item_eat", freed ? Time.time - cutAt : 0f, 0, 0, freed ? "freed" : "ground", item.type.ToString());
+    }
+
+    // A miner's hook brought a diamond or a large gold home
+    public static void ItemBanked(Treasure item)
+    {
+        if (item == null || !Counting()) return;
+        if (item.type != TreasureType.Diamond && item.type != TreasureType.LargeGold) return;
+        Ensure().Send("item_banked", item.value, 0, 0, "", item.type.ToString());
+    }
+
+    // Rounds count; the scripted tutorial does not
+    static bool Counting()
+    {
+        return GameManager.Instance != null && GameManager.Instance.IsPlaying && !Level1Tutorial.Running;
+    }
+
+    // A map portal was entered (Level 1, Store, Pick Character, ...)
+    public static void NodeEnter(string nodeId)
+    {
+        Ensure().Send("node_enter", 1f, 0, 0, "", nodeId);
+    }
+
+    // The player walked into a locked portal. value = best margins counted toward its gold gate
+    public static void LockedPortal(string nodeId, int goldToward)
+    {
+        Ensure().Send("portal_locked", goldToward, 0, 0, "", nodeId);
+    }
+
+    // Does the player understand the store? Four questions:
+    //   1. Do they go when they can pay?  store_chance, sent as each battle starts:
+    //      end_reason = bought / looked_only / skipped (could pay, never went) / cant_afford
+    //   2. Do they buy what fixes their last loss?  store_visit, sent on leaving:
+    //      end_reason = "<item> <fit|miss|no_loss> <read|unread>" per item ("none" if nothing),
+    //      read: they hovered it and saw what it does before buying,
+    //      won = last loss (killed / outearned / none), value = items they could pay for
+    //      fit: killed -> shield or brace; outearned -> swift or ration
+    //   3. Does the item do anything?  item_effect, per item in play when a round ends:
+    //      value = shield: hits it soaked; brace: 1 if its extra life was spent; swift/ration: treasure eaten
+    //   4. Does it help them win?  round_items (above): margin and won with vs without items
+    public static void StoreOpen(int affordable)
+    {
+        PlayAnalytics log = Ensure();
+        log.storeAffordable = affordable;
+        log.storeBought.Clear();
+        log.storeHovered.Clear();
+        if (log.storeChance != "bought") log.storeChance = "looked_only";
+    }
+
+    public static void StoreHover(string itemId)
+    {
+        Ensure().storeHovered.Add(itemId);
+    }
+
+    public static void Purchase(string itemId)
+    {
+        PlayAnalytics log = Ensure();
+        log.storeBought.Add(itemId ?? "");
+        log.storeChance = "bought";
+    }
+
+    public static void StoreLeave()
+    {
+        PlayAnalytics log = Ensure();
+        var parts = new List<string>();
+        foreach (string item in log.storeBought)
+            parts.Add(item + " " + Fit(item, log.lastLoss) + (log.storeHovered.Contains(item) ? " read" : " unread"));
+        log.Send("store_visit", log.storeAffordable, 0, 0, log.lastLoss,
+            parts.Count > 0 ? string.Join(",", parts) : "none", "store", false);
+    }
+
+    // A battle is starting. affordable = shelf items the wallet pays for right now
+    public static void StoreChance(string nodeId, int affordable)
+    {
+        PlayAnalytics log = Ensure();
+        string outcome = log.storeChance ?? (affordable > 0 ? "skipped" : "cant_afford");
+        log.Send("store_chance", affordable, 0, 0, log.lastLoss, outcome, nodeId, false);
+        log.storeChance = null;
+    }
+
+    static string Fit(string item, string loss)
+    {
+        if (loss == "killed") return item == "shield" || item == "brace" ? "fit" : "miss";
+        if (loss == "outearned") return item == "swift" || item == "ration" ? "fit" : "miss";
+        return "no_loss";
+    }
+
+    public static void ShieldSoaked() { if (Counting()) Ensure().shieldHits++; }
+    public static void BraceSpent() { if (Counting()) Ensure().braceSpent = true; }
 
     public static void FirstGold(TreasureType type)
     {
@@ -131,20 +315,47 @@ public class PlayAnalytics : MonoBehaviour
         Ensure().Send("death", 1f, 0, 0, "", "");
     }
 
-    public static void CharacterPicked(int index)
+    // value = seconds spent on the pick screen before choosing
+    public static void CharacterPicked(int index, float seconds = 0f)
     {
-        Ensure().Send("character_pick", 1f, 0, 0, "", "", "select", false, index.ToString());
+        Ensure().Send("character_pick", seconds, 0, 0, "", "", "select", false, index.ToString());
     }
 
-    public static void Purchase(string itemId)
-    {
-        Ensure().Send("purchase", 1f, 0, 0, "", itemId ?? "", "store", false, null);
-    }
-
+    // round_end, then this round's summaries, all with the round's won flag so they split by outcome:
+    //   round_items  value = margin, end_reason = store items in play ("swift,brace" or "none")
+    //   skill_use    value = skill presses, player_money = hooks blocked + treasure knocked off,
+    //                miner_money = treasure eaten
+    //   level_plan   value = treasure eaten after cutting it off a hook, end_reason = which ones
+    //   hook_result  one row per hook color and outcome, value = count, end_reason = "red:hit"
     public static void RoundEnd(string level, int playerMoney, int minerMoney, int margin, bool won, string reason, bool tutorial)
     {
         PlayAnalytics log = Ensure();
-        log.Send("round_end", margin, playerMoney, minerMoney, won ? "1" : "0", reason ?? "", level, tutorial);
+        string w = won ? "1" : "0";
+        log.Send("round_end", margin, playerMoney, minerMoney, w, reason ?? "", level, tutorial);
+        if (tutorial) return;
+
+        log.lastLoss = won ? "none"
+            : GameManager.Instance != null && GameManager.Instance.Lives <= 0 ? "killed" : "outearned";
+        string items = log.itemsInPlay ?? "none";
+        log.Send("round_items", margin, playerMoney, minerMoney, w, items, level, false);
+        if (items != "none")
+            foreach (string item in items.Split(','))
+            {
+                float effect = item == "shield" ? log.shieldHits
+                    : item == "brace" ? (log.braceSpent ? 1f : 0f)
+                    : log.roundPlayer != null ? log.roundPlayer.Eaten : 0f;
+                log.Send("item_effect", effect, playerMoney, minerMoney, w, item, level, false);
+            }
+        PlayerCharacter player = log.roundPlayer;
+        if (player != null)
+            log.Send("skill_use", log.skillUses, player.HooksBlocked + player.TreasureStolen, player.Eaten, w,
+                player.GetType().Name, level, false);
+        log.Send("level_plan", log.freedEaten.Count, playerMoney, minerMoney, w,
+            log.freedEaten.Count > 0 ? string.Join(",", log.freedEaten) : "none", level, false);
+        foreach (KeyValuePair<string, int> result in log.hookResults)
+            log.Send("hook_result", result.Value, 0, 0, w, result.Key, level, false);
+        log.hookResults.Clear();
+        log.freedEaten.Clear();
     }
 
     static PlayAnalytics Ensure()
@@ -172,6 +383,8 @@ public class PlayAnalytics : MonoBehaviour
             PlayerPrefs.Save();
         }
         sessionId = Guid.NewGuid().ToString("N").Substring(0, 12);
+        sessionStart = Time.unscaledTime;
+        nextHeartbeat = sessionStart + HeartbeatSeconds;
         Load();
     }
 
@@ -188,6 +401,67 @@ public class PlayAnalytics : MonoBehaviour
             pending[i].Dispose();
             pending.RemoveAt(i);
         }
+
+        // The last heartbeat a session sends is where that player left
+        if (Time.unscaledTime >= nextHeartbeat)
+        {
+            nextHeartbeat = Time.unscaledTime + HeartbeatSeconds;
+            Send("heartbeat", Time.unscaledTime - sessionStart, 0, 0, "", SceneManager.GetActiveScene().name);
+        }
+        WatchForStuck();
+    }
+
+    // Wandering or stuck: a round is playing, but nothing has been eaten or blocked for a while.
+    // value = how far the character moved in that window (low = standing still, high = walking around)
+    void WatchForStuck()
+    {
+        GameManager gm = GameManager.Instance;
+        bool round = gm != null && gm.IsPlaying && !Level1Tutorial.Running
+                     && Time.timeScale > 0f && !TutorialDialogue.Playing;
+        PlayerCharacter player = !round ? null : watched != null ? watched : FindFirstObjectByType<PlayerCharacter>();
+        bool live = round && player != null;
+        if (!live)
+        {
+            watched = null;
+            progressMark = -1;
+            return;
+        }
+        if (roundPlayer != player)
+        {
+            roundPlayer = player;
+            skillWasOn = false;
+        }
+        if (itemsInPlay == null) itemsInPlay = ItemsInPlay();
+        bool skillOn = player.SkillActive;
+        if (skillOn && !skillWasOn) skillUses++;
+        skillWasOn = skillOn;
+
+        int mark = player.Eaten + player.HooksBlocked + player.TreasureStolen;
+        if (player != watched || mark != progressMark)
+        {
+            watched = player;
+            progressMark = mark;
+            progressSince = Time.unscaledTime;
+            windowStart = player.transform.position;
+            return;
+        }
+        if (Time.unscaledTime - progressSince < StuckSeconds) return;
+        float moved = Vector2.Distance(windowStart, player.transform.position);
+        Send("stuck", moved, gm.PlayerMoney, gm.MinerMoney, "", "");
+        progressSince = Time.unscaledTime;
+        windowStart = player.transform.position;
+    }
+
+    // Store items working in this round, read on its first playing frame
+    static string ItemsInPlay()
+    {
+        CrossLevelStatus status = CrossLevelStatus.Active;
+        if (status == null) return "none";
+        var ids = new List<string>();
+        foreach (PlayerSkill skill in status.getSkills())
+            if (CrossLevelStatus.IsStoreEffect(skill.id) && (skill.active || skill.secondsLeft > 0f))
+                ids.Add(skill.id);
+        return ids.Count > 0 ? string.Join(",", ids) : "none";
     }
 
     void Send(string eventName, float value, int playerMoney, int minerMoney, string won, string endReason)
@@ -198,11 +472,12 @@ public class PlayAnalytics : MonoBehaviour
     void Send(string eventName, float value, int playerMoney, int minerMoney, string won, string endReason, string level, bool? tutorial, string characterOverride = null)
     {
         bool isTutorial = tutorial ?? LevelLoader.Tutorial;
+        string levelName = string.IsNullOrEmpty(level) ? LevelName() : level;
         var row = new EventRow
         {
             player = playerId,
             session = sessionId,
-            level = string.IsNullOrEmpty(level) ? LevelName() : level,
+            level = levelName,
             character = string.IsNullOrEmpty(characterOverride) ? CharacterIndex() : characterOverride,
             eventName = eventName,
             value = value,
@@ -212,6 +487,10 @@ public class PlayAnalytics : MonoBehaviour
             endReason = endReason ?? "",
             tutorial = isTutorial ? "1" : "0",
             source = Source(),
+            seq = ++rowCount,
+            t = Time.unscaledTime - sessionStart,
+            attempt = attempts.TryGetValue(levelName, out int tries) ? tries : 0,
+            build = Build,
         };
         events.Add(row);
         if (events.Count > MaxEvents) events.RemoveAt(0);
@@ -289,6 +568,8 @@ public class PlayAnalytics : MonoBehaviour
             + "&" + Field(EEndReason, row.endReason)
             + "&" + Field(ETutorial, row.tutorial)
             + "&" + Field(ESource, row.source);
+        foreach (var (entry, value) in Optional(row))
+            body += "&" + Field(entry, value);
         AnalyticsPostForm(FormUrl, body);
 #else
         var form = new WWWForm();
@@ -304,10 +585,21 @@ public class PlayAnalytics : MonoBehaviour
         form.AddField(EEndReason, row.endReason);
         form.AddField(ETutorial, row.tutorial);
         form.AddField(ESource, row.source);
+        foreach (var (entry, value) in Optional(row))
+            form.AddField(entry, value);
         UnityWebRequest request = UnityWebRequest.Post(FormUrl, form);
         request.SendWebRequest();
         pending.Add(request);
 #endif
+    }
+
+    // The columns whose entry id is filled in
+    static IEnumerable<(string entry, string value)> Optional(EventRow row)
+    {
+        if (ESeq.Length > 0) yield return (ESeq, row.seq.ToString());
+        if (ET.Length > 0) yield return (ET, row.t.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
+        if (EAttempt.Length > 0) yield return (EAttempt, row.attempt.ToString());
+        if (EBuild.Length > 0) yield return (EBuild, row.build ?? "");
     }
 
 #if UNITY_WEBGL && !UNITY_EDITOR

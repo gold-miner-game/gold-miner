@@ -4,11 +4,12 @@ using UnityEngine.SceneManagement;
 // Owner: Penny (Level map & tutorial)
 // The one persistent object that moves the player between scenes. Scenes never reference each
 // other; they all talk to GameFlow. It holds the WorldMap and drives:
-//   Map -> (node) -> Game / RolePick / Store -> back to Map.
+//   Menu -> (first time: every tutorial level back to back) -> Map (the hub level, MapHub) -> (portal) -> level scene + Game / RolePick / Store / Survival -> back to Map.
 // See docs/level-map-tutorial-design.md.
 public class GameFlow : MonoBehaviour
 {
     public const string BootScene = "Boot";
+    public const string MenuScene = "Menu";
     public const string MapScene = "Map";
     public const string GameScene = "Game";
     public const string RolePickScene = "Select";
@@ -18,7 +19,7 @@ public class GameFlow : MonoBehaviour
     [Tooltip("Seconds the win result stays on screen before returning to the map.")]
     public float returnDelay = 2.5f;
 
-    enum Flow { None, Map, Game, RolePick, Store, Survival }
+    enum Flow { None, Menu, Map, Hub, Game, RolePick, Store, Survival }
 
     static GameFlow instance;
     public static GameFlow Instance
@@ -36,8 +37,13 @@ public class GameFlow : MonoBehaviour
 
     public WorldMap Map { get; private set; }
     public MapNode CurrentNode { get; private set; }
+    // True while the world-map hub (a walkable level, MapHub) is open
+    public bool InHub => flow == Flow.Hub || MapHub.Active != null;   // or its scene was played directly
+    // True while the first-time tutorialLevels run is playing (not a map Battle node).
+    public bool InTutorialRun => tutorialStep >= 0;
 
     Flow flow = Flow.None;
+    int tutorialStep = -1;   // index into Map.tutorialLevels while the tutorial run plays; -1 = not in it
     bool winHandled;
     float winAt;
 
@@ -51,22 +57,79 @@ public class GameFlow : MonoBehaviour
         if (Map == null) Debug.LogWarning("GameFlow: no WorldMap in Resources. Run Tools > Gold Miner > Build Flow Scenes.");
     }
 
-    // Called by the Boot scene (or anyone) to show the map.
-    // The maze (tut_maze) IS the world map hub — always return there, never the LEVELS tree.
-    public void OpenMap()
+    // Called by the Boot scene, and the map's Menu button: the main menu (MainMenu)
+    public void OpenMenu()
     {
         ClearGameHooks();
         CurrentNode = null;
+        flow = Flow.Menu;
+        SceneManager.LoadScene(MenuScene);
+    }
 
-        MapNode maze = Map != null ? Map.Find("tut_maze") : null;
-        if (maze != null)
+    // Called by the main menu (or anyone) to show the map.
+    public void OpenMap()
+    {
+        bool backFromNode = CurrentNode != null;   // already on the map, so not the first visit
+        ClearGameHooks();
+        CurrentNode = null;
+        tutorialStep = -1;
+        if (!backFromNode && !ProgressStore.TutorialDone && Map != null && Map.tutorialLevels.Count > 0)
         {
-            EnterNode(maze);
+            PlayTutorial(0);   // a new player goes through every tutorial before seeing the map
             return;
         }
-
+        if (Map != null && Map.hubLevel != null)
+        {
+            // The map is a place to walk around in: the hub level in the Game scene, a portal per node
+            LevelLoader.ScriptedTutorial = true;   // the pig, and the run record is left alone
+            LevelLoader.Requested = Map.hubLevel;
+            LevelLoader.WaitToAdvance = true;
+            LevelLoader.AdvanceNow = false;
+            flow = Flow.Hub;
+            SceneManager.LoadScene(LevelLayout.SceneFor(Map.hubLevel));
+            return;
+        }
+        // No hub level: the card map scene
         flow = Flow.Map;
         SceneManager.LoadScene(MapScene);
+    }
+
+    // The tutorial run: level i of Map.tutorialLevels, always as Mr. Hyde. Winning moves to the next
+    // one (Update); after the last, the run is saved as done and the map opens.
+    void PlayTutorial(int i)
+    {
+        TextAsset level = Map.tutorialLevels[i];
+        if (level == null) { NextTutorial(i); return; }   // an empty slot in the list: skip it
+        tutorialStep = i;
+        CurrentNode = null;
+        winHandled = false;
+        winAt = 0f;
+        LevelLoader.ScriptedTutorial = true;
+        LevelLoader.Requested = level;
+        LevelLoader.WaitToAdvance = true;   // GameFlow handles the transition, not LevelLoader
+        LevelLoader.AdvanceNow = false;
+        flow = Flow.Game;
+        SceneManager.LoadScene(LevelLayout.SceneFor(level));
+    }
+
+    void NextTutorial(int finished)
+    {
+        if (finished + 1 < Map.tutorialLevels.Count) { PlayTutorial(finished + 1); return; }
+        FinishTutorialRun();
+    }
+
+    // The tutorials are over: saved as done, then straight on to the store (Map.afterTutorialNode), whose
+    // leaving opens the map. The last tutorial level calls this itself on its win ("win_to_store"), so
+    // it works even when that level was played straight from its scene
+    public void FinishTutorialRun()
+    {
+        ProgressStore.MarkCompleted(ProgressStore.TutorialDoneId);
+        tutorialStep = -1;
+        winHandled = true;
+        MapNode next = Map != null && !string.IsNullOrEmpty(Map.afterTutorialNode) ? Map.Find(Map.afterTutorialNode) : null;
+        if (next != null) { ClearGameHooks(); EnterNode(next); return; }
+        CurrentNode = null;
+        OpenMap();
     }
 
     // Maze level portal → battle Game scene. Snapshot the hub first so return restores it.
@@ -90,6 +153,8 @@ public class GameFlow : MonoBehaviour
         CurrentNode = node;
         winHandled = false;
         winAt = 0f;
+        PlayAnalytics.NodeEnter(node.id);
+        if (node.type == NodeType.Battle) PlayAnalytics.StoreChance(node.id, StoreView.AffordableCount());
 
         switch (node.type)
         {
@@ -99,18 +164,17 @@ public class GameFlow : MonoBehaviour
                 LevelLoader.WaitToAdvance = true;   // GameFlow handles the transition, not LevelLoader
                 LevelLoader.AdvanceNow = false;
                 flow = Flow.Game;
-                SceneManager.LoadScene(GameScene);
+                SceneManager.LoadScene(LevelLayout.SceneFor(node.levelAsset));   // its level scene, else Game
                 break;
 
             case NodeType.Battle:
-                // For now every level is the pig — no other champions.
-                ForcePig();
-                LevelLoader.ScriptedTutorial = true;
+                ApplyChosenCharacter();             // keep the picked champion across levels / restarts
+                LevelLoader.ScriptedTutorial = false;  // battles play as whoever was picked
                 LevelLoader.Requested = node.levelAsset;
                 LevelLoader.WaitToAdvance = true;
                 LevelLoader.AdvanceNow = false;
                 flow = Flow.Game;
-                SceneManager.LoadScene(GameScene);
+                SceneManager.LoadScene(LevelLayout.SceneFor(node.levelAsset));   // its level scene, else Game
                 break;
 
             case NodeType.RolePick:
@@ -139,19 +203,18 @@ public class GameFlow : MonoBehaviour
         MapNode node = CurrentNode;
         if (node != null)
         {
-            // Battles: bank each level's best (player−miner) margin. World-map MONEY =
-            // maze bank (pre-battle eats) + sum of those best margins — never the battle's raw $.
+            // Battles: idempotent wallet credit if SettleWallet somehow skipped (gain 0 when already paid).
             if (node.type == NodeType.Battle)
             {
                 GameManager gm = GameManager.Instance;
                 if (gm != null && gm.PlayerWon)
                 {
+                    MapHub.RefillHp();   // every won level refills the world map's HP
                     int margin = gm.PlayerMoney - gm.MinerMoney;
-                    // One key per map node — recording asset name too would double MapMoney.
-                    ProgressStore.RecordBestMargin(node.id, margin);
+                    // Negative / zero margins must never credit the wallet.
+                    int gain = margin > 0 ? ProgressStore.TryCreditBestMargin(node.id, margin) : 0;
                     Debug.Log("GameFlow: best margin for " + node.id + " = " + margin
-                              + " (margins sum $" + ProgressStore.MapMoney
-                              + ", hub display $" + MazeHubState.DisplayMoney + ")");
+                              + " (credit $" + gain + ", wallet $" + MazeHubState.WalletBalance + ")");
                 }
             }
             // Maze hub stays replayable; do not treat it as a cleared tree node that opens LEVELS.
@@ -167,24 +230,21 @@ public class GameFlow : MonoBehaviour
         OpenMap();
     }
 
-    // Temporary: all map battles use Mr. Hyde only (no role pick).
-    void ForcePig()
-    {
-        ChampionSpawner.Chosen = ChampionSpawner.MrHyde;
-        ProgressStore.SelectedCharacter = ChampionSpawner.MrHyde.ToString();
-        System.Type want = ChampionSpawner.RecordType(ChampionSpawner.MrHyde);
-        if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
-            CrossLevelStatus.StartFresh(want);
-    }
-
     // Make the saved character choice stick. ChampionSpawner.Chosen is a static that is wiped every
     // time Play starts, while the pick lives in ProgressStore (PlayerPrefs). So before any battle we
     // re-seed Chosen from the save, and (re)create the run record if it is missing or the wrong kind
     // (e.g. after a restart). An existing record of the right type is kept so wallet/skills carry on.
     void ApplyChosenCharacter()
     {
-        // Until role pick returns to the map, always the pig.
-        ForcePig();
+        int index = ChampionSpawner.MrHyde;   // 0 = the pig, the default
+        if (ProgressStore.HasPickedCharacter && int.TryParse(ProgressStore.SelectedCharacter, out int picked))
+            index = picked;
+
+        ChampionSpawner.Chosen = index;
+
+        System.Type want = ChampionSpawner.RecordType(index);
+        if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
+            CrossLevelStatus.StartFresh(want);
     }
 
     void ClearGameHooks()
@@ -197,7 +257,7 @@ public class GameFlow : MonoBehaviour
 
     void Update()
     {
-        if (flow != Flow.Game || CurrentNode == null) return;
+        if (flow != Flow.Game || (CurrentNode == null && tutorialStep < 0)) return;
 
         GameManager gm = GameManager.Instance;
         if (gm == null) return;
@@ -209,12 +269,21 @@ public class GameFlow : MonoBehaviour
             return;
         }
         if (!gm.PlayerWon) return;   // a loss stays put; R retries the same level
+        if (TutorialDialogue.Playing) { winHandled = false; return; }   // a story after the win: wait for it
 
         if (!winHandled)
         {
             winHandled = true;
             winAt = Time.unscaledTime + returnDelay;
         }
-        if (Time.unscaledTime >= winAt) CompleteCurrentNode();
+        if (Time.unscaledTime < winAt) return;
+        if (tutorialStep >= 0)
+        {
+            // The tutorial is played on Level 1's layout, but clearing it does not clear Level 1.
+            MapHub.RefillHp();
+            NextTutorial(tutorialStep);
+        }
+        else CompleteCurrentNode();
     }
+
 }

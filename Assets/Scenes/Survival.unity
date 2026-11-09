@@ -130,7 +130,7 @@ GameObject:
   - component: {fileID: 95163535}
   - component: {fileID: 95163534}
   m_Layer: 0
-  m_Name: SurvivalPlaceholder
+  m_Name: SurvivalLoader
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -145,9 +145,26 @@ MonoBehaviour:
   m_GameObject: {fileID: 95163533}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c4e8a1b27d6f4e3a9c0b5d8e1f2a3940, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SurvivalPlaceholder
+  m_Script: {fileID: 11500000, guid: 75265075e2e54e4ca4a26642623bd4b3, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::SurvivalLoader
+  champions:
+  - {fileID: 5925258680730926926, guid: 52a6ed9b3da9c4a269d718c6441dd744, type: 3}
+  - {fileID: 4310000000000000001, guid: 961e788c3a70421298d40ea942b421b6, type: 3}
+  - {fileID: 1000, guid: 956766ce2a4943b0b0d06b4c3b2d99b4, type: 3}
+  - {fileID: 1000, guid: 04c4c7fd42d841e9aebb1e5555478bc7, type: 3}
+  items:
+  - prefab: {fileID: 3699368570777298312, guid: 91900b9bedffd4b4c98ae8c0c16e1ba8, type: 3}
+    weight: 40
+  - prefab: {fileID: 2241667528812766344, guid: 4dd0380e0a3c040d9a9a4351ec4ea3b0, type: 3}
+    weight: 28
+  - prefab: {fileID: 2975636195656694761, guid: e8d4b2b63cd914f47b1a19fa72738d24, type: 3}
+    weight: 14
+  - prefab: {fileID: 1189056177124728266, guid: e2fd3b0a33c654a68b1d6eb0265f03e5, type: 3}
+    weight: 10
+  - prefab: {fileID: 9191124566675381325, guid: 8a849846dfb434d6d803a4ad5edfe73b, type: 3}
+    weight: 3
+  telegraphDot: {fileID: 2884735021096439, guid: 641d9e6a943d041c49d339b94e78b932, type: 3}
 --- !u!4 &95163535
 Transform:
   m_ObjectHideFlags: 0

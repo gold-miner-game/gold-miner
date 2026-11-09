@@ -1,0 +1,14 @@
+# Compact DEN store intro (first visit only). Evil Meowmeow hosts (Enemy UI).
+#   #point_goods  shelf spotlight
+#   #storm_off    host looks crushed, flame, then slides off
+# Choice:  #choice id:Label|id:Label
+# Branch:  #if id … #endif
+0. Welcome to my shelf.
+0. I bet you can't afford a single thing on my shelf. #point_goods
+#choice buy:Buy anyway|skip:Not buying
+#if buy
+0. %$^#&%$&#… #storm_off
+#endif
+#if skip
+0. Ha. Knew it.
+#endif

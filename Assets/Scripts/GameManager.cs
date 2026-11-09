@@ -10,11 +10,21 @@ public class GameManager : MonoBehaviour
     public float roundTime = 90f;
     public int startingLives = 0;         // the hit that takes the last Life ends the round
     public float invincibleTime = 1.5f;   // after losing a Life
+    [Tooltip("Survival mode: no clock and no running out of treasure; only the last Life ends the round")]
+    public bool endless = false;
+    [Tooltip("Survival levels: still alive when the clock runs out is a win (whatever the money), and eating all the treasure doesn't end the round")]
+    public bool timeUpWins = false;
 
     public int PlayerMoney { get; private set; }
+    public float TimeSurvived { get; private set; }   // endless rounds: seconds since the start
     public int MinerMoney { get; private set; }
     public int Lives { get; private set; }
+    // Bonus lives from Brace this round (orange on the HUD / over-head bar).
+    public int BonusLives { get; private set; }
+    // Set on settle when this round beats the level's best (player − miner) margin.
+    public string NewRecordLine { get; private set; }
     public float TimeLeft { get; private set; }
+    public float TimeElapsed => endless ? TimeSurvived : roundTime - TimeLeft;
     public bool IsPlaying { get; private set; }
     public bool PlayerWon { get; private set; }
     public string EndReason { get; private set; }
@@ -39,8 +49,32 @@ public class GameManager : MonoBehaviour
         Instance = this;
         TimeLeft = roundTime;
         Lives = startingLives;
+        BonusLives = 0;
+        NewRecordLine = "";
         IsPlaying = true;
         PlayAnalytics.BeginLevel();
+    }
+
+    public void SetBonusLives(int bonus)
+    {
+        BonusLives = Mathf.Max(0, bonus);
+    }
+
+    // The world map keeps its own HP between visits (MapHub): set it straight
+    public void SetLives(int lives)
+    {
+        Lives = Mathf.Max(1, lives);
+    }
+
+    // LevelLoader sets startingLives after Awake; call this so Lives matches the braced total.
+    public void SyncLivesFromStart()
+    {
+        Lives = startingLives;
+    }
+
+    public void SetNewRecordLine(string line)
+    {
+        NewRecordLine = line ?? "";
     }
 
     void OnDestroy()
@@ -59,23 +93,33 @@ public class GameManager : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.R)) { Restart(); return; }
         if (!IsPlaying) return;
 
+        if (endless)
+        {
+            TimeSurvived += Time.deltaTime;
+            return;
+        }
+
         if (UseRoundTimer)
         {
             TimeLeft -= Time.deltaTime;
             if (TimeLeft <= 0f)
             {
                 TimeLeft = 0f;
-                EndRound(false, "Time's up!");
+                if (timeUpWins) WinRound("You survived!");
+                else EndRound(false, "Time's up!");
                 return;
             }
         }
 
-        if (EndWhenTreasureGone && hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
+        if (EndWhenTreasureGone && !timeUpWins && hadTreasure && Treasure.Active.Count == 0 && Treasure.OnHooks.Count == 0)
             EndRound(false, "All treasure collected!");
     }
 
     public void AddPlayerMoney(int amount) { if (IsPlaying) PlayerMoney += amount; }
     public void AddMinerMoney(int amount)  { if (IsPlaying) MinerMoney += amount; }
+
+    // A fresh money race inside the round (the tutorial's race stage starts and retries with this)
+    public void ResetMoney() { PlayerMoney = 0; MinerMoney = 0; }
 
     // Maze hub restore after returning from a battle (bypasses IsPlaying gate).
     public void RestoreHubTotals(int playerMoney, int lives)
@@ -96,13 +140,42 @@ public class GameManager : MonoBehaviour
         if (!IsPlaying || IsInvincible) return;
 
         // A shield absorbs the hit for its full 5 seconds. The hook still stops.
-        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded()) return;
+        if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded())
+        {
+            PlayAnalytics.ShieldSoaked();
+            return;
+        }
+
+        // The world map (the evil cat's eye miners): a hook costs 1 HP. The last one doesn't end the
+        // run: the player revives at the Pick Character portal with full HP (MapHub)
+        if (MapHub.Active != null)
+        {
+            TutorialEvents.Fire("player_hit");
+            invincibleUntil = Time.time + invincibleTime;
+            if (Lives > 1)
+            {
+                Lives--;
+                if (BonusLives > 0) BonusLives--;
+                TutorialEvents.Fire("life_lost");
+                MapHub.Active.SaveHp(this);
+            }
+            else MapHub.Active.Revive(this);
+            return;
+        }
 
         PlayAnalytics.Death();
+        TutorialEvents.Fire("player_hit");
         if (Lives > 1)
         {
             Lives--;
+            // Brace bonus pips are lost first (orange count drops with the hit).
+            if (BonusLives > 0)
+            {
+                BonusLives--;
+                PlayAnalytics.BraceSpent();
+            }
             invincibleUntil = Time.time + invincibleTime;
+            TutorialEvents.Fire("life_lost");   // still alive (the last Life ends the round instead)
         }
         else
         {
@@ -119,6 +192,15 @@ public class GameManager : MonoBehaviour
         EndReason = reason;
         PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
         RoundMarginLog.Record(this);
+        AnnounceEnd();
+    }
+
+    // Killed outright, whatever the Lives left (the squeeze's presses closing on the player)
+    public void Crush(string reason)
+    {
+        if (!IsPlaying) return;
+        Lives = 0;
+        EndRound(true, reason);
     }
 
     // Win now, whatever the money: for levels with another goal (the block tutorial)
@@ -129,6 +211,14 @@ public class GameManager : MonoBehaviour
         EndReason = reason;
         PlayerWon = true;
         RoundMarginLog.Record(this);
+        AnnounceEnd();
+    }
+
+    // For tutorial steps and stories that start when the round ends (TutorialEvents)
+    void AnnounceEnd()
+    {
+        TutorialEvents.Fire(PlayerWon ? "round_won" : "round_lost");
+        TutorialEvents.Fire("round_end");
     }
 
     public void Restart()

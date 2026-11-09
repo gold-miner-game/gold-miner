@@ -3,7 +3,10 @@ using UnityEngine;
 // Owner: Doeun (UI)
 // Draws the arena only in HUDLayout's gameplay area, so the top bar and sidebar never cover it.
 // The levels are balanced for a 16:9 arena (tools/sim: ARENA_X = 8.89 at ortho size 5), so the
-// camera zooms out until all of it fits instead of cropping the edges
+// camera zooms out until all of it fits instead of cropping the edges.
+// It runs in the editor too, so the Game view shows the arena where it will be, clear of the HUD
+// (laid out for a 16:9 Game view; ScreenFrame isn't running then)
+[ExecuteAlways]
 [RequireComponent(typeof(Camera))]
 public class GameplayCamera : MonoBehaviour
 {
@@ -20,31 +23,80 @@ public class GameplayCamera : MonoBehaviour
             camera.gameObject.AddComponent<GameplayCamera>();
     }
 
-    // Grid tutorial levels are taller/wider than the sim arena; LevelLoader sets this after parse.
+    // A level bigger than the default arena (the world-map hub's maze) widens the view to fit it
     public static void SetArenaSize(Vector2 size)
     {
-        GameplayCamera cam = FindFirstObjectByType<GameplayCamera>();
-        if (cam == null)
-        {
-            Camera main = Camera.main;
-            if (main != null) Ensure(main);
-            cam = FindFirstObjectByType<GameplayCamera>();
-        }
-        if (cam == null) return;
-        cam.arenaSize = size;
-        cam.Fit();
+        Camera main = Camera.main;
+        if (main == null) return;
+        Ensure(main);
+        GameplayCamera fit = main.GetComponent<GameplayCamera>();
+        fit.arenaSize = size;
+        fit.Fit();
+    }
+
+    // A level bigger than the screen (attack mode): the view keeps its size and follows `target`,
+    // never showing past `bounds` (world units)
+    public static void Follow(Transform target, Rect bounds)
+    {
+        Camera main = Camera.main;
+        if (main == null) return;
+        Ensure(main);
+        GameplayCamera fit = main.GetComponent<GameplayCamera>();
+        fit.follow = target;
+        fit.bounds = bounds;
+        fit.Track(true);
+    }
+
+    [Tooltip("Following: higher = the camera keeps up more tightly")]
+    public float followSharpness = 8f;
+
+    private Transform follow;
+    private Rect bounds;
+
+    // Toward the target (at once when snapping), kept inside the bounds
+    void Track(bool snap)
+    {
+        if (follow == null) return;
+        if (cam == null) cam = GetComponent<Camera>();   // Follow can come before this Awake
+        float halfH = cam.orthographicSize;
+        float halfW = halfH * cam.aspect;
+        Vector2 want = follow.position;
+        want.x = bounds.width > halfW * 2f ? Mathf.Clamp(want.x, bounds.xMin + halfW, bounds.xMax - halfW) : bounds.center.x;
+        want.y = bounds.height > halfH * 2f ? Mathf.Clamp(want.y, bounds.yMin + halfH, bounds.yMax - halfH) : bounds.center.y;
+        Vector3 at = transform.position;
+        Vector2 now = snap ? want : Vector2.Lerp(at, want, 1f - Mathf.Exp(-followSharpness * Time.deltaTime));
+        transform.position = new Vector3(now.x, now.y, at.z);
     }
 
     void Awake()
     {
         cam = GetComponent<Camera>();
-        Fit();
+        if (Application.isPlaying) Fit();
+        else FitInEditor();
     }
 
     // The WebGL canvas follows the browser window, so refit whenever the screen size changes
     void LateUpdate()
     {
+        if (!Application.isPlaying) { FitInEditor(); return; }
         if (Screen.width != lastWidth || Screen.height != lastHeight) Fit();
+        Track(false);
+    }
+
+    // Edit mode: the same split of a 16:9 Game view, without reading Screen (in the editor that
+    // can be the Scene view's size)
+    void FitInEditor()
+    {
+        if (cam == null) cam = GetComponent<Camera>();
+        // HUDController sets the split on Awake, which doesn't run in edit mode: read it off the
+        // scene's HUD instead, so a Beta HUD (no sidebar) gets the full width here too
+        HUDController hud = FindFirstObjectByType<HUDController>();
+        HUDLayout.TopBarOnly = hud != null && hud.variant == HUDVariant.Beta;
+        Rect viewport = HUDLayout.GameplayViewport;
+        float aspect = ScreenFrame.Aspect * viewport.width / viewport.height;
+        float size = Mathf.Max(arenaSize.y * 0.5f, arenaSize.x * 0.5f / aspect);
+        if (cam.rect != viewport) cam.rect = viewport;
+        if (!Mathf.Approximately(cam.orthographicSize, size)) cam.orthographicSize = size;
     }
 
     public void Fit()
@@ -53,7 +105,8 @@ public class GameplayCamera : MonoBehaviour
         lastWidth = Screen.width;
         lastHeight = Screen.height;
 
-        Rect viewport = HUDLayout.GameplayViewport;
+        // HUDLayout's split is of the 16:9 frame (ScreenFrame), not of the whole screen
+        Rect viewport = ScreenFrame.ToViewport(HUDLayout.GameplayViewport);
         cam.rect = viewport;
 
         // Big enough for the arena's height, and for its width at this area's aspect

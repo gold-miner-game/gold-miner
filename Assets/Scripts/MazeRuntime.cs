@@ -44,8 +44,13 @@ public class MazeRuntime : MonoBehaviour
     public void RestoreHubIfNeeded()
     {
         MazeHubState.ReadPrefsIfNeeded();
-        if (!MazeHubState.HasSave) return;
-        MazeHubState.ApplyToScene(this, player, GameManager.Instance);
+        if (MazeHubState.HasSave)
+        {
+            MazeHubState.ApplyToScene(this, player, GameManager.Instance);
+            return;
+        }
+        // MapHub path never Captures pose; still push wallet onto GameManager for the MONEY sidebar.
+        MazeHubState.ApplyDisplayMoney(GameManager.Instance);
     }
 
     // Any maze gold/diamond that is missing or destroyed counts as eaten for the hub save.
@@ -178,28 +183,13 @@ public class MazeRuntime : MonoBehaviour
             go.transform.SetParent(transform, false);
             go.transform.position = e.worldPos;
 
-            int cost = e.unlockCost;
-            if (cost <= 0 && GameFlow.Instance != null && GameFlow.Instance.Map != null)
-            {
-                MapNode node = GameFlow.Instance.Map.Find(nodeId);
-                if (node != null) cost = node.unlockCost;
-            }
-            // Defaults when the WorldMap asset has not been retuned yet.
-            // Level 1 maze entry credit is $900; Level 2 map-money unlock is higher.
-            if (cost <= 0 && nodeId == "battle_02") cost = 1500;
-
-            // Level 1 always uses the maze entry credit ($900). Later levels use MapMoney.
-            int mazeCredit = 0;
-            if (nodeId == "battle_01")
-                mazeCredit = data.EntryCredit > 0 ? data.EntryCredit : 900;
+            // unlockCost / entryCredit unused — portals open via ProgressStore completed nodes.
             string prereq = e.requires;
             if (string.IsNullOrEmpty(prereq) && nodeId == "battle_02") prereq = "battle_01";
 
             var portal = go.AddComponent<LevelPortal>();
-            portal.Init(nodeId, cost, mazeCredit, prereq, data.TileSize, this);
-            portal.lockedHint = nodeId == "battle_01"
-                ? "Level 1 needs $900"
-                : "Need more money to unlock";
+            portal.Init(nodeId, 0, 0, prereq, data.TileSize, this);
+            portal.lockedHint = "Clear " + (string.IsNullOrEmpty(prereq) ? "the previous level" : prereq) + " first";
             ById[e.id] = go;
         }
     }
@@ -266,6 +256,9 @@ public class MazeRuntime : MonoBehaviour
             TreasureById.Remove(id);
             ById.Remove(id);
         }
+        // Single currency: maze eats go straight into the store/hub wallet.
+        if (treasure != null && treasure.value != 0)
+            CrossLevelStatus.Ensure().addWallet(treasure.value);
         foreach (MazeTriggerZone zone in zones) zone.OnEatStart(treasure);
     }
 
