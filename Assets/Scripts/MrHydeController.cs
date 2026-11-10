@@ -2,8 +2,8 @@ using UnityEngine;
 
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
-// its skill is the block: Space bounces a hook off, or knocks treasure off a passing hook (it never
-// hits). The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
+// its skill is the block: two quick Space presses bounce a hook off, or knock treasure off a passing
+// hook (it never hits). One Space beside a rope still cuts it. The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
 // enemies with HookHealth (miners, hook holes, Red Rounds and Squares).
 public class MrHydeController : PlayerCharacter
 {
@@ -14,9 +14,10 @@ public class MrHydeController : PlayerCharacter
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
 
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
-    // Rope cut shares Space with block, but only when CanBlock is on for the level
-    public override bool CanCutRope => CanBlock;
-    public override string SkillHint => (CanBlock ? "[Space] cut rope / block tip  " : "") + "[Click] attack";
+    // One Space beside a rope cuts it. The block lesson turns that off so both taps can count.
+    public bool suppressCut;
+    public override bool CanCutRope => CanBlock && !suppressCut;
+    public override string SkillHint => (CanBlock ? "[Space] cut rope   [Space][Space] block   " : "") + "[Click] attack";
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;
@@ -33,10 +34,21 @@ public class MrHydeController : PlayerCharacter
     private float blockUntil;
     private float blockReadyAt;
 
-    // Start a block if the skill is on and off cooldown
+    // Two Space presses this close together (real seconds) start a block. One press only arms it.
+    const float DoubleTapWindow = 0.4f;
+    float armedTap = -1f;
+
+    // Start a block on a quick double tap. A single Space does not block.
     protected override void UseSkill()
     {
-        TryBlock();
+        float now = Time.unscaledTime;
+        if (armedTap >= 0f && now - armedTap <= DoubleTapWindow)
+        {
+            armedTap = -1f;
+            TryBlock();
+            return;
+        }
+        armedTap = now;
     }
 
     // Maze QTEs also call this when Space is pressed during a freeze-frame.
@@ -46,6 +58,12 @@ public class MrHydeController : PlayerCharacter
         blockUntil = Time.time + BlockDuration;
         blockReadyAt = blockUntil + BlockCooldown;
         return true;
+    }
+
+    // The tutorial's scripted hit must not bounce off a block that is still running.
+    public void CancelBlock()
+    {
+        blockUntil = 0f;
     }
 
     protected override void Update()

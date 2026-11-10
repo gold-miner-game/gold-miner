@@ -232,6 +232,88 @@ public class Hook : MonoBehaviour
         state = State.Extending;
     }
 
+    // Tutorial: the rope is already out and still extending. `already` is how far it has traveled.
+    public void BeginExtended(Vector2 from, Vector2 direction, float length, float already, Color shotColor)
+    {
+        Fire(from, direction, length, shotColor);
+        already = Mathf.Clamp(already, 0f, Mathf.Max(0f, length - 0.05f));
+        traveled = already;
+        transform.position = origin + dir * already;
+    }
+
+    // Drop a Hold() so the shot moves again on the next frame.
+    public void ClearHold()
+    {
+        stallUntil = 0f;
+    }
+
+    // Keep this shot reaching toward a point. An idle or returning hook starts outward again
+    // from wherever the head is, instead of snapping back to the miner.
+    public void KeepExtendingToward(Vector2 from, Vector2 point, float extra, Color shotColor)
+    {
+        color = shotColor;
+        if (state == State.Idle)
+        {
+            Vector2 direction = point - from;
+            if (direction.sqrMagnitude < 0.04f) direction = Vector2.down;
+            Fire(from, direction, direction.magnitude + extra, shotColor);
+            return;
+        }
+        if (carried != null) return;
+        traveled = Vector2.Distance(transform.position, origin);
+        state = State.Extending;
+        Vector2 next = point - origin;
+        if (next.sqrMagnitude < 0.04f) next = Vector2.down;
+        dir = next.normalized;
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg - 90f;
+        transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        transform.position = origin + dir * traveled;
+        float need = next.magnitude + extra;
+        if (maxLength < need) maxLength = need;
+        stallUntil = 0f;
+    }
+
+    // Recolor the rope and claw of the shot that is already out.
+    public void Tint(Color fill)
+    {
+        color = fill;
+        UpdateRope();
+        UpdateClaw();
+    }
+
+    // The head stops reaching and the rope winds back to the miner.
+    public void SendHome()
+    {
+        if (state == State.Idle) return;
+        stallUntil = 0f;
+        holdUntil = 0f;
+        if (state == State.Extending) state = State.Retracting;
+    }
+
+    // End the current shot without delivering anything, so a new one can start.
+    public void StopShot()
+    {
+        if (carried != null) DropCarried();
+        carried = null;
+        cut = false;
+        stallUntil = 0f;
+        holdUntil = 0f;
+        reported = false;
+        HitPlayer = false;
+        state = State.Idle;
+        traveled = 0f;
+    }
+
+    // A scripted hit that does not bounce off a block. The tutorial uses this when the head reaches the pig.
+    public void ApplyHit(PlayerCharacter player)
+    {
+        if (player == null || GameManager.Instance == null) return;
+        hitsPig = true;
+        HitPlayer = true;
+        Report("hit");
+        GameManager.Instance.PlayerHit();
+    }
+
     // Hostile miner: black head stays put; the rope and claw switch to this color immediately.
     public void Paint(Color fill)
     {

@@ -29,7 +29,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Select.unity
     guid: 2c5e97c5cdda77d48bcdf67e5adb5db8
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Levels/level_00_eat.unity
     guid: c20d7dfd45e36da448085b1ef6fa67ac
   - enabled: 1

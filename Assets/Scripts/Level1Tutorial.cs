@@ -6,14 +6,15 @@ using UnityEngine.UI;
 
 // Owner: Zhan (Level 1)
 // Level 1's first visit, in the map tutorial's style: the level goes dark except the one spot
-// that matters, with an arrow and one short line beside it. No boxes, no Enter.
-//   1. The pig. "You're the pig."
-//   2. Every gold and the diamond at once, each with its own arrow. Eating gold raises the money.
-//   3. The digest timer: it takes time, and they cannot eat again until it ends.
-//   4. One forced stop, 2 seconds, movement locked: "Stopping slows the hook." After every lesson, stopping shows those words under the pig, with no circle.
-//   5. Walk onto the rope. Arriving shows "Press [space bar] to cut the rope." at once, and it stays up.
-//   6. Both money numbers: get more than the miner. That line stays up for the rest of the level.
-//   7. The life bar over the pig: at 0, they die.
+// that matters, with a flashlight pool, a white arrow above it, and one short line. No boxes, no Enter.
+//   1. Hook, pig, and the biggest gold, top to bottom. "You're the pig."
+//   2. Walk down and eat that gold. The hook extends toward the pig the whole way.
+//   3. The money, then the digest timer.
+//   4. That same hook turns red and hits. One life, then the life bar: at 0, they die.
+//   5. A red hook waits on the pig. Two quick Space presses block it, and the hook bounces off.
+//   6. Walk onto the rope. Arriving shows "Press [space bar] to cut the rope." at once, and it stays up.
+//   7. Both money numbers: get more than the miner. That line stays up for the rest of the level.
+//   After every lesson, stopping shows "Stopping slows the hook." under the pig, with no circle.
 // The evil miner stays hidden here. The same level from the map keeps it.
 public class Level1Tutorial : MonoBehaviour
 {
@@ -39,6 +40,7 @@ public class Level1Tutorial : MonoBehaviour
     Transform arrow;
     TextMeshPro label;
     bool shown;
+    bool flashlight;
     bool slowHintLive;
     Canvas keysCanvas;
     GameObject wasdKeys;
@@ -133,11 +135,12 @@ public class Level1Tutorial : MonoBehaviour
         Running = true;
         darkness = 0.82f;
         HideHunter();
-        miner.autoShoot = false;
+        SetMinersArmed(false);
         miner.hook.hitsPig = false;
         BuildVisuals();
         BuildKeys();
         Vector2 origin = miner.hookOrigin.position;
+        Treasure bigGold = LineUp(origin);
 
         // 1. Who you are. One second, everything else dark. The WASD keys stay in the corner.
         ShowWasd(true);
@@ -145,8 +148,8 @@ public class Level1Tutorial : MonoBehaviour
         Time.timeScale = 1f;
         Prompted();
 
-        // 2. Every gold and the diamond, each with its own arrow. They eat a gold first.
-        yield return UntilGoldEaten();
+        // 2. The big gold is below the pig. The hook lengthens toward them until they eat it.
+        yield return UntilBigGoldEaten(origin, bigGold);
         Acted("eat_gold", true);
         ShowWasd(false);
 
@@ -154,10 +157,15 @@ public class Level1Tutorial : MonoBehaviour
         yield return ShowMoney("Your money goes up.", 2f, "PlayerMoney");
         yield return ShowMoney("Digest takes time.", 2f, "DigestBlock");
 
-        // 3. One forced stop. The hook eases for 2 seconds, then "Go here." starts at once.
-        yield return SlowRope(origin);
+        // 3. The same hook, now red, runs into the pig. Then the life bar.
+        yield return ForceHit(origin);
+        yield return Show(new[] { LifeBarAt() }, 0.55f, "The hook takes a life. At 0, you die.", 2f);
+        Time.timeScale = 1f;
 
-        // 4. Walk to the spot. Arriving opens the cut; cutting opens the eat. No pause between those.
+        // 4. The pig's skill: two quick Space presses bounce the next hook.
+        yield return TeachBlock(origin);
+
+        // 5. Walk to the spot. Arriving opens the cut; cutting opens the eat. No pause between those.
         Treasure prize = TheDiamond() ?? NearestGold(player.transform.position);
         if (prize != null)
         {
@@ -197,12 +205,13 @@ public class Level1Tutorial : MonoBehaviour
 
         keepMoneyLine = true;
         yield return ShowMoney("Get more money than the miner to pass.", 2f, "PlayerMoney", "MinerMoney");
-        yield return Show(new[] { LifeBarAt() }, 0.55f, "At 0, you die.", 2f);
 
         GameManager gm = GameManager.Instance;
         // Gold and the diamond eaten while learning stay in the total. The race continues from there.
         gm.ConfigureTimer(gm.roundTime, gm.UseRoundTimer);
+        miner.hook.hitsPig = true;
         miner.autoShoot = true;
+        SetMinersArmed(true);
         Time.timeScale = 1f;
         Running = false;
         Hide();
@@ -210,34 +219,216 @@ public class Level1Tutorial : MonoBehaviour
         slowHintLive = true;
     }
 
-    // Every gold and the diamond lit at once. Words only on the biggest gold and the diamond.
-    IEnumerator UntilGoldEaten()
+    bool savedGrab = true;
+    bool savedPass;
+    const float FollowGap = 1.55f;
+
+    // Hook on top, the pig under it, the biggest gold under the pig.
+    Treasure LineUp(Vector2 origin)
     {
-        int before = player.Eaten;
-        var items = new List<(Vector2 at, float radius, string text)>();
-        while (player.Eaten == before)
+        Vector2 pig = origin + Vector2.down * 2.8f;
+        for (int i = 0; i < 5 && InsideRock(pig); i++) pig += Vector2.down * 0.4f;
+        PlaceBody(player.gameObject, pig);
+
+        Treasure big = BiggestGold();
+        if (big == null) return null;
+        Vector2 gold = pig + Vector2.down * 2.3f;
+        for (int i = 0; i < 5 && InsideRock(gold); i++) gold += Vector2.down * 0.4f;
+        PlaceBody(big.gameObject, gold);
+        return big;
+    }
+
+    static Treasure BiggestGold()
+    {
+        Treasure big = null;
+        int best = int.MinValue;
+        foreach (Treasure treasure in Treasure.Active)
+        {
+            if (treasure == null || treasure.IsTaken || !treasure.gameObject.activeInHierarchy) continue;
+            if (treasure.type == TreasureType.Diamond) continue;
+            if (big != null && treasure.value <= best) continue;
+            big = treasure;
+            best = treasure.value;
+        }
+        return big;
+    }
+
+    // The big gold stays lit. The hook grows toward the pig and stops just short of them.
+    IEnumerator UntilBigGoldEaten(Vector2 origin, Treasure gold)
+    {
+        savedGrab = miner.hook.grabsTreasure;
+        savedPass = miner.hook.passRocks;
+        miner.hook.hitsPig = false;
+        miner.hook.grabsTreasure = false;
+        miner.hook.passRocks = true;
+        while (gold != null && !gold.IsTaken)
         {
             Time.timeScale = 1f;
-            int biggest = 0;
-            foreach (Treasure treasure in Treasure.Active)
-            {
-                if (treasure == null || treasure.IsTaken || !treasure.gameObject.activeInHierarchy) continue;
-                if (treasure.type == TreasureType.Diamond) continue;
-                if (treasure.value > biggest) biggest = treasure.value;
-            }
-            items.Clear();
-            foreach (Treasure treasure in Treasure.Active)
-            {
-                if (treasure == null || treasure.IsTaken || !treasure.gameObject.activeInHierarchy) continue;
-                bool diamond = treasure.type == TreasureType.Diamond;
-                string text = diamond ? "Eat the diamond."
-                    : treasure.value == biggest && biggest > 0 ? "Eat the gold." : "";
-                items.Add((treasure.transform.position, diamond ? 0.7f : 0.6f, text));
-            }
-            if (items.Count > 0) Mark(items, true);
+            SteerHook(origin, false);
+            Point(gold.transform.position, 0.7f, "Eat the gold.", true);
             yield return null;
         }
+        if (miner.hook != null && miner.hook.IsBusy) miner.hook.Hold(0.3f);
         Hide();
+    }
+
+    // extra false: stay a short gap above the pig. extra true: the red shot is allowed to reach them.
+    void SteerHook(Vector2 origin, bool strike)
+    {
+        Hook hook = miner.hook;
+        if (hook == null) return;
+        Vector2 body = BodyCenter();
+        hook.KeepExtendingToward(origin, body, 2f, strike ? miner.playerColor : miner.treasureColor);
+        if (!strike && Vector2.Distance(hook.transform.position, body) < FollowGap)
+            hook.Hold(0.25f);
+    }
+
+    static void PlaceBody(GameObject go, Vector2 at)
+    {
+        go.transform.position = at;
+        Rigidbody2D body = go.GetComponent<Rigidbody2D>();
+        if (body == null) return;
+        body.position = at;
+        body.linearVelocity = Vector2.zero;
+    }
+
+    // The hook that followed the pig turns red and finishes the trip. The pig stays where they ate.
+    IEnumerator ForceHit(Vector2 origin)
+    {
+        TimeMovesWithPlayer pace = FindFirstObjectByType<TimeMovesWithPlayer>();
+        if (pace != null) pace.enabled = false;
+        if (hyde != null) hyde.CancelBlock();
+        LockMovement();
+        Time.timeScale = 1f;
+
+        Hook hook = miner.hook;
+        int lives = GameManager.Instance.Lives;
+        float savedExtend = hook.extendSpeed;
+        hook.hitsPig = true;
+        hook.grabsTreasure = false;
+        hook.passRocks = true;
+        hook.extendSpeed = 4f;
+        hook.AimedAtPlayer = true;
+        hook.ClearHold();
+
+        bool applied = false;
+        float safety = Time.unscaledTime + 4f;
+        while (GameManager.Instance.Lives >= lives && Time.unscaledTime < safety)
+        {
+            Time.timeScale = 1f;
+            HoldStill();
+            if (hyde != null) hyde.CancelBlock();
+            SteerHook(origin, true);
+            Point(player.transform.position, 0.9f, "The hook takes a life.", true);
+            if (!applied && Vector2.Distance(hook.transform.position, BodyCenter()) < 0.5f)
+            {
+                hook.ApplyHit(player);
+                applied = true;
+            }
+            yield return null;
+        }
+        if (!applied && GameManager.Instance.Lives >= lives)
+            hook.ApplyHit(player);
+
+        float show = Time.unscaledTime + 0.8f;
+        while (Time.unscaledTime < show)
+        {
+            Time.timeScale = 1f;
+            HoldStill();
+            hook.Hold(0.2f);
+            Point(player.transform.position, 0.9f, "The hook takes a life.", true);
+            yield return null;
+        }
+        hook.ClearHold();
+        hook.SendHome();
+
+        safety = Time.unscaledTime + 2.5f;
+        while (hook.IsBusy && Time.unscaledTime < safety)
+        {
+            HoldStill();
+            yield return null;
+        }
+        if (hook.IsBusy) hook.StopShot();
+        // Stay harmless through the cut lesson. Run turns hits back on when the lessons end.
+        hook.hitsPig = false;
+        hook.grabsTreasure = savedGrab;
+        hook.passRocks = savedPass;
+        hook.extendSpeed = savedExtend;
+        UnlockMovement();
+        if (pace != null) pace.enabled = true;
+        Time.timeScale = 1f;
+        Hide();
+    }
+
+    // A red hook stops just short of the pig. Two quick Space presses block, and it bounces.
+    // A miss does not cost a life. One Space cannot cut this rope, or the first tap would cut it.
+    IEnumerator TeachBlock(Vector2 origin)
+    {
+        if (hyde == null || miner.hook == null) yield break;
+        hyde.canBlock = true;
+        if (PlayerCharacter.Record != null) PlayerCharacter.Record.setCanBlock(true);
+        hyde.suppressCut = true;
+        hyde.CancelBlock();
+
+        TimeMovesWithPlayer pace = FindFirstObjectByType<TimeMovesWithPlayer>();
+        if (pace != null) pace.enabled = false;
+        LockMovement();
+        Time.timeScale = 1f;
+
+        Hook hook = miner.hook;
+        float savedExtend = hook.extendSpeed;
+        hook.hitsPig = false;
+        hook.grabsTreasure = false;
+        hook.passRocks = true;
+        hook.extendSpeed = 7f;
+        hook.AimedAtPlayer = true;
+
+        int blocked = player.HooksBlocked;
+        Prompted();
+        while (player.HooksBlocked == blocked)
+        {
+            Time.timeScale = 1f;
+            HoldStill();
+            Vector2 body = BodyCenter();
+            hook.KeepExtendingToward(origin, body, 1.2f, miner.playerColor);
+            if (hyde.IsBlocking) hook.ClearHold();
+            else if (Vector2.Distance(hook.transform.position, body) < FollowGap) hook.Hold(0.2f);
+            Point(player.transform.position, 0.9f, "Tap space twice quickly to block.", true);
+            yield return null;
+        }
+        Acted("block", true);
+
+        float until = Time.unscaledTime + 1.2f;
+        while (Time.unscaledTime < until)
+        {
+            Time.timeScale = 1f;
+            HoldStill();
+            Point(player.transform.position, 0.9f, "The hook bounces off.", true);
+            yield return null;
+        }
+        hook.SendHome();
+        float safety = Time.unscaledTime + 2.5f;
+        while (hook.IsBusy && Time.unscaledTime < safety)
+        {
+            HoldStill();
+            yield return null;
+        }
+        if (hook.IsBusy) hook.StopShot();
+        hook.hitsPig = false;
+        hook.grabsTreasure = savedGrab;
+        hook.passRocks = savedPass;
+        hook.extendSpeed = savedExtend;
+        hyde.suppressCut = false;
+        UnlockMovement();
+        if (pace != null) pace.enabled = true;
+        Time.timeScale = 1f;
+        Hide();
+    }
+
+    Vector2 BodyCenter()
+    {
+        Collider2D body = player.GetComponent<Collider2D>();
+        return body != null ? (Vector2)body.bounds.center : (Vector2)player.transform.position;
     }
 
     float promptAt;
@@ -394,49 +585,6 @@ public class Level1Tutorial : MonoBehaviour
         }
     }
 
-    // Once: the player is locked still and the hook eases for 2 seconds, with the circled hint.
-    // The rope is home again before "Go here.", and it does not take the gold. Later stops show the words only.
-    IEnumerator SlowRope(Vector2 origin)
-    {
-        TimeMovesWithPlayer pace = FindFirstObjectByType<TimeMovesWithPlayer>();
-        if (pace != null) pace.enabled = false;
-        float slow = pace != null ? pace.stillScale : 0.06f;
-        LockMovement();
-
-        bool savedGrab = miner.hook.grabsTreasure;
-        miner.hook.grabsTreasure = false;
-        FireNow(origin + Vector2.down * 8f, false);
-        float until = Time.unscaledTime + 2f;
-        while (Time.unscaledTime < until)
-        {
-            Time.timeScale = slow;
-            HoldStill();
-            Point(player.transform.position, 0.9f, "Stopping slows the hook.", true);
-            yield return null;
-        }
-
-        // Home in a flash, so the walk is not waiting on this rope, and the gold is still there to cut.
-        float savedExtend = miner.hook.extendSpeed;
-        float savedRetract = miner.hook.retractSpeed;
-        miner.hook.extendSpeed = 400f;
-        miner.hook.retractSpeed = 400f;
-        Time.timeScale = 1f;
-        float safety = Time.unscaledTime + 0.4f;
-        while (miner.hook.IsBusy && Time.unscaledTime < safety)
-        {
-            HoldStill();
-            yield return null;
-        }
-        miner.hook.extendSpeed = savedExtend;
-        miner.hook.retractSpeed = savedRetract;
-        miner.hook.grabsTreasure = savedGrab;
-
-        UnlockMovement();
-        Time.timeScale = 1f;
-        if (pace != null) pace.enabled = true;
-        Hide();
-    }
-
     bool movementLocked;
     float savedMoveSpeed;
     Rigidbody2D lockedBody;
@@ -473,18 +621,6 @@ public class Level1Tutorial : MonoBehaviour
             lockedBody.linearVelocity = Vector2.zero;
         }
         movementLocked = false;
-    }
-
-    // Grabs on the same frame. telegraphMin is read before the first yield, so 0 means no windup.
-    void FireNow(Vector2 target, bool atPlayer, float windup = 0f)
-    {
-        float min = miner.telegraphMin;
-        float max = miner.telegraphMax;
-        miner.telegraphMin = windup;
-        miner.telegraphMax = windup;
-        StartCoroutine(miner.FireScripted(target, atPlayer));
-        miner.telegraphMin = min;
-        miner.telegraphMax = max;
     }
 
     // A gold already lying in the level, the nearest one the player can walk to
@@ -542,12 +678,25 @@ public class Level1Tutorial : MonoBehaviour
         }
     }
 
-    static MinerAI GoldMiner()
+    static void SetMinersArmed(bool armed)
     {
         foreach (MinerAI m in FindObjectsByType<MinerAI>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
-            if (!m.huntPigOnly && m.hook != null && m.hookOrigin != null && m.hook.gameObject.activeInHierarchy)
-                return m;
-        return null;
+            if (!m.huntPigOnly) m.autoShoot = armed;
+    }
+
+    static MinerAI GoldMiner()
+    {
+        MinerAI best = null;
+        float bestY = float.NegativeInfinity;
+        foreach (MinerAI m in FindObjectsByType<MinerAI>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        {
+            if (m.huntPigOnly || m.hook == null || m.hookOrigin == null || !m.hook.gameObject.activeInHierarchy) continue;
+            float y = m.hookOrigin.position.y;
+            if (best != null && y <= bestY) continue;
+            best = m;
+            bestY = y;
+        }
+        return best;
     }
 
     void Point(Vector2 at, float radius, string text, bool darken)
@@ -565,7 +714,7 @@ public class Level1Tutorial : MonoBehaviour
         Mark(items, true);
     }
 
-    // A hole, a ring, and (when it has words) an arrow and a line, on every spot at once.
+    // A flashlight pool on every spot. Words get a white arrow above the pool and a line beside it.
     void Mark(IList<(Vector2 at, float radius, string text)> items, bool darken)
     {
         shown = true;
@@ -576,8 +725,8 @@ public class Level1Tutorial : MonoBehaviour
             Callout mark = callouts[i];
             bool on = i < items.Count;
             mark.used = on;
-            mark.hole.enabled = on;
-            mark.ring.enabled = on;
+            mark.hole.enabled = on && !flashlight;
+            mark.ring.enabled = false;
             if (!on)
             {
                 mark.arrow.gameObject.SetActive(false);
@@ -589,14 +738,30 @@ public class Level1Tutorial : MonoBehaviour
             mark.text = items[i].text ?? "";
             mark.hole.transform.position = mark.at;
             mark.hole.transform.localScale = Vector3.one * mark.radius * 2f;
-            mark.ring.transform.position = mark.at;
-            mark.ring.transform.localScale = Vector3.one * mark.radius * 2.2f;
             bool words = mark.text.Length > 0;
             mark.arrow.gameObject.SetActive(words);
             mark.label.gameObject.SetActive(words);
             if (words) mark.label.text = mark.text;
         }
+        PushFlashlight();
         PlaceCallouts();
+    }
+
+    readonly Vector4[] flashlightSpots = new Vector4[8];
+
+    // One soft pool per lit spot. The dark sprite's own color is the shadow; the shader cuts the light out of it.
+    void PushFlashlight()
+    {
+        if (!flashlight || dark == null) return;
+        int count = 0;
+        foreach (Callout mark in callouts)
+        {
+            if (!mark.used || count >= flashlightSpots.Length) continue;
+            flashlightSpots[count++] = new Vector4(mark.at.x, mark.at.y, mark.radius, 0f);
+        }
+        for (int i = count; i < flashlightSpots.Length; i++) flashlightSpots[i] = Vector4.zero;
+        dark.material.SetFloat("_Count", count);
+        dark.material.SetVectorArray("_Spots", flashlightSpots);
     }
 
     Callout MakeCallout()
@@ -610,14 +775,15 @@ public class Level1Tutorial : MonoBehaviour
         ringGo.transform.SetParent(transform, false);
         SpriteRenderer extra = ringGo.AddComponent<SpriteRenderer>();
         extra.sprite = ring.sprite;
-        extra.color = markColor;
+        extra.color = Color.white;
         extra.sortingOrder = 110;
+        extra.enabled = false;
 
         var arrowGo = new GameObject("TutorialArrow");
         arrowGo.transform.SetParent(transform, false);
         SpriteRenderer arrowRenderer = arrowGo.AddComponent<SpriteRenderer>();
         arrowRenderer.sprite = arrow.GetComponent<SpriteRenderer>().sprite;
-        arrowRenderer.color = markColor;
+        arrowRenderer.color = Color.white;
         arrowRenderer.sortingOrder = 111;
         arrowGo.transform.localScale = Vector3.one * 0.9f;
 
@@ -671,62 +837,27 @@ public class Level1Tutorial : MonoBehaviour
     void PlaceOne(Callout mark)
     {
         TextMeshPro words = mark.label;
+        words.alignment = TextAlignmentOptions.MidlineLeft;
         words.rectTransform.pivot = new Vector2(0.5f, 0.5f);
         Vector2 textSize = words.GetPreferredValues(words.text, MaxTextWidth, 0f);
         textSize.x = Mathf.Clamp(textSize.x + 0.2f, 0.6f, MaxTextWidth);
         textSize.y = Mathf.Max(0.45f, textSize.y);
         words.rectTransform.sizeDelta = textSize;
 
-        float radius = mark.radius;
+        // White arrow just above the pool, pointing down. The line sits to its right.
+        const float arrowScale = 1.05f;
+        mark.arrow.localScale = Vector3.one * arrowScale;
+        mark.arrow.rotation = Quaternion.identity;
+        Vector2 arrowAt = mark.at + Vector2.up * (mark.radius + 0.55f);
+        mark.arrow.position = arrowAt;
+
         Rect view = CameraView();
-        float reach = radius + 0.55f + textSize.x * 0.5f;
-        Vector2 left = mark.at + Vector2.left * reach;
-        Vector2 right = mark.at + Vector2.right * reach;
-        float leftCost = SideCost(left, view, radius, textSize, mark.at);
-        float rightCost = SideCost(right, view, radius, textSize, mark.at);
-        Vector2 side = rightCost < leftCost ? right : left;
-        if (Mathf.Abs(leftCost - rightCost) < 1f && player != null)
-            side = player.transform.position.x > mark.at.x ? left : right;
-        side = KeepClear(side, view, radius, textSize, mark.at);
+        Vector2 side = arrowAt + new Vector2(0.42f + textSize.x * 0.5f, 0.16f);
+        side = KeepClear(side, view, mark.radius, textSize, mark.at);
         words.transform.position = side;
-
-        Vector2 toCircle = mark.at - side;
-        if (toCircle.sqrMagnitude < 0.0001f) toCircle = Vector2.left;
-        float gap = Mathf.Clamp(textSize.x * 0.5f + 0.35f, 0.35f, Mathf.Max(0.35f, toCircle.magnitude - radius - 0.2f));
-        Vector2 at = side + toCircle.normalized * gap;
-        mark.arrow.position = at;
-        mark.arrow.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(toCircle.y, toCircle.x) * Mathf.Rad2Deg);
     }
 
-    // Off screen, on the ring, on the pig, on another line, or on a piece of gold all cost. Lower is better.
-    float SideCost(Vector2 center, Rect view, float radius, Vector2 textSize, Vector2 point)
-    {
-        Rect box = TextBox(center, textSize);
-        const float edge = 0.3f;
-        float cost = 0f;
-        if (box.xMin < view.xMin + edge) cost += (view.xMin + edge - box.xMin) * 8f;
-        if (box.xMax > view.xMax - edge) cost += (box.xMax - (view.xMax - edge)) * 8f;
-        if (box.yMin < view.yMin + edge) cost += (view.yMin + edge - box.yMin) * 8f;
-        if (box.yMax > view.yMax - edge) cost += (box.yMax - (view.yMax - edge)) * 8f;
-        if (Hits(box, point, radius + 0.2f)) cost += 50f;
-        if (player != null && Hits(box, player.transform.position, 0.8f)) cost += 30f;
-        foreach (Rect block in taken)
-            if (box.Overlaps(block)) cost += 80f;
-        foreach (Callout other in callouts)
-        {
-            if (!other.used || (other.at - point).sqrMagnitude < 0.01f) continue;
-            if (Hits(box, other.at, other.radius + 0.15f)) cost += 25f;
-        }
-        foreach (Treasure treasure in Treasure.Active)
-        {
-            if (treasure == null || !treasure.gameObject.activeInHierarchy) continue;
-            if (Vector2.Distance(treasure.transform.position, point) < radius + 0.25f) continue;
-            if (Hits(box, treasure.transform.position, 0.5f)) cost += 15f;
-        }
-        return cost;
-    }
-
-    // Stay inside the camera, and slide up or down only as far as it takes to clear the ring, the pig and other lines.
+    // Stay inside the camera, and slide only as far as it takes to clear the light, the pig and other lines.
     Vector2 KeepClear(Vector2 center, Rect view, float radius, Vector2 textSize, Vector2 point)
     {
         const float edge = 0.3f;
@@ -796,9 +927,18 @@ public class Level1Tutorial : MonoBehaviour
         darkGo.transform.localScale = new Vector3(60f, 40f, 1f);
         dark = darkGo.AddComponent<SpriteRenderer>();
         dark.sprite = MakeSprite(4, (x, y) => 1f);
-        dark.color = new Color(0f, 0f, 0f, darkness);
+        dark.color = Color.white;
         dark.sortingOrder = 100;
-        dark.maskInteraction = SpriteMaskInteraction.VisibleOutsideMask;
+        Shader shade = Resources.Load<Shader>("Shaders/TutorialFlashlight");
+        flashlight = shade != null;
+        if (flashlight)
+        {
+            var cover = new Material(shade);
+            cover.SetFloat("_Darkness", darkness);
+            dark.material = cover;
+            dark.maskInteraction = SpriteMaskInteraction.None;
+        }
+        else dark.maskInteraction = SpriteMaskInteraction.VisibleOutsideMask;
         dark.enabled = false;
 
         var holeGo = new GameObject("TutorialHole");
@@ -814,7 +954,7 @@ public class Level1Tutorial : MonoBehaviour
             float r = Mathf.Sqrt(x * x + y * y);
             return r <= 1f && r >= 0.86f ? 1f : 0f;
         });
-        ring.color = markColor;
+        ring.color = Color.white;
         ring.sortingOrder = 110;
         ring.enabled = false;
 
@@ -823,10 +963,12 @@ public class Level1Tutorial : MonoBehaviour
         var arrowRenderer = arrowGo.AddComponent<SpriteRenderer>();
         arrowRenderer.sprite = MakeSprite(64, (x, y) =>
         {
-            float tip = (x + 1f) * 0.5f;
-            return x > -0.9f && Mathf.Abs(y) <= Mathf.Lerp(0.42f, 0.02f, tip) ? 1f : 0f;
+            bool shaft = y > -0.05f && y < 0.95f && Mathf.Abs(x) < 0.16f;
+            float t = Mathf.InverseLerp(-0.02f, -0.98f, y);
+            bool head = y <= -0.02f && y > -0.98f && Mathf.Abs(x) < Mathf.Lerp(0.46f, 0.02f, t);
+            return shaft || head ? 1f : 0f;
         });
-        arrowRenderer.color = markColor;
+        arrowRenderer.color = Color.white;
         arrowRenderer.sortingOrder = 111;
         arrow = arrowGo.transform;
         arrow.localScale = Vector3.one * 0.9f;
