@@ -46,7 +46,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     // A timed block (Mr. Hyde's Space) or the brace item, which blocks for the whole level
     public virtual bool IsBlocking => Record != null && Record.isBracing();
 
-    // Space beside a rope can cut it (Mr. Hyde, JK. Rolling). Tip Space still uses UseSkill.
+    // J beside a rope can cut it (Mr. Hyde, JK. Rolling). Tip Space still uses UseSkill.
     public virtual bool CanCutRope => false;
 
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
@@ -326,11 +326,9 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         MoveInput = input;
 
-        // Beside a rope: cut only (no lasting skill). At the tip / elsewhere: character skill.
-        if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame && IsPlaying)
-        {
-            if (!(CanCutRope && Hook.TrySpaceCut(this))) UseSkill();
-        }
+        // Space: the character's skill (block, roll, ...). J (j or J, it is one key): cut a rope beside the player
+        if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame && IsPlaying) UseSkill();
+        if (keyboard != null && keyboard.jKey.wasPressedThisFrame && IsPlaying && CanCutRope) Hook.TrySpaceCut(this);
 
         // Flip only when the horizontal direction changes; keep facing when moving vertically
         if (!FlipsWhenTurning) return;

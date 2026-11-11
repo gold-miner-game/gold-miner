@@ -12,7 +12,7 @@ using UnityEngine.UI;
 //   3. The money, then the digest timer.
 //   4. That same hook turns red and hits. One life, then the life bar: at 0, they die.
 //   5. A red hook waits on the pig. Two quick Space presses block it, and the hook bounces off.
-//   6. Walk onto the rope. Arriving shows "Press [space bar] to cut the rope." at once, and it stays up.
+//   6. Walk onto the rope. Arriving shows "Press [J] to cut the rope." at once, and it stays up.
 //   7. Both money numbers: get more than the miner. That line stays up for the rest of the level.
 //   After every lesson, stopping shows "Stopping slows the hook." under the pig, with no circle.
 // The evil miner stays hidden here. The same level from the map keeps it.
@@ -989,7 +989,7 @@ public class Level1Tutorial : MonoBehaviour
         callouts.Add(new Callout { hole = hole, ring = ring, arrow = arrow, label = label });
     }
 
-    // WASD in the corner, and "Press [space bar] to cut the rope." fixed at the top so it stays put.
+    // WASD in the corner, and "Press [J] to cut the rope." fixed at the top so it stays put.
     void BuildKeys()
     {
         var root = new GameObject("TutorialKeys", typeof(RectTransform), typeof(Canvas));
@@ -1032,7 +1032,7 @@ public class Level1Tutorial : MonoBehaviour
         cap.sprite = KeyCap();
         cap.color = Color.white;
         cap.raycastTarget = false;
-        Caption(barRect, "space", Vector2.zero, new Vector2(156f, 40f), new Vector2(0.5f, 0.5f), 22f,
+        Caption(barRect, "J", Vector2.zero, new Vector2(156f, 40f), new Vector2(0.5f, 0.5f), 22f,
             new Color(0.16f, 0.13f, 0.1f));
         Caption(line, "to cut the rope.", new Vector2(-16f, 0f), new Vector2(380f, 52f), new Vector2(0f, 0.5f));
         cutLine.SetActive(false);

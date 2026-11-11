@@ -44,7 +44,7 @@ public class CatController : PlayerCharacter
     // After a roll, until Space works again
     public bool IsTired => !IsRolling && CooldownRemaining > 0f;
     public override bool CanCutRope => true;
-    public override string SkillHint => "[Space] cut rope / roll";
+    public override string SkillHint => "[Space] roll  [J] cut rope";
     public override bool SkillActive => IsRolling;
     public override float SkillReadyIn => CooldownRemaining;
     public override float SkillWait => RollDuration + RollCooldown;

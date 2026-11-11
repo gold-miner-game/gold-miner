@@ -40,9 +40,7 @@ public class Hook : MonoBehaviour
     public float clawCloseSpeed = 10f;   // how fast it opens/closes
 
     [Header("Cut")]
-    public float cutReach = 0.3f;     // a cutting character this close to the rope can cut it
-    [Tooltip("Space this close to the hook tip uses the character skill instead of a rope cut")]
-    public float tipSkillReach = 0.55f;
+    public float cutReach = 0.5f;     // a cutting character this close to the rope (from its body's edge) can cut it
     public float cutFadeTime = 0.8f;  // seconds the claw's half takes to fade out
 
     public bool IsBusy => state != State.Idle;
@@ -144,8 +142,8 @@ public class Hook : MonoBehaviour
         rope = clawLeft = clawRight = null;
     }
 
-    // Space beside the rope (not at the tip): cut immediately without starting a character skill.
-    // Returns true when a rope was cut so the player should not also UseSkill this press.
+    // J beside the rope (not at the tip): cut it. (Space is the character skill only)
+    // Returns true when a rope was cut.
     public static bool TrySpaceCut(PlayerCharacter player)
     {
         if (player == null || !player.CanCutRope) return false;
@@ -172,16 +170,8 @@ public class Hook : MonoBehaviour
         Vector2 onRope = ClosestOnRope(probe);
         if ((probe - onRope).sqrMagnitude > cutReach * cutReach) return false;
 
-        // At the tip: leave Space for block / roll / other skills
-        Vector2 tipProbe = body != null ? body.ClosestPoint(tip) : centre;
-        if ((tipProbe - tip).sqrMagnitude <= tipSkillReach * tipSkillReach) return false;
-
-        // Behind the tip along the rope (same slice half as CutAlongRope)
-        Vector2 toPlayer = centre - tip;
-        float facing = toPlayer.sqrMagnitude < 0.0001f ? 0f : Vector2.Dot(delta / length, toPlayer.normalized);
-        if (facing >= BothBand) return false;
-
-        if (body != null && !touched.Add(body)) return false;
+        // Anywhere along it counts, the tip too, on the way out or back. (J is only the cut, so nothing
+        // else needs that key near the tip; the `cut` flag stops a second cut of the same rope)
 
         Defended = true;
         if (carried != null)
@@ -406,8 +396,8 @@ public class Hook : MonoBehaviour
         float remaining = Vector2.Distance(pos, origin);
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
 
-        // An empty hook still reacts to what it touches on the way back. A carrying hook ignores
-        // everything except a blocking pig, which cuts the rope. A cut rope's stub touches nothing
+        // An empty hook still catches treasure on the way back. A carrying hook ignores everything except
+        // a blocking pig, which cuts the rope. Neither hurts the player while retracting. A cut rope's stub touches nothing
         if (react && !cut && remaining > 0.0001f)
         {
             Vector2 back = (origin - pos) / remaining;
@@ -425,15 +415,10 @@ public class Hook : MonoBehaviour
                         CutRope(ClosestOnRope(player.transform.position), player);
                         return;
                     }
-                    else if (player != null && hitsPig && !player.IsInvulnerable
-                        && touched.Add(hit.collider) && GameManager.Instance != null)
-                    {
-                        // A hook that is already holding gold still hurts a pig who is not blocking.
-                        Report("hit");
-                        GameManager.Instance.PlayerHit();
-                    }
                     continue;
                 }
+                // On the way back it never hurts the player (empty or carrying): only treasure is caught
+                if (hit.collider.GetComponent<PlayerCharacter>() != null) continue;
                 HandleHit(hit.collider);
                 if (carried != null) { HoldInClaw(); break; }
             }
@@ -460,7 +445,7 @@ public class Hook : MonoBehaviour
     }
 
     // While a character is actively blocking (tip Space / brace), contact along the rope or head
-    // still resolves here. Rope-only Space cuts go through TrySpaceCut instead, so they do not
+    // still resolves here. Rope-only J cuts go through TrySpaceCut instead, so they do not
     // open a lasting IsBlocking window. a·b > 0 blocks at the tip; a·b < 0 cuts beside the rope.
     bool CutAlongRope()
     {
@@ -476,7 +461,7 @@ public class Hook : MonoBehaviour
             if (hit.collider == null) continue;
             if (hit.collider.transform.IsChildOf(transform)) continue;
             PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
-            // Lasting block only — rope-only cuts are handled on the Space press via TrySpaceCut
+            // Lasting block only — rope-only cuts are handled on the J press via TrySpaceCut
             if (player == null || !player.IsBlocking) continue;
             if (!touched.Add(hit.collider)) continue;
 

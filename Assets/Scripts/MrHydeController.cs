@@ -3,7 +3,7 @@ using UnityEngine;
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
 // its skill is the block: two quick Space presses bounce a hook off, or knock treasure off a passing
-// hook (it never hits). One Space beside a rope still cuts it. The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
+// hook (it never hits). J beside a rope cuts it. The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
 // enemies with HookHealth (miners, hook holes, Red Rounds and Squares).
 public class MrHydeController : PlayerCharacter
 {
@@ -14,10 +14,10 @@ public class MrHydeController : PlayerCharacter
     public Color blockTint = new Color(0.45f, 0.75f, 1f);
 
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
-    // One Space beside a rope cuts it. The block lesson turns that off so both taps can count.
+    // J beside a rope cuts it. A lesson can turn that off (suppressCut).
     public bool suppressCut;
     public override bool CanCutRope => CanBlock && !suppressCut;
-    public override string SkillHint => (CanBlock ? "[Space] cut rope   [Space][Space] block   " : "") + "[Click] attack";
+    public override string SkillHint => (CanBlock ? "[Space][Space] block   [J] cut rope   " : "") + "[Click] attack";
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;
