@@ -7,18 +7,21 @@ using UnityEngine.InputSystem;
 // Owner: Butian (skill unlocks)
 // The summary after winning a level whose file says "unlock_block": 1 (Level 2 on the world map). It
 // hands Mr. Hyde his block for the levels after it:
-//   the screen darkens over the level, and a big copy of the pig shows with a few words about the skill;
-//   a red hook shoots at him and stops just short; "Press K to block" pulses until K is pressed;
+//   the screen darkens over the level, and a big copy of the pig shows under "NEW SKILL: BLOCK";
+//   a red hook shoots at him and stops just short; "Press K" pulses until K is pressed;
 //   then the pig turns blue and bobs, the block's white flash shows on his head and the hook snaps
 //   back (the Select scene's Block preview, SkillPreview), and the unlock is saved.
 // Until then CanBlock stays off in world map battles (MrHydeController). It only plays while the block
-// is still locked; ResetUnlock (or resetting all progress) makes it play again.
+// is still locked (unless PlayEveryTime, on for now); ResetUnlock (or resetting all progress) makes it play again.
 // LevelLoader adds it; GameFlow and LevelLoader wait while Playing before leaving the level.
 public class SkillUnlockSummary : MonoBehaviour
 {
     public const string BlockUnlockId = "skill_block";   // saved with the cleared nodes (ProgressStore)
     public static bool BlockUnlocked => ProgressStore.IsCompleted(BlockUnlockId);
     public static bool Playing { get; private set; }
+    // For now it plays on every win of the level, not only while the block is still locked. Set false to
+    // play it once (the first win), as the unlock moment
+    public static bool PlayEveryTime = true;
 
     public PlayerCharacter player;
     [Tooltip("Seconds the win result shows before the summary starts")]
@@ -47,7 +50,7 @@ public class SkillUnlockSummary : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm == null || gm.IsPlaying || !gm.PlayerWon) return;
         started = true;
-        if (BlockUnlocked) return;   // already handed over on an earlier win
+        if (BlockUnlocked && !PlayEveryTime) return;   // already handed over on an earlier win
         Playing = true;
         StartCoroutine(Run());
     }
@@ -78,10 +81,8 @@ public class SkillUnlockSummary : MonoBehaviour
         Transform pig = CopyPig(root, c + new Vector3(0f, -0.12f * h, 0f), h * 0.42f, out SpriteRenderer pigBody, out Bounds pigBox);
         Vector3 pigRest = pig != null ? pig.localScale : Vector3.one;
 
-        TextMeshPro title = Text(root, "NEW SKILL: BLOCK", c + new Vector3(0f, 0.74f * h, 0f), h * 1.5f, new Color(1f, 0.85f, 0.3f), w * 1.8f);
-        TextMeshPro intro = Text(root, "Mr. Hyde can block. A hook that reaches him while he blocks\nbounces back empty, and gold on a passing hook is knocked off.",
-                                 c + new Vector3(0f, 0.5f * h, 0f), h * 0.62f, Color.white, w * 1.8f);
-        TextMeshPro prompt = Text(root, "Press  <color=#FFD84D>K</color>  to block", c + new Vector3(0f, -0.66f * h, 0f), h * 0.95f, Color.white, w * 1.8f);
+        TextMeshPro title = Text(root, "NEW SKILL: BLOCK", c + new Vector3(0f, 0.62f * h, 0f), h * 1.5f, new Color(1f, 0.85f, 0.3f), w * 1.8f);
+        TextMeshPro prompt = Text(root, "Press  <color=#FFD84D>K</color>", c + new Vector3(0f, -0.66f * h, 0f), h * 0.95f, Color.white, w * 1.8f);
         SetAlpha(prompt, 0f);
 
         // Fade in
@@ -89,12 +90,12 @@ public class SkillUnlockSummary : MonoBehaviour
         {
             float a = t / 0.4f;
             dark.color = new Color(0f, 0f, 0f, 0.88f * a);
-            SetAlpha(title, a); SetAlpha(intro, a);
+            SetAlpha(title, a);
             SetPigAlpha(pig, a);
             yield return null;
         }
         dark.color = new Color(0f, 0f, 0f, 0.88f);
-        SetAlpha(title, 1f); SetAlpha(intro, 1f); SetPigAlpha(pig, 1f);
+        SetAlpha(title, 1f); SetPigAlpha(pig, 1f);
         yield return Wait(0.4f);
 
         // The hook shoots in from the top right and stops just short of the pig's head
@@ -150,16 +151,14 @@ public class SkillUnlockSummary : MonoBehaviour
         if (pigBody != null) pigBody.color = bodyColor;
         rope.enabled = claw.enabled = false;
 
-        prompt.text = "The block is yours from the next level on:  <color=#FFD84D>[K]</color>";
-        prompt.fontSize = h * 0.7f;
-        yield return Wait(2.4f);
+        yield return Wait(1.2f);
 
         // Fade out, then the level's result comes back and the game moves on
         for (float t = 0f; t < 0.4f; t += Time.unscaledDeltaTime)
         {
             float a = 1f - t / 0.4f;
             dark.color = new Color(0f, 0f, 0f, 0.88f * a);
-            SetAlpha(title, a); SetAlpha(intro, a); SetAlpha(prompt, a);
+            SetAlpha(title, a); SetAlpha(prompt, a);
             SetPigAlpha(pig, a);
             yield return null;
         }
