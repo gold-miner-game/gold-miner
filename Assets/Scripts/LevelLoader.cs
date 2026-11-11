@@ -684,10 +684,12 @@ public class LevelLoader : MonoBehaviour
     // --- Compete levels ("compete": 1, level 3 onward) -----------------------------------------------
     // Race for the gold with HookHole circle miners (Level 1 dodge-hole look: dark rim, not green).
     // MinerAI: yellow telegraph/rope at treasure, red at the player. Gold hooked goes to the miners.
-    // Time moves when the player moves (TimeMovesWithPlayer): standing still slows the whole world
-    // down to "still_time_scale".
+    // Time moving with the player (TimeMovesWithPlayer: standing still slows the whole world down to
+    // "still_time_scale") is off for now. A level turns it back on with "slow_when_still": 1.
 
     public bool Compete => level != null && level.Param("compete", 0f) > 0.5f;
+    // Standing still slows time in this level (TimeMovesWithPlayer). Off unless the level file sets it
+    public bool SlowWhenStill => level != null && level.Param("slow_when_still", 0f) > 0.5f;
 
     Sprite competeHole;
 
@@ -733,6 +735,7 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpCompete()
     {
+        if (!SlowWhenStill) return;   // the slow-down is kept for later levels, not used now
         var time = gameObject.AddComponent<TimeMovesWithPlayer>();
         time.player = player;
         time.stillScale = level.Param("still_time_scale", time.stillScale);

@@ -8,7 +8,7 @@ using UnityEngine;
 // feels slow: a step brings time back up in a moment (Speed Up).
 // It leaves time alone while something else stops it (the pause popup, a frozen tutorial step,
 // at time scale 0), and puts it back to normal when the round ends or this goes away.
-// LevelLoader adds it for levels with "compete": 1.
+// LevelLoader adds it to compete levels that also set "slow_when_still": 1 (none do for now).
 public class TimeMovesWithPlayer : MonoBehaviour
 {
     public PlayerCharacter player;
