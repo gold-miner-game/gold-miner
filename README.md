@@ -1,4 +1,19 @@
-# Progress Report 10/15
+# Gold Miner
+
+[Play in your browser](https://gold-miner-game.github.io/gold-miner/)
+
+Current release: **gold-process**. Move with **WASD or arrow keys**, use **K** for
+your character's skill, **J** to cut ropes, and **Escape** to pause.
+
+Progression: **Tutorial → Level 1 → Level 2 → Store → Level 3**. Leaving the store
+reveals Level 3. Level unlocks depend on completion, with no margin requirements.
+Collected level earnings go into the wallet once per round. Store goods include
+short gameplay previews on hover.
+
+See [browser build instructions](docs/web-release.md) and
+[current progression](docs/level-progression.md).
+
+## Earlier progress report (10/15)
 
 ## Game Mechanics
 - With WASD as moving

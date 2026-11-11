@@ -120,16 +120,22 @@ public class GameFlow : MonoBehaviour
         FinishTutorialRun();
     }
 
-    // The tutorials are over: saved as done, then straight on to the store (Map.afterTutorialNode), whose
-    // leaving opens the map. The last tutorial level calls this itself on its win ("win_to_store"), so
-    // it works even when that level was played straight from its scene
+    // Completing Level 1 (the tutorial) opens the hub and unlocks Level 2 through its tutorial
+    // prerequisite. An optional afterTutorialNode can still redirect the flow.
     public void FinishTutorialRun()
     {
+        GameManager round = GameManager.Instance;
+        LevelLoader loader = FindFirstObjectByType<LevelLoader>();
+        if (round != null && !round.IsPlaying && loader != null && !loader.IsMazeLevel) round.BankLevelEarnings();
         ProgressStore.MarkCompleted(ProgressStore.TutorialDoneId);
+        if (Map != null)
+            foreach (MapNode node in Map.nodes)
+                if (node != null && node.type == NodeType.Tutorial && Map.tutorialLevels.Contains(node.levelAsset))
+                    ProgressStore.MarkCompleted(node.id);
         tutorialStep = -1;
         winHandled = true;
         MapNode next = Map != null && !string.IsNullOrEmpty(Map.afterTutorialNode) ? Map.Find(Map.afterTutorialNode) : null;
-        if (next != null) { ClearGameHooks(); EnterNode(next); return; }
+        if (next != null && Map.IsUnlocked(next)) { ClearGameHooks(); EnterNode(next); return; }
         CurrentNode = null;
         OpenMap();
     }
@@ -152,6 +158,7 @@ public class GameFlow : MonoBehaviour
     public void EnterNode(MapNode node)
     {
         if (node == null) return;
+        if (node.type == NodeType.Store && (Map == null || !Map.IsUnlocked(node))) return;
         CurrentNode = node;
         winHandled = false;
         winAt = 0f;
@@ -205,18 +212,14 @@ public class GameFlow : MonoBehaviour
         MapNode node = CurrentNode;
         if (node != null)
         {
-            // Battles: idempotent wallet credit if SettleWallet somehow skipped (gain 0 when already paid).
+            // Fallback settlement shares the round's payment guard with LevelLoader.
             if (node.type == NodeType.Battle)
             {
                 GameManager gm = GameManager.Instance;
                 if (gm != null && gm.PlayerWon)
                 {
                     MapHub.RefillHp();   // every won level refills the world map's HP
-                    int margin = gm.PlayerMoney - gm.MinerMoney;
-                    // Negative / zero margins must never credit the wallet.
-                    int gain = margin > 0 ? ProgressStore.TryCreditBestMargin(node.id, margin) : 0;
-                    Debug.Log("GameFlow: best margin for " + node.id + " = " + margin
-                              + " (credit $" + gain + ", wallet $" + MazeHubState.WalletBalance + ")");
+                    gm.BankLevelEarnings();
                 }
             }
             // Maze hub stays replayable; do not treat it as a cleared tree node that opens LEVELS.
@@ -282,7 +285,7 @@ public class GameFlow : MonoBehaviour
         if (Time.unscaledTime < winAt) return;
         if (tutorialStep >= 0)
         {
-            // The tutorial is played on Level 1's layout, but clearing it does not clear Level 1.
+            // Level 1 is the tutorial itself; Level 2 unlocks when the run finishes.
             MapHub.RefillHp();
             NextTutorial(tutorialStep);
         }

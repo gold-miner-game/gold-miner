@@ -93,6 +93,7 @@ public class LevelLoader : MonoBehaviour
     private float stageTime;         // survive stage: Time.time when the stage began
     private float nextPullAt;        // steal stage: when the hooks get their next treasure
     private GUIStyle guideStyle;
+    private GUIStyle movementKeyStyle;
     private string shownGuide;       // the guide on screen, to notice a new level or stage
     private float guideSince;        // Time.time when it appeared
     private Rect guideRect;          // where the guide was last drawn, in ScreenFrame's GUI space
@@ -107,12 +108,11 @@ public class LevelLoader : MonoBehaviour
 
     // The tutorial: every level up to the last one with a guide or stages (level_01b_block), so the
     // normal level between the two tutorials counts too. It is always played as Mr. Hyde, and the
-    // cross-level record (speed, digest, shield, wallet) is left untouched; the record starts when a
-    // champion is picked on the select screen
+    // cross-level movement and skills are left untouched. Collected gold is banked when it ends.
     public static bool Tutorial { get; private set; }
 
-    // Wallet: map Battle nodes (and editor level_N files) can pay. The scripted tutorial run
-    // never touches the wallet, even when it reuses a battle layout like Level 1.
+    // Analytics eligibility: tutorials are recorded without competitive money statistics.
+    // Wallet settlement is handled separately and includes tutorial earnings.
     public static bool CountsMoney(string levelName)
     {
         if (GameFlow.Instance != null && GameFlow.Instance.InTutorialRun) return false;
@@ -215,6 +215,13 @@ public class LevelLoader : MonoBehaviour
     int FindLastTutorial()
     {
         int last = -1;
+        WorldMap map = Resources.Load<WorldMap>("WorldMap");
+        if (map != null && map.tutorialLevels.Count > 0)
+        {
+            for (int i = 0; i < list.Length; i++)
+                if (map.tutorialLevels.Contains(list[i])) last = i;
+            return last;
+        }
         for (int i = 0; i < list.Length; i++)
         {
             LevelData data = LevelData.Parse(list[i].text);
@@ -234,8 +241,12 @@ public class LevelLoader : MonoBehaviour
         WorldMap map = Resources.Load<WorldMap>("WorldMap");
         var order = new List<TextAsset>();
         if (map != null)
+        {
+            foreach (TextAsset tutorial in map.tutorialLevels)
+                if (tutorial != null && !order.Contains(tutorial)) order.Add(tutorial);
             foreach (MapNode node in map.nodes)
-                if (node != null && node.levelAsset != null) order.Add(node.levelAsset);
+                if (node != null && node.levelAsset != null && !order.Contains(node.levelAsset)) order.Add(node.levelAsset);
+        }
 
         System.Array.Sort(found, (a, b) =>
         {
@@ -737,6 +748,8 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpCompete()
     {
+        // Time Machine already supplies bullet time; never run two time controllers together.
+        if (FindFirstObjectByType<TimeMovesWithPlayer>() != null) return;
         // Off unless a level sets slow_when_still. still_time_scale 1 also means no slowdown.
         if (!SlowWhenStill) return;
         float still = level.Param("still_time_scale", 0.06f);
@@ -833,6 +846,7 @@ public class LevelLoader : MonoBehaviour
         record.setBlockDuration(level.Param("block_duration", record.getBlockDuration()));
         record.setBlockCooldown(level.Param("block_cooldown", record.getBlockCooldown()));
         record.onLevelStarted();
+        TimeMovesWithPlayer.ApplyStoreEffect(player, record);
 
         player.moveSpeed = record.getSpeed() * player.speedScale;
         player.digestTime = record.getDigestTime();
@@ -1150,7 +1164,8 @@ public class LevelLoader : MonoBehaviour
 
         bool kills = !level.Has("hook_kills") || level.Param("hook_kills", 1f) > 0.5f;
         miner.shootsPlayer = kills;
-        miner.hook.hitsPig = kills;
+        // Treasure-only miners can still hurt on contact without aiming shots at the player.
+        miner.hook.hitsPig = kills || level.Param("yellow_hits", 0f) > 0.5f;
         // "hunt_player": every shot at the player, and the hook passes over gold (the world map's eye
         // miners guard the one-time gold instead of taking it). Red, so they read as the evil miners.
         // A yellow miner only goes for gold.
@@ -1383,28 +1398,14 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    // Single wallet: only a win with a positive (player − miner) margin can credit money, and
-    // only the improvement over this battle's best. A loss / tie / negative margin never adds
-    // (or subtracts) — negative scores must not enter the wallet.
+    // Every finished level pays its collected gold, including tutorials, losses and replays.
+    // Maze gold is credited on pickup, so it must not be banked again here.
     void SettleWallet(GameManager gm)
     {
-        string name = LevelName();
-        if (!CountsMoney(name)) return;
+        if (level == null || level.IsMaze) return;
 
-        int delta = gm.PlayerMoney - gm.MinerMoney;
-        gm.SetNewRecordLine("");
-        if (!gm.PlayerWon || delta <= 0) return;
-
-        // Prefer the map node id (battle_*) so replays share one best-margin key.
-        string creditId = name;
-        if (GameFlow.Instance != null && GameFlow.Instance.CurrentNode != null
-            && !string.IsNullOrEmpty(GameFlow.Instance.CurrentNode.id))
-            creditId = GameFlow.Instance.CurrentNode.id;
-
-        int gain = ProgressStore.TryCreditBestMargin(creditId, delta);
-        if (gain > 0) gm.SetNewRecordLine("New record! You earned $" + gain + ".");
-
-        if (!Tutorial && LevelWon != null) LevelWon();
+        gm.BankLevelEarnings();
+        if (gm.PlayerWon && !Tutorial && LevelWon != null) LevelWon();
     }
 
     public string LevelName()
@@ -1508,6 +1509,7 @@ public class LevelLoader : MonoBehaviour
 
     void OnGUI()
     {
+        DrawMovementHint();
         // The level label is only logged when the level builds; N / P / R still work in the editor
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;
         ScreenFrame.BeginGUI();   // lay out in 1280x720, scaled to the 16:9 frame
@@ -1519,6 +1521,44 @@ public class LevelLoader : MonoBehaviour
         if (hasHud) return;
         string hint = NextStepHint;
         if (hint != "") GUI.Label(new Rect(10, ScreenFrame.GuiHeight - 54, 700, 24), hint);
+    }
+
+    void DrawMovementHint()
+    {
+        GameManager gm = GameManager.Instance;
+        if (ScriptedTutorial != true || player == null || player.Eaten > 0
+            || gm == null || !gm.IsPlaying || TutorialDialogue.Playing || Level1Tutorial.Running
+            || MapHub.Active != null) return;
+
+        ScreenFrame.BeginGUI();
+        if (movementKeyStyle == null)
+        {
+            movementKeyStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 25,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+            };
+            movementKeyStyle.normal.textColor = new Color(0.16f, 0.13f, 0.1f);
+        }
+
+        float x = ScreenFrame.GuiWidth * 0.5f - 110f;
+        float y = ScreenFrame.GuiHeight - 134f;
+        DrawMovementKey(new Rect(x + 50f, y, 44f, 44f), "W");
+        DrawMovementKey(new Rect(x, y + 50f, 44f, 44f), "A");
+        DrawMovementKey(new Rect(x + 50f, y + 50f, 44f, 44f), "S");
+        DrawMovementKey(new Rect(x + 100f, y + 50f, 44f, 44f), "D");
+    }
+
+    void DrawMovementKey(Rect rect, string letter)
+    {
+        Color previous = GUI.color;
+        GUI.color = new Color(0.65f, 0.65f, 0.63f, 0.25f);
+        GUI.DrawTexture(rect, Texture2D.whiteTexture);
+        GUI.color = new Color(0.97f, 0.97f, 0.95f, 0.35f);
+        GUI.DrawTexture(new Rect(rect.x + 2f, rect.y + 2f, rect.width - 4f, rect.height - 4f), Texture2D.whiteTexture);
+        GUI.color = previous;
+        GUI.Label(rect, letter, movementKeyStyle);
     }
 
     // The guide text (the stage's, else the level's) at the top of the arena, with progress. A new

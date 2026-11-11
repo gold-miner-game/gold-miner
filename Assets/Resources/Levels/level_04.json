@@ -1,10 +1,10 @@
 {
-  "pig_start": [0.0, 0.0],
+  "pig_start": [0.0, -2.1],
   "hooks": [
-    [-1.55, 1.0],
-    [1.55, 1.0],
-    [-1.55, -1.0],
-    [1.55, -1.0]
+    [-0.75, 0.75],
+    [0.75, 0.75],
+    [-0.75, -0.75],
+    [0.75, -0.75]
   ],
   "items": [
     { "type": "Rock", "x": -3.52, "y": -2.40 },
@@ -81,9 +81,9 @@
     { "type": "Rock", "x": 3.52, "y": 1.76 },
     { "type": "Rock", "x": -3.52, "y": 2.08 },
     { "type": "Rock", "x": 3.52, "y": 2.08 },
-    { "type": "Gold_Small", "x": -2.55, "y": 1.55 },
-    { "type": "Gold_Small", "x": 2.55, "y": -1.55 },
-    { "type": "Gold_Small", "x": 0.10, "y": -1.65 },
+    { "type": "Gold_Small", "x": -3.8, "y": 4.1 },
+    { "type": "Gold_Small", "x": 3.8, "y": -4.1 },
+    { "type": "Gold_Small", "x": 0.1, "y": -4.25 },
     { "type": "Diamond", "x": -6.60, "y": 0.50 },
     { "type": "Diamond", "x": 6.50, "y": -0.60 },
     { "type": "Diamond", "x": -1.80, "y": 4.05 },
@@ -91,8 +91,8 @@
     { "type": "Gold_Large", "x": -6.30, "y": -1.70 },
     { "type": "Gold_Large", "x": 6.40, "y": 1.60 },
     { "type": "Gold_Large", "x": 0.20, "y": 4.20 },
-    { "type": "Gold_Medium", "x": -5.00, "y": 2.90 },
-    { "type": "Gold_Medium", "x": 5.20, "y": -3.10 }
+    { "type": "Gold_Medium", "x": -6.4, "y": 2.9 },
+    { "type": "Gold_Medium", "x": 6.4, "y": -3.1 }
   ],
   "params": {
     "pig_speed": 5.2,
@@ -113,7 +113,7 @@
     "starting_lives": 3,
     "invincible_time": 0.6,
     "hook_kills": false,
-    "yellow_hits": false,
+    "yellow_hits": true,
     "wall_rocks": true,
     "hooks_pass_rocks": true,
     "greedy": true,

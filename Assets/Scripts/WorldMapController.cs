@@ -101,8 +101,9 @@ public class WorldMapController : MonoBehaviour
 
     static NodeState StateOf(WorldMap m, int index)
     {
+        if (!m.IsUnlocked(index)) return NodeState.Locked;
         if (ProgressStore.IsCompleted(m.nodes[index].id)) return NodeState.Cleared;
-        return m.IsUnlocked(index) ? NodeState.Available : NodeState.Locked;
+        return NodeState.Available;
     }
 
     public Color AccentFor(NodeState s) => s == NodeState.Cleared ? accentCleared : s == NodeState.Available ? accentAvailable : accentLocked;

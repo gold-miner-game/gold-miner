@@ -490,6 +490,7 @@ public static class TutorialPropsMenu
         light.transform.SetParent(go.transform, false);
         light.transform.localScale = new Vector3(2.5f, 2.5f, 1f);
         SpriteMask mask = light.AddComponent<SpriteMask>();
+        TutorialStep.LimitLightMask(mask);
         mask.sprite = LoadSprite("Circle");
         var spot = new GameObject("EnemySpot");
         spot.transform.SetParent(go.transform, false);
@@ -599,6 +600,7 @@ public static class TutorialPropsMenu
         var holeObject = new GameObject("Hole");
         holeObject.transform.SetParent(root.transform, false);
         SpriteMask hole = holeObject.AddComponent<SpriteMask>();
+        TutorialStep.LimitLightMask(hole);
         hole.sprite = LoadSprite("Circle");
 
         spotlight.dark = dark;
@@ -620,7 +622,9 @@ public static class TutorialPropsMenu
         go.transform.SetParent(parent, false);
         go.transform.position = at;
         go.transform.localScale = new Vector3(3.2f, 3.2f, 1f);   // the circle sprite is 1 unit across
-        go.AddComponent<SpriteMask>().sprite = LoadSprite("Circle");
+        SpriteMask mask = go.AddComponent<SpriteMask>();
+        mask.sprite = LoadSprite("Circle");
+        TutorialStep.LimitLightMask(mask);
         go.AddComponent<TutorialFollow>().followPlayer = false;
         return go;
     }

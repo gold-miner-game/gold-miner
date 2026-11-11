@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 // Owner: Penny (Level map & tutorial)
 // The world map as a playable place (after Penny's maze hub on feature/penny-level-map): the hub
@@ -55,7 +56,84 @@ public class MapHub : MonoBehaviour
     GUIStyle hintStyle;
 
     void Awake() { Active = this; }
-    void OnDestroy() { if (Active == this) Active = null; }
+    void OnDestroy()
+    {
+        if (Active == this) Active = null;
+        if (focusCircle != null) Destroy(focusCircle);
+        if (focusTexture != null) Destroy(focusTexture);
+        if (focusCoverSprite != null) Destroy(focusCoverSprite);
+    }
+
+    // Share one cover and one hole per newly revealed portal, so simultaneous unlocks all get light.
+    const int FocusOrder = 90;
+    Transform focusRoot;
+    SpriteRenderer focusCover;
+    Sprite focusCircle;
+    Texture2D focusTexture;
+    Sprite focusCoverSprite;
+    float focusStartedAt;
+    float focusUntil;
+
+    public void FocusPortal(HubPortal portal)
+    {
+        if (focusRoot == null)
+        {
+            focusRoot = new GameObject("New portal focus").transform;
+            focusRoot.SetParent(transform, false);
+            var cover = new GameObject("Dark cover");
+            cover.transform.SetParent(focusRoot, false);
+            cover.transform.localScale = Vector3.one * 1000f;
+            focusCover = cover.AddComponent<SpriteRenderer>();
+            focusCoverSprite = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), Vector2.one * 0.5f, 1f);
+            focusCover.sprite = focusCoverSprite;
+            focusCover.sortingOrder = FocusOrder;
+            focusCover.maskInteraction = SpriteMaskInteraction.VisibleOutsideMask;
+
+            const int size = 128;
+            focusTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            focusTexture.filterMode = FilterMode.Bilinear;
+            focusTexture.wrapMode = TextureWrapMode.Clamp;
+            var pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float distance = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), Vector2.one * size * 0.5f);
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(size * 0.5f - distance));
+                }
+            focusTexture.SetPixels(pixels);
+            focusTexture.Apply();
+            focusCircle = Sprite.Create(focusTexture, new Rect(0, 0, size, size), Vector2.one * 0.5f, size);
+            focusStartedAt = Time.unscaledTime;
+        }
+
+        var light = new GameObject("Light " + portal.nodeId);
+        light.transform.SetParent(focusRoot, false);
+        light.transform.position = portal.transform.position;
+        light.transform.localScale = Vector3.one * tileSize * 4f;
+        SpriteMask mask = light.AddComponent<SpriteMask>();
+        mask.sprite = focusCircle;
+        TutorialStep.LimitLightMask(mask, focusCover.sortingLayerID, FocusOrder);
+        focusUntil = Time.unscaledTime + 3.5f;
+    }
+
+    void LateUpdate()
+    {
+        if (focusRoot == null) return;
+        float now = Time.unscaledTime;
+        // Match dialogue advance: a fresh key press or left click, after its input grace period.
+        bool pressed = (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+                    || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
+        if (pressed && now - focusStartedAt > 0.15f) focusUntil = now;
+        float fade = Mathf.Min(Mathf.Clamp01((now - focusStartedAt) / 0.3f),
+                               Mathf.Clamp01((focusUntil - now) / 0.6f));
+        focusCover.color = new Color(0f, 0f, 0f, 0.7f * fade);
+        if (now < focusUntil) return;
+        Destroy(focusRoot.gameObject);
+        focusRoot = null;
+        Destroy(focusCircle);
+        Destroy(focusTexture);
+        Destroy(focusCoverSprite);
+    }
 
     // After Build, and after the scene's TutorialSteps are listening: the map's story events
     void Start()

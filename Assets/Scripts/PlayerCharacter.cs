@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 // Shared by every character the player can be: Mr. Hyde, the cat (JK. Rolling), the squirrel (Scrat) and
 // the frog (Rero Rero). Hook, Treasure, LifePickup and LevelLoader only talk to this class, so any character
-// works in any level. It moves with WASD, eats treasure (with the level's digest time) and blinks while
+// works in any level. It moves with WASD or arrow keys, eats treasure and blinks while
 // invincible. Space does not start a skill. Each character adds its own skill.
 // After the tutorial, the cross-level record (CrossLevelStatus, Zhan Li's) is the player: its speed
 // multiplier (swift water), no-digest (ration) and shield work for every character, and each champion's
@@ -282,6 +282,7 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     protected virtual void Update()
     {
+        UpdateTutorialDigest();
         ReadInput();
         UpdateBlink();
         if (body != null) body.color = BodyColor;
@@ -295,9 +296,24 @@ public abstract class PlayerCharacter : MonoBehaviour
         if (TutorialFrozen()) MoveDuringTutorialFreeze();
     }
 
+    void UpdateTutorialDigest()
+    {
+        if (!IsDigesting || Time.timeScale >= 1f) return;
+        if (!LevelLoader.Tutorial && !Level1Tutorial.Running && !TutorialStep.HoldingTime) return;
+        GameManager gm = GameManager.Instance;
+        if (gm == null || !gm.IsPlaying) return;
+        HUDController hud = FindFirstObjectByType<HUDController>();
+        if (hud != null && hud.IsPaused) return;
+
+        // Keep the configured duration: compensate only for the time lost to tutorial slow motion.
+        // Time.time already accounts for scaled time, so subtracting the full real delta would
+        // count it twice. This also handles fully frozen teaching prompts.
+        float missingTime = Mathf.Max(0f, Time.unscaledDeltaTime - Time.deltaTime);
+        digestUntil = Mathf.Max(Time.time, digestUntil - missingTime);
+    }
+
     // A tutorial step has stopped time so the hooks stay put. Physics does not run at time scale 0,
-    // so the pig walks and eats from here. Digest still counts down in real time, or the next bite
-    // could never happen while the lesson holds the clock.
+    // so the pig walks and eats from here. Digestion is updated separately at normal speed.
     bool TutorialFrozen()
     {
         if (Time.timeScale > 0f || !TutorialStep.AnyShowing) return false;
@@ -310,7 +326,6 @@ public abstract class PlayerCharacter : MonoBehaviour
     void MoveDuringTutorialFreeze()
     {
         if (Body != null) Body.linearVelocity = Vector2.zero;
-        if (!CanEat && DigestLength > 0f) digestUntil -= Time.unscaledDeltaTime;
 
         Vector2 delta = Velocity(MoveInput) * Time.unscaledDeltaTime;
         Collider2D body = GetComponent<Collider2D>();
@@ -391,10 +406,10 @@ public abstract class PlayerCharacter : MonoBehaviour
         Vector2 input = Vector2.zero;
         if (keyboard != null)
         {
-            if (keyboard.aKey.isPressed) input.x -= 1f;
-            if (keyboard.dKey.isPressed) input.x += 1f;
-            if (keyboard.sKey.isPressed) input.y -= 1f;
-            if (keyboard.wKey.isPressed) input.y += 1f;
+            if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) input.x -= 1f;
+            if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) input.x += 1f;
+            if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) input.y -= 1f;
+            if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) input.y += 1f;
         }
         MoveInput = input;
 
@@ -435,7 +450,12 @@ public abstract class PlayerCharacter : MonoBehaviour
             return;
         }
 
-        Body.linearVelocity = Velocity(MoveInput);
+        Vector2 velocity = Velocity(MoveInput);
+        // Tutorial prompts slow the hooks, not the player's controls. Full freezes use the
+        // unscaled movement path above; partial freezes still use collision-aware physics.
+        if (TutorialStep.HoldingTime && Time.timeScale < 1f)
+            velocity /= Time.timeScale;
+        Body.linearVelocity = velocity;
     }
 
     // Mirror the whole character (and its children) horizontally

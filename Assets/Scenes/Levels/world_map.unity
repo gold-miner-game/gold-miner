@@ -1075,15 +1075,15 @@ MonoBehaviour:
     side: 0
   lines:
   - speaker: Evil Meowmeow
-    text: No way! You actually... pass the tutorial level?
+    text: You actually passed the tutorial?
     autoNext: 0
     fireEvent: 
   - speaker: Evil Meowmeow
-    text: In the next levels, my EVIL miners will hunt YOU.
+    text: I bet you can't beat the levels ahead!
     autoNext: 0
-    fireEvent: point_evil_miner
+    fireEvent: ''
   - speaker: Cat
-    text: Pick a character after passing Level 1.
+    text: Pick a character after finishing the tutorial.
     autoNext: 0
     fireEvent: point_picking
   - speaker: Cat
@@ -2170,7 +2170,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Level 1
+  m_text: Tutorial
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -4815,7 +4815,7 @@ MonoBehaviour:
       m_Calls: []
   m_text: 'Pick a character
 
-    after Level 1.'
+    after the tutorial.'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -11950,7 +11950,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Level 3
+  m_text: Level 2
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -19581,7 +19581,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Level 2
+  m_text: Level 1
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

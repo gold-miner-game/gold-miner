@@ -67,9 +67,9 @@ public class TutorialStep : MonoBehaviour
     public Transform item;
 
     [Header("While showing")]
-    [Tooltip("Nothing moves while the step shows (the clock, the hooks, the player)")]
+    [Tooltip("Slow or freeze the world while the step shows; the player can still move normally")]
     public bool freezeGame = true;
-    [Tooltip("Freeze Game: time's speed while the step shows. 0 = a complete stop; 0.1 = slow motion at a tenth of normal speed (the hooks and the player still move, slowly)")]
+    [Tooltip("Freeze Game: world speed while the step shows. 0 = a complete stop; 0.1 = hooks move at a tenth of normal speed. The player keeps normal movement speed.")]
     [Range(0f, 1f)] public float freezeTimeScale = 0.1f;
     [Tooltip("Darken the arena outside the step's Holes (sprite masks)")]
     public bool darken = true;
@@ -101,6 +101,7 @@ public class TutorialStep : MonoBehaviour
     static readonly List<TutorialStep> showing = new List<TutorialStep>();
     // True while any step is on screen (LevelLoader hides its guide box, which would cover it)
     public static bool AnyShowing => showing.Count > 0;
+    public static bool HoldingTime => freezes > 0;
     static readonly List<TutorialUIHole> uiHoleBuffer = new List<TutorialUIHole>();
     static int freezes;
 
@@ -138,6 +139,8 @@ public class TutorialStep : MonoBehaviour
 
     void Awake()
     {
+        foreach (SpriteMask light in GetComponentsInChildren<SpriteMask>(true))
+            LimitLightMask(light);
         foreach (Transform child in transform)
         {
             // A UI overlay (UI callouts) stays active but undrawn, so ScreenFrame fits it to the
@@ -402,6 +405,16 @@ public class TutorialStep : MonoBehaviour
             dark.maskInteraction = SpriteMaskInteraction.VisibleOutsideMask;
         }
         dark.color = new Color(0f, 0f, 0f, alpha);
+    }
+
+    // Spotlight holes must only cut the dark cover. An unrestricted mask also reveals the
+    // player's entire digest tint, defeating its shrinking cooldown mask.
+    public static void LimitLightMask(SpriteMask light, int layer = 0, int order = DarkOrder)
+    {
+        light.isCustomRangeActive = true;
+        light.frontSortingLayerID = light.backSortingLayerID = layer;
+        light.frontSortingOrder = order;
+        light.backSortingOrder = order - 1;
     }
 
     // Steps share one freeze: the game runs again when the last of them lets go

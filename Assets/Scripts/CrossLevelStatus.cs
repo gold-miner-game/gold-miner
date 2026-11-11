@@ -106,6 +106,7 @@ public class CrossLevelStatus : MonoBehaviour
     // over from an earlier run. Unlike Install, nothing is copied.
     public static CrossLevelStatus StartFresh(Type type)
     {
+        StoreView.ShuffleStock();
         if (type == null || !typeof(CrossLevelStatus).IsAssignableFrom(type)) type = typeof(PigStatus);
         if (Active != null)
         {
@@ -290,6 +291,7 @@ public class CrossLevelStatus : MonoBehaviour
         addSkill("ration");
         addSkill("shield").power = ShieldDuration;
         addSkill("brace");
+        addSkill("time_machine");
     }
 
     // Called every frame after skill timers. deltaTime is 0 while the game is paused.
@@ -312,7 +314,7 @@ public class CrossLevelStatus : MonoBehaviour
                 setExtraLives(1);
                 continue;
             }
-            if (skill.id == "ration" || skill.id == "swift")
+            if (skill.id == "ration" || skill.id == "swift" || skill.id == "time_machine")
             {
                 skill.active = true;
                 if (skill.id == "swift") beginSwiftBoost();
@@ -349,7 +351,7 @@ public class CrossLevelStatus : MonoBehaviour
     // The store item ids. The HUD's Items rows use this too, so a new item is added only here.
     public static bool IsStoreEffect(string id)
     {
-        return id == "swift" || id == "ration" || id == "shield" || id == "brace";
+        return id == "swift" || id == "ration" || id == "shield" || id == "brace" || id == "time_machine";
     }
 
     // Stores the win margin once for this level. The same visit cannot pay twice; the next level can.
@@ -373,7 +375,7 @@ public class CrossLevelStatus : MonoBehaviour
         PlayerSkill skill = getSkill(id);
         if (skill == null || skill.stock <= 0) return false;
 
-        if (id == "ration" || id == "swift" || id == "brace")
+        if (id == "ration" || id == "swift" || id == "brace" || id == "time_machine")
         {
             if (roundIsOver())
             {

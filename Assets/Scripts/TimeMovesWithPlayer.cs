@@ -8,7 +8,7 @@ using UnityEngine;
 // feels slow: a step brings time back up in a moment (Speed Up).
 // It leaves time alone while something else stops it (the pause popup, a frozen tutorial step,
 // at time scale 0), and puts it back to normal when the round ends or this goes away.
-// LevelLoader adds it to compete levels that also set "slow_when_still": 1 (none do for now).
+// Also used by the Time Machine store item for one playable round.
 public class TimeMovesWithPlayer : MonoBehaviour
 {
     public PlayerCharacter player;
@@ -29,6 +29,17 @@ public class TimeMovesWithPlayer : MonoBehaviour
     Rigidbody2D body;
     Camera cam;
     Color normalSky;
+
+    // Called after the round consumes armed items. The component belongs to this scene's player.
+    public static void ApplyStoreEffect(PlayerCharacter player, CrossLevelStatus record)
+    {
+        if (player == null || record == null) return;
+        PlayerSkill item = record.getSkill("time_machine");
+        if (item == null || !item.active) return;
+        var time = player.GetComponent<TimeMovesWithPlayer>();
+        if (time == null) time = player.gameObject.AddComponent<TimeMovesWithPlayer>();
+        time.player = player;
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { Slowness = 0f; }

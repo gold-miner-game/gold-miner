@@ -19,14 +19,11 @@ public static class FlowSceneBuilder
     const string LevelDir = "Assets/Resources/Levels/";
 
     // id, type, level file (null for non-level nodes), display name, map x, map y, prerequisites.
-    // The map is a tree. It starts at the Store (open once the tutorial run is over), then role
-    // pick. MapUIBuilder draws the Store card in the top-left corner (its x/y here are unused). Role
-    // pick opens three modes, one column each in the hub (world_map.json): Attack 1 -> 4 -> 7,
-    // Survival 2 -> 5 -> 8 -> Survive Mode (SurvivalLoader), Compete 3 -> 6. Add a level = add a row
-    // here (and drop a level JSON); point its prereqs at whatever should unlock it.
+    // Tutorial (formerly Level 1) -> Level 1 -> Level 2 -> Level 3. Keep the stable ids and source
+    // assets so existing saves keep their progress. Pick Character opens after the tutorial;
+    // the Store opens after Level 2; leaving the Store reveals Level 3.
     // x = branch spread (0..1), y = depth down the trunk (0..1); the controller can draw it either way.
-    // The tutorials are not on the map: GameFlow plays them back to back, in this order, before the
-    // map first opens (WorldMap.tutorialLevels).
+    // GameFlow plays the tutorial before the map opens; its portal allows replays afterward.
     static readonly string[] TutorialLevels = { "level_03" };
 
     // The world map you walk around in (MapHub): one portal per node below, placed in its grid
@@ -34,17 +31,12 @@ public static class FlowSceneBuilder
 
     static readonly (string id, NodeType type, string level, string name, float x, float y, string[] prereqs)[] Nodes =
     {
-        ("store_1",    NodeType.Store,    null,              "Store",           0.50f, 0.333f, new string[0]),
-        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.444f, new[]{ "store_1" }),
-        ("battle_01",  NodeType.Battle,   "level_01",        "Level 1",         0.50f, 0.444f, new[]{ "role_pick" }),
-        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.18f, 0.555f, new[]{ "role_pick" }),
-        ("battle_03",  NodeType.Battle,   "level_03",        "Level 3",         0.82f, 0.555f, new[]{ "role_pick" }),
-        ("battle_04",  NodeType.Battle,   "level_04",        "Level 4",         0.18f, 0.666f, new[]{ "battle_01" }),
-        ("battle_05",  NodeType.Battle,   "level_05",        "Level 5",         0.82f, 0.666f, new[]{ "battle_02" }),
-        ("battle_06",  NodeType.Battle,   "level_06",        "Level 6",         0.18f, 0.777f, new[]{ "battle_03" }),
-        ("battle_07",  NodeType.Battle,   "level_07",        "Level 7",         0.82f, 0.777f, new[]{ "battle_04" }),
-        ("battle_08",  NodeType.Battle,   "level_08",        "Level 8",         0.50f, 0.888f, new[]{ "battle_05" }),
-        ("survival",   NodeType.Survival, null,              "Survive Mode",    0.50f, 1.000f, new[]{ "battle_08" }),
+        ("role_pick",  NodeType.RolePick, null,              "Pick Character",  0.50f, 0.444f, new[]{ ProgressStore.TutorialDoneId }),
+        ("store_1",    NodeType.Store,    null,              "Store",           0.50f, 0.333f, new[]{ "battle_02" }),
+        ("battle_03",  NodeType.Tutorial, "level_03",        "Tutorial",        0.18f, 0.555f, new string[0]),
+        ("battle_06",  NodeType.Battle,   "level_01",        "Level 1",         0.82f, 0.555f, new[]{ ProgressStore.TutorialDoneId }),
+        ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.50f, 0.666f, new[]{ "battle_06" }),
+        ("battle_04",  NodeType.Battle,   "level_04",        "Level 3",         0.50f, 0.780f, new[]{ "store_1" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]

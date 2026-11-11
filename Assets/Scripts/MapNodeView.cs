@@ -33,6 +33,8 @@ public class MapNodeView : MonoBehaviour, IPointerEnterHandler, IPointerExitHand
         owner = controller;
         state = nodeState;
         if (label != null && authoredLabel == null) authoredLabel = label.text;
+        MapNode node = controller.Map != null ? controller.Map.Find(nodeId) : null;
+        if (node != null && node.levelAsset != null) authoredLabel = node.displayName;
 
         bool open = state != WorldMapController.NodeState.Locked;
         Color accent = owner.AccentFor(state);

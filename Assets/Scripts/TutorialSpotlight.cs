@@ -55,6 +55,8 @@ public class TutorialSpotlight : MonoBehaviour
         Transform follow = Target();
         if (hole != null)
         {
+            if (dark != null)
+                TutorialStep.LimitLightMask(hole, dark.sortingLayerID, dark.sortingOrder);
             if (follow != null) hole.transform.position = new Vector3(follow.position.x, follow.position.y, hole.transform.position.z);
             hole.transform.localScale = Vector3.one * (radius * 2f);   // the circle sprite is 1 unit across
         }

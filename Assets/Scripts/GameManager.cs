@@ -27,6 +27,7 @@ public class GameManager : MonoBehaviour
     public float TimeElapsed => endless ? TimeSurvived : roundTime - TimeLeft;
     public bool IsPlaying { get; private set; }
     public bool PlayerWon { get; private set; }
+    public bool PlayerDied { get; private set; }
     public string EndReason { get; private set; }
     public bool IsInvincible => Time.time < invincibleUntil;
 
@@ -43,6 +44,17 @@ public class GameManager : MonoBehaviour
 
     private float invincibleUntil;
     private bool hadTreasure;
+    bool earningsBanked;
+
+    // Both the level and the map transition may settle a round. Pay its collected gold once.
+    public int BankLevelEarnings()
+    {
+        if (IsPlaying || earningsBanked) return 0;
+        earningsBanked = true;
+        int earned = Mathf.Max(0, PlayerMoney);
+        if (earned > 0) CrossLevelStatus.Ensure().addWallet(earned);
+        return earned;
+    }
 
     void Awake()
     {
@@ -189,6 +201,7 @@ public class GameManager : MonoBehaviour
     void EndRound(bool killed, string reason)
     {
         IsPlaying = false;
+        PlayerDied = killed;
         EndReason = reason;
         PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
         RoundMarginLog.Record(this);
@@ -217,6 +230,7 @@ public class GameManager : MonoBehaviour
     // For tutorial steps and stories that start when the round ends (TutorialEvents)
     void AnnounceEnd()
     {
+        StoreView.ShuffleStock();
         TutorialEvents.Fire(PlayerWon ? "round_won" : "round_lost");
         TutorialEvents.Fire("round_end");
     }

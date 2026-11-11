@@ -709,7 +709,7 @@ public class HUDController : MonoBehaviour
         string text = "";
         if (node != null) text = node.displayName.ToUpperInvariant();
         else if (flow != null && flow.InHub) text = "WORLD MAP";
-        else if (flow != null && flow.InTutorialRun) text = "LEVEL 1 - TUTORIAL";
+        else if (flow != null && flow.InTutorialRun) text = "TUTORIAL";
         else if (levelLoader != null && levelLoader.LevelCount > 0)
             text = "LV " + LevelLoader.CurrentLevel + "/" + levelLoader.LevelCount;
 
@@ -932,6 +932,8 @@ public class HUDController : MonoBehaviour
     // "shield" -> "Shield"
     static string ItemName(string id)
     {
+        if (id == "brace") return "Life";
+        if (id == "time_machine") return "Time Machine";
         return string.IsNullOrEmpty(id) ? "?" : char.ToUpperInvariant(id[0]) + id.Substring(1);
     }
 
@@ -952,12 +954,13 @@ public class HUDController : MonoBehaviour
             {
                 // The failure line is longer, so it steps down just enough to stay on one line.
                 resultText.fontSize = gm.PlayerWon ? 110f : 64f;
-                resultText.text = gm.PlayerWon ? "achieved target." : "didn't achieve the target.";
+                resultText.text = gm.PlayerWon ? "Achieved target"
+                    : gm.PlayerDied ? "Died" : "Didn't achieve the target";
             }
 
             // A bit smaller than the title. A loss has no earnings line.
             endDetail = gm.PlayerWon
-                ? "<size=86>earned $" + gm.PlayerMoney.ToString("N0") + "!</size>"
+                ? "<size=86>Earned $" + gm.PlayerMoney.ToString("N0") + "!</size>"
                 : "";
         }
 

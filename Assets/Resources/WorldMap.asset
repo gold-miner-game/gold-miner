@@ -23,41 +23,38 @@ MonoBehaviour:
     displayName: Pick Character
     mapPosition: {x: 0.5, y: 0.444}
     prerequisites:
-    - battle_03
+    - tutorial
   - id: store_1
     type: 3
     levelAsset: {fileID: 0}
     displayName: Store
     mapPosition: {x: 0.5, y: 0.333}
-    prerequisites: []
+    prerequisites:
+    - battle_02
   - id: battle_03
-    type: 1
+    type: 0
     levelAsset: {fileID: 4900000, guid: 7fd8de94e9f3497395be132314b8c778, type: 3}
-    displayName: Level 1
+    displayName: Tutorial
     mapPosition: {x: 0.18, y: 0.555}
     prerequisites: []
   - id: battle_06
     type: 1
     levelAsset: {fileID: 4900000, guid: 7643b720c7ae4e54b271617b8a336b02, type: 3}
-    displayName: Level 2
+    displayName: Level 1
     mapPosition: {x: 0.82, y: 0.555}
     prerequisites:
-    - battle_03
+    - tutorial
   - id: battle_02
     type: 1
     levelAsset: {fileID: 4900000, guid: 24ffbf985836433d9473ac61508a2cb7, type: 3}
-    displayName: Level 3
+    displayName: Level 2
     mapPosition: {x: 0.5, y: 0.666}
     prerequisites:
     - battle_06
-    unlockGoldFrom:
-    - battle_03
-    - battle_06
-    unlockGold: 1000
   - id: battle_04
     type: 1
     levelAsset: {fileID: 4900000, guid: 92542b7d19ed43da97932670b3ee1abb, type: 3}
-    displayName: Level 4
+    displayName: Level 3
     mapPosition: {x: 0.5, y: 0.78}
     prerequisites:
-    - battle_02
+    - store_1

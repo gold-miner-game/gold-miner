@@ -80,6 +80,11 @@ public class Level1Tutorial : MonoBehaviour
         if (shown) Bob();
     }
 
+    void LateUpdate()
+    {
+        PositionWasd();
+    }
+
     void OnDestroy()
     {
         UnlockMovement();
@@ -142,7 +147,7 @@ public class Level1Tutorial : MonoBehaviour
         Vector2 origin = miner.hookOrigin.position;
         Treasure bigGold = LineUp(origin);
 
-        // 1. Who you are. One second, everything else dark. The WASD keys stay in the corner.
+        // 1. Who you are. One second, everything else dark. WASD follows above the player's light.
         ShowWasd(true);
         yield return Show(new[] { (Vector2)player.transform.position }, 0.9f, "You're the pig.", 1f);
         Time.timeScale = 1f;
@@ -770,6 +775,7 @@ public class Level1Tutorial : MonoBehaviour
         holeGo.transform.SetParent(transform, false);
         SpriteMask mask = holeGo.AddComponent<SpriteMask>();
         mask.sprite = hole.sprite;
+        TutorialStep.LimitLightMask(mask);
 
         var ringGo = new GameObject("TutorialRing");
         ringGo.transform.SetParent(transform, false);
@@ -944,6 +950,7 @@ public class Level1Tutorial : MonoBehaviour
         var holeGo = new GameObject("TutorialHole");
         holeGo.transform.SetParent(transform, false);
         hole = holeGo.AddComponent<SpriteMask>();
+        TutorialStep.LimitLightMask(hole);
         hole.sprite = MakeSprite(64, (x, y) => x * x + y * y <= 1f ? 1f : 0f);
 
         var ringGo = new GameObject("TutorialRing");
@@ -989,7 +996,7 @@ public class Level1Tutorial : MonoBehaviour
         callouts.Add(new Callout { hole = hole, ring = ring, arrow = arrow, label = label });
     }
 
-    // WASD in the corner, and "Press [J] to cut the rope." fixed at the top so it stays put.
+    // WASD follows the player's spotlight; the rope-cut instruction stays fixed.
     void BuildKeys()
     {
         var root = new GameObject("TutorialKeys", typeof(RectTransform), typeof(Canvas));
@@ -1004,9 +1011,13 @@ public class Level1Tutorial : MonoBehaviour
         wasdKeys = new GameObject("WASD", typeof(RectTransform));
         wasdKeys.transform.SetParent(root.transform, false);
         RectTransform pad = wasdKeys.GetComponent<RectTransform>();
-        pad.anchorMin = pad.anchorMax = new Vector2(0f, 0f);
-        pad.pivot = new Vector2(0f, 0f);
-        pad.anchoredPosition = new Vector2(48f, 48f);
+        pad.anchorMin = pad.anchorMax = new Vector2(0.5f, 0.5f);
+        pad.pivot = new Vector2(0.5f, 0f);
+        pad.sizeDelta = new Vector2(202f, 132f);
+        CanvasGroup keyOpacity = wasdKeys.AddComponent<CanvasGroup>();
+        keyOpacity.alpha = 0.45f;
+        keyOpacity.interactable = false;
+        keyOpacity.blocksRaycasts = false;
         Key(pad, "W", new Vector2(70f, 70f));
         Key(pad, "A", new Vector2(0f, 0f));
         Key(pad, "S", new Vector2(70f, 0f));
@@ -1077,6 +1088,34 @@ public class Level1Tutorial : MonoBehaviour
     void ShowWasd(bool on)
     {
         if (wasdKeys != null) wasdKeys.SetActive(on);
+        if (on) PositionWasd();
+    }
+
+    void PositionWasd()
+    {
+        if (wasdKeys == null || !wasdKeys.activeInHierarchy || player == null || keysCanvas == null) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+        Vector2 at = player.transform.position;
+        float lightTop = at.y + 0.9f;
+        foreach (Callout mark in callouts)
+            if (mark.used && (mark.at - at).sqrMagnitude <= mark.radius * mark.radius)
+                lightTop = Mathf.Max(lightTop, mark.at.y + mark.radius);
+        TutorialSpotlight spotlight = TutorialSpotlight.Active;
+        if (spotlight != null && (spotlight.target == null || spotlight.target == player.transform))
+            lightTop = Mathf.Max(lightTop, at.y + spotlight.radius);
+
+        // Clear the light's arrow as well as its circular opening.
+        Vector3 screen = cam.WorldToScreenPoint(new Vector3(at.x, lightTop + 1.1f, 0f));
+        if (screen.z <= 0f) return;
+        RectTransform pad = wasdKeys.GetComponent<RectTransform>();
+        Rect view = cam.pixelRect;
+        float width = pad.rect.width * keysCanvas.scaleFactor;
+        float height = pad.rect.height * keysCanvas.scaleFactor;
+        screen.x = Mathf.Clamp(screen.x, view.xMin + width * 0.5f + 12f, view.xMax - width * 0.5f - 12f);
+        screen.y = Mathf.Clamp(screen.y, view.yMin + 12f, view.yMax - height - 12f);
+        if (RectTransformUtility.ScreenPointToWorldPointInRectangle((RectTransform)keysCanvas.transform,
+            screen, null, out Vector3 position)) pad.position = position;
     }
 
     void ShowCutLine(bool on)

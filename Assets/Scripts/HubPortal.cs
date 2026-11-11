@@ -4,9 +4,9 @@ using UnityEngine;
 
 // Owner: Penny (Level map & tutorial)
 // One map node (a level, the Store, Pick Character, Survive Mode) as a portal tile in the world-map
-// hub. Walk into it to enter the node. A locked one only says what to clear first, or how much is
-// still to earn when its earnings gate (MapNode.unlockGold) is what keeps it shut. Look after Penny's maze portals: a violet hexagon with a star.
-// A hidden portal is a rock in the wall (same colour as the walls around it) until its node unlocks.
+// hub. Walk into it to enter the node. A locked one only says what to clear first.
+// Look after Penny's maze portals: a violet hexagon with a star.
+// Every locked portal is a solid green rock until its node unlocks.
 // The first time the player sees it unlocked, the rock turns into the portal (Penny's stone morph).
 public class HubPortal : MonoBehaviour
 {
@@ -47,6 +47,7 @@ public class HubPortal : MonoBehaviour
         stoneScale = Vector3.one * tileSize;   // the walls' size, so it reads as one of them
 
         hex = Visuals(gameObject, hexSprite, node.displayName, out label);
+        if (node.levelAsset != null) label.text = node.displayName;
         labelName = label.text;
 
         var starGo = new GameObject("Star");
@@ -63,9 +64,10 @@ public class HubPortal : MonoBehaviour
 
         armed = Vector2.Distance(playerAt, transform.position) > tileSize;
 
-        isStone = hidden && (node.comingSoon || !ProgressStore.WasRevealed(node.id));   // coming soon: a rock, even if seen before
+        stoneColor = MapHub.GreenRock;
+        isStone = !IsUnlocked || !ProgressStore.WasRevealed(node.id);
+        ApplyLook();
         if (isStone && IsUnlocked) StartCoroutine(Reveal());   // just unlocked: show it happening
-        else ApplyLook();
     }
 
     // The hexagon and the name under it. Also used by the world map baker (HubSceneBaker), so a
@@ -96,12 +98,18 @@ public class HubPortal : MonoBehaviour
         return hex;
     }
 
-    bool IsUnlocked => GameFlow.Instance.Map != null && GameFlow.Instance.Map.IsUnlocked(Node);
+    bool IsUnlocked => Map != null && Map.IsUnlocked(Node);
     bool IsCleared => ProgressStore.IsCompleted(Node.id);
 
     void Update()
     {
         if (Node == null || revealing) return;   // not set up: the scene's level isn't the hub this play
+        if (!IsUnlocked)
+        {
+            isStone = true;
+            ApplyLook();
+            return;
+        }
         if (isStone)
         {
             if (IsUnlocked) StartCoroutine(Reveal());
@@ -129,25 +137,21 @@ public class HubPortal : MonoBehaviour
         hex.color = !open ? Locked : IsCleared ? Cleared : Available;
         star.color = open ? StarOn : StarOff;
         label.color = open ? Color.white : new Color(1f, 1f, 1f, 0.6f);
-        label.text = WaitingOnGold
-            ? labelName + "\n$" + Map.GoldTowardUnlock(Node) + " / $" + Node.unlockGold
-            : labelName;
+        label.text = labelName;
         transform.localScale = baseScale;
     }
 
     WorldMap Map => GameFlow.Instance.Map;
-
-    // Its level before is cleared; only the earnings gate keeps it shut
-    bool WaitingOnGold => !IsUnlocked && Map != null && Map.PrerequisiteCleared(Node) && !Map.GoldGateMet(Node);
 
     // The rock swells, takes the portal's colour and grows its star, then opens
     IEnumerator Reveal()
     {
         revealing = true;
         hub.ShowHint(Node.displayName + " appears!");
+        if (!ProgressStore.WasRevealed(Node.id)) hub.FocusPortal(this);
         star.enabled = true;
         label.enabled = true;
-        for (float t = 0f; t < revealTime; t += Time.deltaTime)
+        for (float t = 0f; t < revealTime; t += Time.unscaledDeltaTime)
         {
             float u = Mathf.Clamp01(t / revealTime);
             float ease = u * u * (3f - 2f * u);
@@ -171,13 +175,9 @@ public class HubPortal : MonoBehaviour
         if (Node == null || isStone || revealing || !armed || other.GetComponentInParent<PlayerCharacter>() == null) return;
         if (!IsUnlocked)
         {
-            PlayAnalytics.LockedPortal(Node.id, Map != null ? Map.GoldTowardUnlock(Node) : 0);
-            if (WaitingOnGold)
-                hub.ShowHint("Win by $" + Node.unlockGold + " in total across " + Map.GoldGateNames(Node)
-                             + " (best round each, now $" + Map.GoldTowardUnlock(Node) + ")");
-            else
-                hub.ShowHint((PrerequisiteIsBattle() ? "Beat " : "Visit ") + PrerequisiteNames()
-                             + " first to unlock " + Node.displayName);
+            PlayAnalytics.LockedPortal(Node.id, 0);
+            hub.ShowHint((PrerequisiteIsBattle() ? "Beat " : "Visit ") + PrerequisiteNames()
+                         + " first to unlock " + Node.displayName);
             return;
         }
         armed = false;

@@ -37,7 +37,8 @@ public class PlayerLifeBar : MonoBehaviour
 
         int lives = gm != null ? gm.Lives : 0;
         int bonus = gm != null ? gm.BonusLives : 0;
-        if (bonus <= 0) bonus = LevelLoader.PendingBraceBonusLives();
+        // Only the hub previews a pending pip. In a battle, zero means it was spent.
+        if (bonus <= 0 && (gm == null || LevelLoader.Tutorial)) bonus = LevelLoader.PendingBraceBonusLives();
         // Armed Brace on the hub may not be in gm.Lives yet — grow the bar so the orange pip appears.
         int filled = lives;
         if (bonus > 0 && gm != null && gm.BonusLives <= 0) filled = lives + bonus;

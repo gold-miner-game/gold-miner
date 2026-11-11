@@ -3,7 +3,7 @@ using UnityEngine;
 
 // Owner: Penny (Level map & tutorial)
 // Meta progression that survives app restarts (PlayerPrefs): cleared nodes, chosen character,
-// and per-battle best win margins (used only to credit wallet on a new record — not a second currency).
+// and legacy per-battle best margins. New rounds pay collected gold directly through GameManager.
 public static class ProgressStore
 {
     const string CompletedKey = "gm.progress.completed";   // ';'-separated node ids
@@ -72,7 +72,7 @@ public static class ProgressStore
         PlayerPrefs.Save();
     }
 
-    // Best (player − miner) margin ever recorded for this battle. Used only for new-record credits.
+    // Legacy best margin, retained for old saves and historical data.
     public static int GetBestMargin(string levelId)
     {
         if (string.IsNullOrEmpty(levelId)) return 0;
@@ -109,22 +109,6 @@ public static class ProgressStore
 
         PlayerPrefs.DeleteKey("gm.progress.marginsCredited");
         PlayerPrefs.Save();
-    }
-
-    // If margin beats the saved best for this battle, raise the best and credit the wallet by the
-    // improvement. Returns the $ added (0 if no new record). Never credits a non-positive margin.
-    // Idempotent for the same margin.
-    public static int TryCreditBestMargin(string levelId, int margin)
-    {
-        EnsureSingleWalletMigration();
-        if (string.IsNullOrEmpty(levelId) || margin <= 0) return 0;
-        int prev = Mathf.Max(0, GetBestMargin(levelId));
-        int gain = margin - prev;
-        if (gain <= 0) return 0;
-        BestMargins()[levelId] = margin;
-        SaveMargins();
-        CrossLevelStatus.Ensure().addWallet(gain);
-        return gain;
     }
 
     public static string SelectedCharacter
@@ -168,7 +152,8 @@ public static class ProgressStore
     // The tutorial run (WorldMap.tutorialLevels) is saved under this id once it is finished.
     public const string TutorialDoneId = "tutorial";
     // tut_block = the last tutorial node of the old map, so older saves skip the run too
-    public static bool TutorialDone => IsCompleted(TutorialDoneId) || IsCompleted("tut_block");
+    // battle_03 was the former Level 1, now the tutorial; preserve its completion in older saves.
+    public static bool TutorialDone => IsCompleted(TutorialDoneId) || IsCompleted("tut_block") || IsCompleted("battle_03");
 
     public static bool HasPickedCharacter => PlayerPrefs.HasKey(CharacterKey);
 

@@ -6,7 +6,7 @@ using UnityEngine;
 // level is: add a node here + drop a level JSON. See docs/level-map-tutorial-design.md.
 public enum NodeType
 {
-    Tutorial,   // unused on the map now (the tutorials run back to back before it, see WorldMap.tutorialLevels); kept so saved type numbers don't shift
+    Tutorial,   // tutorial replay portal; the first visit runs through WorldMap.tutorialLevels
     Battle,     // a normal Game-scene level; completed on win
     RolePick,   // the character picker; completed on leave
     Store,      // the shop (Zhan Li); completed on leave, re-enterable
@@ -33,10 +33,6 @@ public class MapNode
     public bool comingSoon;
     [Tooltip("Deprecated: unlock is ProgressStore completed prerequisites only. Kept for asset compatibility.")]
     public int unlockCost;
-    [Tooltip("Earnings gate on top of the prerequisites: the best win margins of these levels (node ids) " +
-             "must add up to Unlock Gold. Each level counts only its best won round. Empty = no gate.")]
-    public string[] unlockGoldFrom = new string[0];
-    public int unlockGold;
 }
 
 [CreateAssetMenu(fileName = "WorldMap", menuName = "Gold Miner/World Map")]
@@ -46,9 +42,8 @@ public class WorldMap : ScriptableObject
              "They are not map nodes; finishing the last one opens the map.")]
     public List<TextAsset> tutorialLevels = new List<TextAsset>();
 
-    [Tooltip("The node the player is taken to straight after the last tutorial (the store), by its id. " +
-             "Leaving it opens the map. Empty = the map right away.")]
-    public string afterTutorialNode = "store_1";
+    [Tooltip("Optional node entered after the tutorial, by its id. Empty opens the map and reveals the first unlocked level.")]
+    public string afterTutorialNode = "";
 
     [Tooltip("The world map as a walkable level: a \"grid\" level file whose portals are the nodes below " +
              "(MapHub). Empty = the card map in the Map scene.")]
@@ -66,15 +61,17 @@ public class WorldMap : ScriptableObject
     public int IndexOf(MapNode node) => nodes.IndexOf(node);
 
     // A node is reachable if it is already cleared (so it can be replayed / the store revisited), or
-    // it has no parents or ANY of its parents is cleared, and its earnings gate is met. "Any" is what
+    // it has no parents or ANY of its parents is cleared. "Any" is what
     // lets the tree branch (one parent -> two children) and merge (two parents -> one child).
     public bool IsUnlocked(int index)
     {
         if (index < 0 || index >= nodes.Count) return false;
         MapNode node = nodes[index];
         if (node == null || node.comingSoon) return false;
+        // Old saves may have visited the Store when it started open. Its prerequisite still applies.
+        if (node.type == NodeType.Store) return PrerequisiteCleared(node);
         if (ProgressStore.IsCompleted(node.id)) return true;
-        return PrerequisiteCleared(node) && GoldGateMet(node);
+        return PrerequisiteCleared(node);
     }
 
     public bool IsUnlocked(MapNode node) => IsUnlocked(IndexOf(node));
@@ -83,33 +80,9 @@ public class WorldMap : ScriptableObject
     {
         if (node.prerequisites == null || node.prerequisites.Length == 0) return true;
         for (int i = 0; i < node.prerequisites.Length; i++)
-            if (ProgressStore.IsCompleted(node.prerequisites[i])) return true;
+            if (node.prerequisites[i] == ProgressStore.TutorialDoneId
+                ? ProgressStore.TutorialDone : ProgressStore.IsCompleted(node.prerequisites[i])) return true;
         return false;
     }
 
-    public bool HasGoldGate(MapNode node) => node != null && node.unlockGold > 0;
-
-    public bool GoldGateMet(MapNode node) => !HasGoldGate(node) || GoldTowardUnlock(node) >= node.unlockGold;
-
-    // Sum of the best won margins of the gate's levels; replaying a level only raises its own best
-    public int GoldTowardUnlock(MapNode node)
-    {
-        int sum = 0;
-        if (node == null || node.unlockGoldFrom == null) return sum;
-        foreach (string id in node.unlockGoldFrom)
-            sum += ProgressStore.GetBestMargin(id);
-        return sum;
-    }
-
-    public string GoldGateNames(MapNode node)
-    {
-        if (node == null || node.unlockGoldFrom == null) return "";
-        var names = new string[node.unlockGoldFrom.Length];
-        for (int i = 0; i < names.Length; i++)
-        {
-            MapNode n = Find(node.unlockGoldFrom[i]);
-            names[i] = n != null ? n.displayName : node.unlockGoldFrom[i];
-        }
-        return string.Join(" + ", names);
-    }
 }
