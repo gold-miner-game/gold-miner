@@ -13,7 +13,7 @@ using UnityEngine;
 [DefaultExecutionOrder(300)]
 public class SquirrelTailCollector : MonoBehaviour
 {
-    [Header("Tail skill (hold Space)")]
+    [Header("Tail skill (hold K)")]
     [Tooltip("How see-through the tail is while not firm: 0 = invisible, 1 = solid")]
     [Range(0f, 1f)] public float idleOpacity = .3f;
 

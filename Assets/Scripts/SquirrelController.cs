@@ -8,11 +8,11 @@ using UnityEngine.InputSystem;
 // Penny's speed-up / slide-to-stop movement is saved in E:\Create with code\Squirrel Record.
 public class SquirrelController : PlayerCharacter
 {
-    [Header("Tail (hold Space)")]
+    [Header("Tail (hold K)")]
     [Tooltip("Speed while the tail is firm, times the level's speed")]
     [Range(0f, 1f)] public float firmSpeedMultiplier = .5f;
 
-    public override string SkillHint => tail != null ? "[hold Space] firm tail" : "";
+    public override string SkillHint => tail != null ? "[hold K] firm tail" : "";
     public bool TailFirm => tail != null && tail.IsCollecting;
     public override bool SkillActive => TailFirm;
 
@@ -39,7 +39,7 @@ public class SquirrelController : PlayerCharacter
     {
         base.Update();
         Keyboard keyboard = Keyboard.current;
-        if (tail != null) tail.SetFirm(IsPlaying && keyboard != null && keyboard.spaceKey.isPressed);
+        if (tail != null) tail.SetFirm(IsPlaying && keyboard != null && keyboard.kKey.isPressed);
     }
 
     // Half speed while the tail is firm

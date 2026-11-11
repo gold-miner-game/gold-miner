@@ -11,7 +11,7 @@ using UnityEngine;
 // slits), and Space works again when its eyes open.
 public class CatController : PlayerCharacter
 {
-    [Header("Roll (Space)")]
+    [Header("Roll (K)")]
     [Min(0f)] public float speedMultiplier = 3f;
     [Tooltip("How long the dash and the spin last")]
     [Min(.01f)] public float dashDuration = .5f;
@@ -44,7 +44,7 @@ public class CatController : PlayerCharacter
     // After a roll, until Space works again
     public bool IsTired => !IsRolling && CooldownRemaining > 0f;
     public override bool CanCutRope => true;
-    public override string SkillHint => "[Space] roll  [J] cut rope";
+    public override string SkillHint => "[K] roll  [J] cut rope";
     public override bool SkillActive => IsRolling;
     public override float SkillReadyIn => CooldownRemaining;
     public override float SkillWait => RollDuration + RollCooldown;

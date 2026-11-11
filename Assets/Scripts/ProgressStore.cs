@@ -64,6 +64,14 @@ public static class ProgressStore
         PlayerPrefs.Save();
     }
 
+    // Forget one id (e.g. a skill unlock, to see its summary again)
+    public static void ClearCompleted(string nodeId)
+    {
+        if (string.IsNullOrEmpty(nodeId) || !Completed().Remove(nodeId)) return;
+        PlayerPrefs.SetString(CompletedKey, string.Join(";", Completed()));
+        PlayerPrefs.Save();
+    }
+
     // Best (player − miner) margin ever recorded for this battle. Used only for new-record credits.
     public static int GetBestMargin(string levelId)
     {

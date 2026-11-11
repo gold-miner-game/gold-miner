@@ -1359,6 +1359,7 @@ public class LevelLoader : MonoBehaviour
 
         if (!gm.PlayerWon) return;
         if (TutorialDialogue.Playing) { advanceAt = -1f; return; }   // a story after the win: wait for it
+        if (SkillUnlockSummary.Playing) { advanceAt = -1f; return; }   // the skill summary after the win: wait for it
 
         // "win_to_store" (the last tutorial): no result, straight on to the store
         if (WinsToStore)
@@ -1443,6 +1444,9 @@ public class LevelLoader : MonoBehaviour
         }
         if (level != null && level.Param("start_carrying", 0f) > 0.5f)
             BeginAlreadyCarrying();
+        // "unlock_block": 1: winning this level plays the pig's block summary and unlocks the block (SkillUnlockSummary)
+        if (level != null && level.Param("unlock_block", 0f) > 0.5f && player is MrHydeController)
+            gameObject.AddComponent<SkillUnlockSummary>().player = player;
         // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
         // MapHub (grid world map) has no MazeRuntime — still push DisplayMoney onto GameManager.
         if (level != null && level.IsMaze)

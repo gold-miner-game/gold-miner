@@ -525,7 +525,7 @@ public class SurvivalLoader : MonoBehaviour
         if (gm.IsPlaying && gm.TimeSurvived < 6f)
         {
             const string hint = "SURVIVE\nEvery hook is hunting you, and they keep growing out of the ground.\n" +
-                                "The gold is all yours. WASD move, Space skill, Esc back to the map.";
+                                "The gold is all yours. WASD move, K skill, J cut, Esc back to the map.";
             float w = Mathf.Min(620f, ScreenFrame.GuiWidth - 40f);
             float h = boxStyle.CalcHeight(new GUIContent(hint), w);
             GUI.Box(new Rect((ScreenFrame.GuiWidth - w) * 0.5f, 16f, w, h), hint, boxStyle);

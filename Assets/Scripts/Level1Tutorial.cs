@@ -393,7 +393,7 @@ public class Level1Tutorial : MonoBehaviour
             hook.KeepExtendingToward(origin, body, 1.2f, miner.playerColor);
             if (hyde.IsBlocking) hook.ClearHold();
             else if (Vector2.Distance(hook.transform.position, body) < FollowGap) hook.Hold(0.2f);
-            Point(player.transform.position, 0.9f, "Tap space twice quickly to block.", true);
+            Point(player.transform.position, 0.9f, "Press K to block.", true);
             yield return null;
         }
         Acted("block", true);

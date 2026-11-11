@@ -226,7 +226,7 @@
         "E",
         "D2"
       ],
-      "text": "Space to block!",
+      "text": "K to block!",
       "param": 0.35
     },
     {
@@ -240,7 +240,7 @@
         "M",
         "G3"
       ],
-      "text": "Space to knock gold off the hook!",
+      "text": "K to knock gold off the hook!",
       "param": 2.2
     }
   ],

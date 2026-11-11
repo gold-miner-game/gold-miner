@@ -41,6 +41,8 @@ public class GameFlow : MonoBehaviour
     public bool InHub => flow == Flow.Hub || MapHub.Active != null;   // or its scene was played directly
     // True while the first-time tutorialLevels run is playing (not a map Battle node).
     public bool InTutorialRun => tutorialStep >= 0;
+    // True while a world map Battle node is being played (read without creating a GameFlow)
+    public static bool InMapBattle => instance != null && instance.CurrentNode != null && instance.CurrentNode.type == NodeType.Battle;
 
     Flow flow = Flow.None;
     int tutorialStep = -1;   // index into Map.tutorialLevels while the tutorial run plays; -1 = not in it
@@ -270,6 +272,7 @@ public class GameFlow : MonoBehaviour
         }
         if (!gm.PlayerWon) return;   // a loss stays put; R retries the same level
         if (TutorialDialogue.Playing) { winHandled = false; return; }   // a story after the win: wait for it
+        if (SkillUnlockSummary.Playing) { winHandled = false; return; }   // the skill summary after the win: wait for it
 
         if (!winHandled)
         {

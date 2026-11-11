@@ -52,7 +52,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
     public virtual bool IsInvulnerable => false;
 
-    // Shown in the level label, e.g. "[Space] block". Empty: no skill on this level
+    // Shown in the level label, e.g. "[K] block". Empty: no skill on this level
     public virtual string SkillHint => "";
 
     // For the HUD's skill row: the skill is running right now (a block, a roll, the tongue out),
@@ -326,8 +326,8 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         MoveInput = input;
 
-        // Space: the character's skill (block, roll, ...). J (j or J, it is one key): cut a rope beside the player
-        if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame && IsPlaying) UseSkill();
+        // K: the character's skill (block, roll, ...). J (j or J, it is one key): cut a rope beside the player
+        if (keyboard != null && keyboard.kKey.wasPressedThisFrame && IsPlaying) UseSkill();
         if (keyboard != null && keyboard.jKey.wasPressedThisFrame && IsPlaying && CanCutRope) Hook.TrySpaceCut(this);
 
         // Flip only when the horizontal direction changes; keep facing when moving vertically

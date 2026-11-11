@@ -361,6 +361,7 @@
   "skills": {
     "block": true,
     "block_duration": 1.5,
-    "block_cooldown": 0.25
+    "block_cooldown": 0.25,
+    "unlock_block": true
   }
 }

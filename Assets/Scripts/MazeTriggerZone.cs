@@ -154,7 +154,7 @@ public class MazeTriggerZone : MonoBehaviour
                     float dist = Vector2.Distance(miner.hook.transform.position, pig.transform.position);
                     bool pressSpace = Input.GetKeyDown(KeyCode.Space)
                         || (UnityEngine.InputSystem.Keyboard.current != null
-                            && UnityEngine.InputSystem.Keyboard.current.spaceKey.wasPressedThisFrame);
+                            && UnityEngine.InputSystem.Keyboard.current.kKey.wasPressedThisFrame);
                     if (dist <= knockRange && pressSpace && pig is MrHydeController hyde)
                         hyde.TryBlock();
 
@@ -199,7 +199,7 @@ public class MazeTriggerZone : MonoBehaviour
             }
 
             // Miner kept it (or gold vanished without clear) → respawn and retry.
-            maze.ShowHint("Press Space to knock it off, then eat it!");
+            maze.ShowHint("Press K to knock it off, then eat it!");
             maze.RespawnTreasure(goldId);
             float gapUntil = Time.unscaledTime + 0.55f;
             while (Time.unscaledTime < gapUntil) yield return null;
@@ -257,7 +257,7 @@ public class MazeTriggerZone : MonoBehaviour
             CrossLevelStatus.Ensure().addWallet(-600);
             MazeHubState.UnmarkTreasureEaten(diamondId);
             maze.RespawnTreasure(diamondId);
-            maze.ShowHint("Block with Space to keep the diamond!");
+            maze.ShowHint("Block with K to keep the diamond!");
             Rearm();
         }
 
@@ -275,7 +275,7 @@ public class MazeTriggerZone : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Space) ||
                 (UnityEngine.InputSystem.Keyboard.current != null
-                 && UnityEngine.InputSystem.Keyboard.current.spaceKey.wasPressedThisFrame))
+                 && UnityEngine.InputSystem.Keyboard.current.kKey.wasPressedThisFrame))
             {
                 qteSuccess = true;
                 PlayerCharacter pig = FindFirstObjectByType<PlayerCharacter>();

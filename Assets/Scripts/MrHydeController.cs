@@ -2,12 +2,13 @@ using UnityEngine;
 
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
-// its skill is the block: two quick Space presses bounce a hook off, or knock treasure off a passing
-// hook (it never hits). J beside a rope cuts it. The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
+// its skill is the block: K bounces a hook off, or knocks treasure off a passing hook (it never
+// hits). In the world map's battles the block is locked until the Level 2 summary unlocks it
+// (SkillUnlockSummary). J beside a rope cuts it. The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
 // enemies with HookHealth (miners, hook holes, Red Rounds and Squares).
 public class MrHydeController : PlayerCharacter
 {
-    [Header("Block (Space)")]
+    [Header("Block (K)")]
     public bool canBlock = false;       // turned on per level by LevelLoader
     public float blockDuration = 0.8f;  // how long one block lasts
     public float blockCooldown = 1f;    // wait after a block ends before the next one
@@ -16,14 +17,16 @@ public class MrHydeController : PlayerCharacter
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
     // J beside a rope cuts it. A lesson can turn that off (suppressCut).
     public bool suppressCut;
-    public override bool CanCutRope => CanBlock && !suppressCut;
-    public override string SkillHint => (CanBlock ? "[Space][Space] block   [J] cut rope   " : "") + "[Click] attack";
+    public override bool CanCutRope => LevelBlock && !suppressCut;
+    public override string SkillHint => (CanBlock ? "[K] block   " : "") + (CanCutRope ? "[J] cut rope   " : "") + "[Click] attack";
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;
 
     // After the tutorial the record decides (the store can change it); in the tutorial, the level does
-    public bool CanBlock => Record != null ? Record.getCanBlock() : canBlock;
+    bool LevelBlock => Record != null ? Record.getCanBlock() : canBlock;
+    // ... and in a world map battle, only once the Level 2 summary has unlocked it
+    public bool CanBlock => LevelBlock && (!GameFlow.InMapBattle || SkillUnlockSummary.BlockUnlocked);
     public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
     public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
 
@@ -34,24 +37,13 @@ public class MrHydeController : PlayerCharacter
     private float blockUntil;
     private float blockReadyAt;
 
-    // Two Space presses this close together (real seconds) start a block. One press only arms it.
-    const float DoubleTapWindow = 0.4f;
-    float armedTap = -1f;
-
-    // Start a block on a quick double tap. A single Space does not block.
+    // K: start a block if the skill is on and off cooldown
     protected override void UseSkill()
     {
-        float now = Time.unscaledTime;
-        if (armedTap >= 0f && now - armedTap <= DoubleTapWindow)
-        {
-            armedTap = -1f;
-            TryBlock();
-            return;
-        }
-        armedTap = now;
+        TryBlock();
     }
 
-    // Maze QTEs also call this when Space is pressed during a freeze-frame.
+    // Maze QTEs also call this when K is pressed during a freeze-frame.
     public bool TryBlock()
     {
         if (!CanBlock || Time.time < blockReadyAt) return false;

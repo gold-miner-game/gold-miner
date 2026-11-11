@@ -24,7 +24,7 @@ public class FrogTongue : MonoBehaviour
     [Tooltip("Moves with the end of the tongue; a grabbed treasure rides on it")]
     public Transform tongueTip;
 
-    [Header("Skill (Space)")]
+    [Header("Skill (K)")]
     [Tooltip("Reach, times the frog's width")]
     [Min(.01f)] public float maximumLengthMultiplier = 6f;
     [Min(.01f)] public float extensionSpeed = 8f;
