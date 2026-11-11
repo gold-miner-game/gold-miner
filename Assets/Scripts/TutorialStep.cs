@@ -15,7 +15,7 @@ using UnityEngine.InputSystem;
 //   Play() / End()     start or end the step now (the Manual trigger, or from a UnityEvent)
 //   TutorialEvents.Fire("name")   the Event trigger; every step fires "<name>.start" / "<name>.end"
 //   onStart / onEnd    UnityEvents, to start something else when this step starts or ends
-// The freeze is a time scale of 0, like the HUD's pause. It ends as the step starts fading out.
+// The freeze slows time to Freeze Time Scale (0 = a full stop, like the HUD's pause). It ends as the step starts fading out.
 public class TutorialStep : MonoBehaviour
 {
     public enum StartTrigger
@@ -69,6 +69,8 @@ public class TutorialStep : MonoBehaviour
     [Header("While showing")]
     [Tooltip("Nothing moves while the step shows (the clock, the hooks, the player)")]
     public bool freezeGame = true;
+    [Tooltip("Freeze Game: time's speed while the step shows. 0 = a complete stop; 0.1 = slow motion at a tenth of normal speed (the hooks and the player still move, slowly)")]
+    [Range(0f, 1f)] public float freezeTimeScale = 0.1f;
     [Tooltip("Darken the arena outside the step's Holes (sprite masks)")]
     public bool darken = true;
     [Range(0f, 1f)] public float darkness = 0.8f;
@@ -246,7 +248,7 @@ public class TutorialStep : MonoBehaviour
                 if (now >= delayUntil) Begin();
                 break;
             case State.Showing:
-                if (holding) Time.timeScale = 0f;   // closing the HUD's pause popup doesn't end the freeze
+                if (holding && !HudPaused()) Time.timeScale = HeldScale();   // closing the HUD's pause popup doesn't end the freeze
                 if (endingAt < 0f && Ended(now, inArea, itemGone)) BeginEnding();
                 UpdateFade(now);
                 break;
@@ -408,9 +410,24 @@ public class TutorialStep : MonoBehaviour
         if (on == holding) return;
         holding = on;
         freezes = Mathf.Max(0, freezes + (on ? 1 : -1));
-        if (freezes > 0) { Time.timeScale = 0f; return; }
-        HUDController hud = FindFirstObjectByType<HUDController>();
-        if (hud == null || !hud.IsPaused) Time.timeScale = 1f;   // a pause opened meanwhile stays paused
+        if (HudPaused()) return;   // a pause opened meanwhile stays paused
+        Time.timeScale = freezes > 0 ? HeldScale() : 1f;
+    }
+
+    // Several steps freezing at once: the slowest of their Freeze Time Scales wins
+    static float HeldScale()
+    {
+        float scale = 1f;
+        foreach (TutorialStep step in showing)
+            if (step != null && step.holding) scale = Mathf.Min(scale, step.freezeTimeScale);
+        return scale;
+    }
+
+    static HUDController hud;
+    static bool HudPaused()
+    {
+        if (hud == null) hud = FindFirstObjectByType<HUDController>();
+        return hud != null && hud.IsPaused;
     }
 
     bool InArea()
