@@ -17,7 +17,7 @@ public static class TutorialEvents
     {
         "hook_aim", "hook_fire", "hook_shot", "hook_dodged", "hook_blocked", "treasure_stolen", "player_hit", "life_lost",
         "stage_block", "stage_steal", "stage_destroy", "hook_damaged", "hook_destroyed",
-        "round_won", "round_lost", "round_end",
+        "round_won", "round_lost", "round_end", "digest_blocked",
         "squeeze_start", "squeeze_hook", "squeeze_rescue", "squeeze_closed", "squeeze_crushed",
         "exit_open", "exit_reached", "story_line", "sector_cleared", "hook_spawned",
     };

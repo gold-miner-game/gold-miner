@@ -4,8 +4,8 @@ using UnityEngine.Rendering;
 
 // Shared by every character the player can be: Mr. Hyde, the cat (JK. Rolling), the squirrel (Scrat) and
 // the frog (Rero Rero). Hook, Treasure, LifePickup and LevelLoader only talk to this class, so any character
-// works in any level. It moves with WASD, eats treasure (with the level's digest time), blinks while
-// invincible and calls UseSkill when Space is pressed. Each character adds its own skill.
+// works in any level. It moves with WASD, eats treasure (with the level's digest time) and blinks while
+// invincible. Space does not start a skill. Each character adds its own skill.
 // After the tutorial, the cross-level record (CrossLevelStatus, Zhan Li's) is the player: its speed
 // multiplier (swift water), no-digest (ration) and shield work for every character, and each champion's
 // own record (PigStatus, CatStatus, SquirrelStatus, FrogStatus) holds its skill numbers for the store.
@@ -68,6 +68,17 @@ public abstract class PlayerCharacter : MonoBehaviour
     public void OnHookBlocked() { HooksBlocked++; TutorialEvents.Fire("hook_blocked"); }
     public void OnTreasureKnocked() { TreasureStolen++; TutorialEvents.Fire("treasure_stolen"); }
     public void OnTreasureEaten() { Eaten++; }
+
+    // The first time they touch another bite while this digest is still running.
+    bool notedDigestBlock;
+    // First time the "Digesting…" label appears: a short flash, then it stays plain.
+    float digestCueUntil = -1f;
+    public void OnEatWhileDigesting()
+    {
+        if (notedDigestBlock || !IsDigesting) return;
+        notedDigestBlock = true;
+        TutorialEvents.Fire("digest_blocked");
+    }
 
     // WASD this frame (not normalized)
     public Vector2 MoveInput { get; private set; }
@@ -281,6 +292,54 @@ public abstract class PlayerCharacter : MonoBehaviour
             float progress = 1f - DigestLeft / DigestLength;
             MazeRuntime.Active.NotifyEatProgress(LastEatenId, progress);
         }
+        if (TutorialFrozen()) MoveDuringTutorialFreeze();
+    }
+
+    // A tutorial step has stopped time so the hooks stay put. Physics does not run at time scale 0,
+    // so the pig walks and eats from here. Digest still counts down in real time, or the next bite
+    // could never happen while the lesson holds the clock.
+    bool TutorialFrozen()
+    {
+        if (Time.timeScale > 0f || !TutorialStep.AnyShowing) return false;
+        GameManager gm = GameManager.Instance;
+        if (gm == null || !gm.IsPlaying) return false;
+        HUDController hud = FindFirstObjectByType<HUDController>();
+        return hud == null || !hud.IsPaused;
+    }
+
+    void MoveDuringTutorialFreeze()
+    {
+        if (Body != null) Body.linearVelocity = Vector2.zero;
+        if (!CanEat && DigestLength > 0f) digestUntil -= Time.unscaledDeltaTime;
+
+        Vector2 delta = Velocity(MoveInput) * Time.unscaledDeltaTime;
+        Collider2D body = GetComponent<Collider2D>();
+        if (delta.sqrMagnitude > 0.0000001f && body != null)
+        {
+            Vector2 origin = body.bounds.center;
+            float radius = Mathf.Min(body.bounds.extents.x, body.bounds.extents.y) * 0.9f;
+            var solid = new ContactFilter2D { useTriggers = false, useLayerMask = false };
+            var hits = new RaycastHit2D[8];
+            int count = Physics2D.CircleCast(origin, Mathf.Max(0.05f, radius), delta.normalized, solid, hits, delta.magnitude);
+            float allowed = delta.magnitude;
+            for (int i = 0; i < count; i++)
+            {
+                Collider2D other = hits[i].collider;
+                if (other == null || other == body || other.transform.IsChildOf(transform)) continue;
+                allowed = Mathf.Min(allowed, hits[i].distance);
+            }
+            if (allowed > 0.001f) transform.position += (Vector3)(delta.normalized * allowed);
+        }
+
+        if (body == null) return;
+        var triggers = new ContactFilter2D { useTriggers = true, useLayerMask = false };
+        var overlaps = new Collider2D[8];
+        int n = body.Overlap(triggers, overlaps);
+        for (int i = 0; i < n; i++)
+        {
+            Treasure treasure = overlaps[i] != null ? overlaps[i].GetComponent<Treasure>() : null;
+            if (treasure != null) treasure.TryEat(this);
+        }
     }
 
     // A "Digesting" label over the character's head while it can't eat. The green tint shows the
@@ -304,12 +363,25 @@ public abstract class PlayerCharacter : MonoBehaviour
                 alignment = TextAnchor.MiddleCenter,
             };
         }
-        digestLabelStyle.normal.textColor = digestLabelColor;
+        float pulse = 0f;
+        float now = Time.unscaledTime;
+        if (digestCueUntil < 0f) digestCueUntil = now + 1.8f;
+        if (now < digestCueUntil) pulse = 0.5f + 0.5f * Mathf.Sin(now * 16f);
+        digestLabelStyle.fontSize = Mathf.RoundToInt(Mathf.Lerp(16f, 24f, pulse));
+        digestLabelStyle.normal.textColor = Color.Lerp(digestLabelColor, Color.white, pulse);
 
         // In ScreenFrame's 1280x720 space, so the label keeps its size next to the character on any screen
         ScreenFrame.BeginGUI();
         Vector2 at = ScreenFrame.ScreenToGui(screen);
-        Rect rect = new Rect(at.x - 70f, at.y - 24f, 140f, 22f);
+        float grow = 8f * pulse;
+        Rect rect = new Rect(at.x - 70f - grow, at.y - 24f - grow * 0.4f, 140f + grow * 2f, 22f + grow * 0.8f);
+        if (pulse > 0.02f)
+        {
+            Color prev = GUI.color;
+            GUI.color = new Color(0.75f, 1f, 0.45f, 0.22f + 0.5f * pulse);
+            GUI.DrawTexture(new Rect(rect.x - 8f, rect.y - 4f, rect.width + 16f, rect.height + 8f), Texture2D.whiteTexture);
+            GUI.color = prev;
+        }
         GUI.Label(rect, "Digesting\u2026", digestLabelStyle);
     }
 
@@ -326,7 +398,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         MoveInput = input;
 
-        // K: the character's skill (block, roll, ...). J (j or J, it is one key): cut a rope beside the player
+        // K: the character's skill. J cuts a rope beside the player. Space and left click do nothing.
         if (keyboard != null && keyboard.kKey.wasPressedThisFrame && IsPlaying) UseSkill();
         if (keyboard != null && keyboard.jKey.wasPressedThisFrame && IsPlaying && CanCutRope) Hook.TrySpaceCut(this);
 

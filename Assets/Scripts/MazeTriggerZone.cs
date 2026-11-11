@@ -152,10 +152,9 @@ public class MazeTriggerZone : MonoBehaviour
                 if (carried != null)
                 {
                     float dist = Vector2.Distance(miner.hook.transform.position, pig.transform.position);
-                    bool pressSpace = Input.GetKeyDown(KeyCode.Space)
-                        || (UnityEngine.InputSystem.Keyboard.current != null
-                            && UnityEngine.InputSystem.Keyboard.current.kKey.wasPressedThisFrame);
-                    if (dist <= knockRange && pressSpace && pig is MrHydeController hyde)
+                    bool pressBlock = UnityEngine.InputSystem.Keyboard.current != null
+                        && UnityEngine.InputSystem.Keyboard.current.kKey.wasPressedThisFrame;
+                    if (dist <= knockRange && pressBlock && pig is MrHydeController hyde)
                         hyde.TryBlock();
 
                     // Reliable drop: if already blocking and close, force the hook to release.
@@ -273,9 +272,8 @@ public class MazeTriggerZone : MonoBehaviour
         float timeout = Time.unscaledTime + 1.2f;
         while (Time.unscaledTime < timeout)
         {
-            if (Input.GetKeyDown(KeyCode.Space) ||
-                (UnityEngine.InputSystem.Keyboard.current != null
-                 && UnityEngine.InputSystem.Keyboard.current.kKey.wasPressedThisFrame))
+            if (UnityEngine.InputSystem.Keyboard.current != null
+                && UnityEngine.InputSystem.Keyboard.current.kKey.wasPressedThisFrame)
             {
                 qteSuccess = true;
                 PlayerCharacter pig = FindFirstObjectByType<PlayerCharacter>();

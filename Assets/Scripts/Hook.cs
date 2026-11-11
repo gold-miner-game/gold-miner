@@ -47,6 +47,9 @@ public class Hook : MonoBehaviour
 
     // Busy hooks Space can cut without going through a lasting IsBlocking window
     static readonly List<Hook> Active = new List<Hook>();
+    // Level files turn this off with "cut_rope": false. Space beside a rope and a left click
+    // then leave the rope whole. Other levels keep cuts.
+    public static bool RopeCuts = true;
     public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
     public bool Defended { get; private set; }    // the player blocked this shot or cut its rope
     [HideInInspector] public bool AimedAtPlayer;  // set by MinerAI before each shot: a red shot
@@ -146,7 +149,7 @@ public class Hook : MonoBehaviour
     // Returns true when a rope was cut.
     public static bool TrySpaceCut(PlayerCharacter player)
     {
-        if (player == null || !player.CanCutRope) return false;
+        if (!RopeCuts || player == null || !player.CanCutRope) return false;
         Collider2D body = player.GetComponent<Collider2D>();
         Vector2 centre = body != null ? (Vector2)body.bounds.center : (Vector2)player.transform.position;
         for (int i = Active.Count - 1; i >= 0; i--)
@@ -471,22 +474,21 @@ public class Hook : MonoBehaviour
             bool slice = facing < BothBand;
             Defended = true;
 
-            if (carried != null)
+            if (carried != null && RopeCuts)
             {
                 PlayAnalytics.Steal();
                 ReportCut();
                 DropCarried();
                 player.OnTreasureKnocked();
             }
-            else
+            else if (carried == null)
             {
                 Report("blocked");
                 player.OnHookBlocked();
             }
 
             if (block) ShowBlock(hit.collider);
-            if (slice) CutRope(ClosestOnRope(player.transform.position), player);
-            else state = State.Retracting;
+            if (slice && RopeCuts) CutRope(ClosestOnRope(player.transform.position), player);
             return true;
         }
         return false;

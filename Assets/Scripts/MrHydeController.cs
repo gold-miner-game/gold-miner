@@ -4,8 +4,7 @@ using UnityEngine;
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
 // its skill is the block: K bounces a hook off, or knocks treasure off a passing hook (it never
 // hits). In the world map's battles the block is locked until the Level 2 summary unlocks it
-// (SkillUnlockSummary). J beside a rope cuts it. The left click attacks, in every level: a sweep round the pig (AttackSwing) that hits the
-// enemies with HookHealth (miners, hook holes, Red Rounds and Squares).
+// (SkillUnlockSummary). J beside a rope cuts it. Space and the left mouse button do nothing.
 public class MrHydeController : PlayerCharacter
 {
     [Header("Block (K)")]
@@ -17,8 +16,8 @@ public class MrHydeController : PlayerCharacter
     public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
     // J beside a rope cuts it. A lesson can turn that off (suppressCut).
     public bool suppressCut;
-    public override bool CanCutRope => LevelBlock && !suppressCut;
-    public override string SkillHint => (CanBlock ? "[K] block   " : "") + (CanCutRope ? "[J] cut rope   " : "") + "[Click] attack";
+    public override bool CanCutRope => Hook.RopeCuts && LevelBlock && !suppressCut;
+    public override string SkillHint => (CanBlock ? "[K] block   " : "") + (CanCutRope ? "[J] cut rope" : "");
     public override bool SkillActive => IsBlocking;
     public override float SkillReadyIn => BlockReadyIn;
     public override float SkillWait => BlockDuration + BlockCooldown;
@@ -100,14 +99,7 @@ public class MrHydeController : PlayerCharacter
 
     void ReadAttack()
     {
-        if (Time.time < attackReadyAt || Time.timeScale == 0f) return;   // not while paused or frozen
-        UnityEngine.InputSystem.Mouse mouse = UnityEngine.InputSystem.Mouse.current;
-        if (mouse == null || !mouse.leftButton.wasPressedThisFrame) return;
-        if (TutorialDialogue.Playing) return;   // that click turns the story's page
-        // A click on the HUD (Pause, Map) is not an attack
-        UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
-        if (events != null && events.IsPointerOverGameObject()) return;
-        Attack();
+        // Left click is not an attack in any level.
     }
 
     public void Attack()

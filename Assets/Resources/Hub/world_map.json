@@ -1,6 +1,6 @@
 {
   "name": "World Map",
-  "_comment": "The world-map hub (MapHub), drawn as the evil cat (EvilMeowmeow.prefab), design V156. honeycomb: odd rows sit half a tile right. # wall, G green wall = a level not disclosed yet, P start. Portals unlock in the WorldMap order (Store, Pick Character, Level 1, Level 2, Level 3). The Store and Level 1 start open. Pick Character, Level 2, and Level 3 stay dimmed until Level 1 is beaten: Level 1 and Level 2 in the eyes, Level 3 in the teeth. The two eyes are hollow, their outlines run green, rock, gap, rock round from the tip, with a miner in each (compete: they shoot at the player and time slows while the player stands still); a hook costs 1 HP; at 0 HP the player revives at Pick Character with full HP, and every won level refills it. still_time_scale = how slow time gets while standing still. The miners hunt only the player (hunt_player) and guard 4 one-time small gold in the eyes' top corners ($200, enough for the cheapest Store item). hook_wall_grace 0: the eye miners' hooks stop at the first rock they touch.",
+  "_comment": "The world-map hub (MapHub), drawn as the evil cat (EvilMeowmeow.prefab), design V156. honeycomb: odd rows sit half a tile right. # wall, G green wall = a level not disclosed yet, P start. Portals unlock in the WorldMap order (Store, Pick Character, Level 1, Level 2, Level 3, Level 4). Level 4 sits on the floor under the teeth. The Store and Level 1 start open. Pick Character, Level 2, and Level 3 stay dimmed until Level 1 is beaten: Level 1 and Level 2 in the eyes, Level 3 in the teeth. The two eyes are hollow, their outlines run green, rock, gap, rock round from the tip, with a miner in each (compete: they shoot at the player and time slows while the player stands still); a hook costs 1 HP; at 0 HP the player revives at Pick Character with full HP, and every won level refills it. still_time_scale = how slow time gets while standing still. The miners hunt only the player (hunt_player) and guard 4 one-time small gold in the eyes' top corners ($200, enough for the cheapest Store item). hook_wall_grace 0: the eye miners' hooks stop at the first rock they touch.",
   "params": {
     "pig_speed": 4.0,
     "tile_size": 0.42,
@@ -63,6 +63,11 @@
       "target": "battle_06",
       "x": 23,
       "y": 12
+    },
+    {
+      "target": "battle_04",
+      "x": 18,
+      "y": 19
     }
   ],
   "miners": [

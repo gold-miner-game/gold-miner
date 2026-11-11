@@ -948,24 +948,22 @@ public class HUDController : MonoBehaviour
         if (!endPanel.activeSelf)
         {
             endPanel.SetActive(true);
-            if (resultText != null) resultText.text = gm.PlayerWon ? "YOU WIN" : "YOU LOSE";
+            if (resultText != null)
+            {
+                // The failure line is longer, so it steps down just enough to stay on one line.
+                resultText.fontSize = gm.PlayerWon ? 110f : 64f;
+                resultText.text = gm.PlayerWon ? "achieved target." : "didn't achieve the target.";
+            }
 
-            endDetail = gm.EndReason;
-            // Levels without money (the block tutorial) skip the score line
-            if (gm.PlayerMoney + gm.MinerMoney > 0)
-                endDetail += "\nPlayer $" + gm.PlayerMoney.ToString("N0") + "  vs  Miner $" + gm.MinerMoney.ToString("N0");
-            // GameManager counts a tie as a loss; say so, or it looks like a bug
-            if (!gm.PlayerWon && gm.PlayerMoney == gm.MinerMoney) endDetail += "\nTie - the miner wins ties";
+            // A bit smaller than the title. A loss has no earnings line.
+            endDetail = gm.PlayerWon
+                ? "<size=86>earned $" + gm.PlayerMoney.ToString("N0") + "!</size>"
+                : "";
         }
 
-        // NewRecordLine is set in SettleWallet after the round ends — often one frame after this
-        // panel first opens — so append it every frame, not only when the panel activates.
-        string detail = endDetail;
-        if (!string.IsNullOrEmpty(gm.NewRecordLine))
-            detail += "\n" + gm.NewRecordLine;
-
         // Every frame: the next-level countdown ticks
-        if (detailText != null) detailText.text = detail + "\n" + NextStep(gm);
+        if (detailText != null)
+            detailText.text = (endDetail.Length > 0 ? endDetail + "\n" : "") + NextStep(gm);
     }
 
     // The one place that says what happens next (LevelLoader no longer draws it under the arena)

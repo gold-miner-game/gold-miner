@@ -5,7 +5,8 @@
     [-7.6, -3.2]
   ],
   "items": [
-    { "type": "Diamond", "x": 6.55, "y": -3.9 },
+    { "type": "Gold_Small", "x": 6.55, "y": -3.9 },
+    { "type": "Diamond", "x": 1.5, "y": -2.1 },
     { "type": "Gold_Large", "x": 0.0, "y": -4.3 },
     { "type": "Gold_Medium", "x": -5.5, "y": -1.0 },
     { "type": "Gold_Medium", "x": 4.0, "y": 1.0 },
@@ -64,7 +65,8 @@
     "yellow_hits": true,
     "greedy": true,
     "wall_rocks": true,
-    "still_time_scale": 0.06,
+    "still_time_scale": 1,
+    "cut_rope": false,
     "compete": 1,
     "pig_hunter": 1,
     "hunter_pass_rocks": true,

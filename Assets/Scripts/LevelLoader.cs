@@ -149,6 +149,7 @@ public class LevelLoader : MonoBehaviour
         ScriptedTutorial = null;
         WaitToAdvance = false;
         AdvanceNow = false;
+        Hook.RopeCuts = true;
     }
 
     void Awake()
@@ -182,6 +183,7 @@ public class LevelLoader : MonoBehaviour
         // play (N/P through the level list), where no map node made the call.
         Tutorial = ScriptedTutorial ?? current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
+        Hook.RopeCuts = level.Param("cut_rope", 1f) > 0.5f;
         if (level.IsMaze) Tutorial = true;   // the hub, even played straight from its scene: the pig, no run record
         if (layout != null) UseLayout();
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
@@ -735,10 +737,13 @@ public class LevelLoader : MonoBehaviour
 
     void SetUpCompete()
     {
-        if (!SlowWhenStill) return;   // the slow-down is kept for later levels, not used now
+        // Off unless a level sets slow_when_still. still_time_scale 1 also means no slowdown.
+        if (!SlowWhenStill) return;
+        float still = level.Param("still_time_scale", 0.06f);
+        if (still >= 0.999f) return;
         var time = gameObject.AddComponent<TimeMovesWithPlayer>();
         time.player = player;
-        time.stillScale = level.Param("still_time_scale", time.stillScale);
+        time.stillScale = still;
     }
 
     // Returns the treasure among what it spawned

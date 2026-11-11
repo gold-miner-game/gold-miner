@@ -51,7 +51,12 @@ public class Treasure : MonoBehaviour
     public bool TryEat(PlayerCharacter player)
     {
         if (IsTaken) return false;
-        if (player == null || !player.CanEat) return false;
+        if (player == null) return false;
+        if (!player.CanEat)
+        {
+            player.OnEatWhileDigesting();
+            return false;
+        }
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return false;
 
         IsTaken = true;
