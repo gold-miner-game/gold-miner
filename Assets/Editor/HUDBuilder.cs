@@ -206,7 +206,8 @@ public static class HUDBuilder
     //   LevelPause : LEVEL n and the pause button
     //   Coins      : the wallet (coin icon + amount). Hidden in a level; on the world map it shows
     //                where it is, with LevelPause hidden (HUDController)
-    // Life and Items are not shown.
+    //   Life (in PigStatus): LIFE xN, in place of SKILL / DIGEST when neither shows (the world map)
+    // Items are not shown.
     // Positions are Figma's, in canvas units from each panel's top left corner
     static void CreateBetaHUD(GameObject root)
     {
@@ -241,6 +242,13 @@ public static class HUDBuilder
             RectTransform digestRow = Stretch(pig, "Digest");
             BetaText(digestRow, "DigestLabel", "DIGEST", 90f, 52f, 86f, 18f, 12f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
             TMP_Text digest = BetaPill(digestRow, "DigestBar", 182f, 52f, 160f, 18f, DigestColor, "CAN EAT", 11f, theme.betaDigestInk, out RectTransform digestFill);
+
+            // Life: shown in place of the SKILL / DIGEST rows when neither is (the world map), so it
+            // uses their columns: the label at x 90, the value at x 182, centered in the 80 px panel
+            RectTransform lifeRow = Stretch(pig, "Life");
+            BetaText(lifeRow, "LifeLabel", "LIFE", 90f, 28f, 86f, 24f, 14f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
+            TMP_Text lives = BetaText(lifeRow, "Lives", "\u00D73", 182f, 20f, 160f, 40f, 30f, TextAlignmentOptions.Left, Color.white, 0f);
+            lifeRow.gameObject.SetActive(false);
 
             // Money --------------------------------------------------------------------------------
             const float moneyWidth = 1016f;
@@ -317,6 +325,8 @@ public static class HUDBuilder
             hud.levelText = level;
             hud.coinsPanel = coins.gameObject;
             hud.coinsText = coinsValue;
+            hud.lifeRow = lifeRow.gameObject;
+            hud.livesText = lives;
             hud.skillSection = pig.gameObject;   // the whole panel hides when the character has neither
             hud.skillBlock = skillRow.gameObject;
             hud.skillText = skill;
