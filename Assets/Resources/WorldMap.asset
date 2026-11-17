@@ -58,3 +58,10 @@ MonoBehaviour:
     mapPosition: {x: 0.5, y: 0.78}
     prerequisites:
     - store_1
+  - id: survival
+    type: 4
+    levelAsset: {fileID: 0}
+    displayName: Survival
+    mapPosition: {x: 0.5, y: 0.89}
+    prerequisites:
+    - battle_04
