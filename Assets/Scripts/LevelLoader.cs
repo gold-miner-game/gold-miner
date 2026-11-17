@@ -1542,20 +1542,25 @@ public class LevelLoader : MonoBehaviour
             movementKeyStyle.normal.textColor = new Color(0.16f, 0.13f, 0.1f);
         }
 
-        float x = ScreenFrame.GuiWidth * 0.5f - 110f;
-        float y = ScreenFrame.GuiHeight - 134f;
-        DrawMovementKey(new Rect(x + 50f, y, 44f, 44f), "W");
-        DrawMovementKey(new Rect(x, y + 50f, 44f, 44f), "A");
-        DrawMovementKey(new Rect(x + 50f, y + 50f, 44f, 44f), "S");
-        DrawMovementKey(new Rect(x + 100f, y + 50f, 44f, 44f), "D");
+        // Absolute bottom-left of the 16:9 frame — clear of the pig, spotlight, and left pits.
+        const float key = 40f;
+        const float gap = 5f;
+        float padH = key * 2f + gap;
+        float x = 14f;
+        float y = ScreenFrame.GuiHeight - padH - 14f;
+        DrawMovementKey(new Rect(x + key + gap, y, key, key), "W");
+        DrawMovementKey(new Rect(x, y + key + gap, key, key), "A");
+        DrawMovementKey(new Rect(x + key + gap, y + key + gap, key, key), "S");
+        DrawMovementKey(new Rect(x + (key + gap) * 2f, y + key + gap, key, key), "D");
     }
 
     void DrawMovementKey(Rect rect, string letter)
     {
         Color previous = GUI.color;
-        GUI.color = new Color(0.65f, 0.65f, 0.63f, 0.25f);
+        // Stronger than the old center fade so the keys stay readable outside the spotlight.
+        GUI.color = new Color(0.65f, 0.65f, 0.63f, 0.55f);
         GUI.DrawTexture(rect, Texture2D.whiteTexture);
-        GUI.color = new Color(0.97f, 0.97f, 0.95f, 0.35f);
+        GUI.color = new Color(0.97f, 0.97f, 0.95f, 0.82f);
         GUI.DrawTexture(new Rect(rect.x + 2f, rect.y + 2f, rect.width - 4f, rect.height - 4f), Texture2D.whiteTexture);
         GUI.color = previous;
         GUI.Label(rect, letter, movementKeyStyle);
