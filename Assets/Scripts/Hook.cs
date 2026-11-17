@@ -45,10 +45,9 @@ public class Hook : MonoBehaviour
 
     public bool IsBusy => state != State.Idle;
 
-    // Busy hooks Space can cut without going through a lasting IsBlocking window
+    // J checks all busy hooks without opening a lasting IsBlocking window.
     static readonly List<Hook> Active = new List<Hook>();
-    // Level files turn this off with "cut_rope": false. Space beside a rope and a left click
-    // then leave the rope whole. Other levels keep cuts.
+    // Level files turn off J cuts with "cut_rope": false.
     public static bool RopeCuts = true;
     public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
     public bool Defended { get; private set; }    // the player blocked this shot or cut its rope
@@ -145,20 +144,21 @@ public class Hook : MonoBehaviour
         rope = clawLeft = clawRight = null;
     }
 
-    // J beside the rope (not at the tip): cut it. (Space is the character skill only)
-    // Returns true when a rope was cut.
+    // One J press cuts every rope in reach, including at the tip.
+    // Returns true when at least one rope was cut.
     public static bool TrySpaceCut(PlayerCharacter player)
     {
         if (!RopeCuts || player == null || !player.CanCutRope) return false;
         Collider2D body = player.GetComponent<Collider2D>();
         Vector2 centre = body != null ? (Vector2)body.bounds.center : (Vector2)player.transform.position;
+        bool anyCut = false;
         for (int i = Active.Count - 1; i >= 0; i--)
         {
             Hook hook = Active[i];
             if (hook == null) { Active.RemoveAt(i); continue; }
-            if (hook.TrySpaceCutBy(player, body, centre)) return true;
+            if (hook.TrySpaceCutBy(player, body, centre)) anyCut = true;
         }
-        return false;
+        return anyCut;
     }
 
     bool TrySpaceCutBy(PlayerCharacter player, Collider2D body, Vector2 centre)
@@ -361,11 +361,11 @@ public class Hook : MonoBehaviour
             else if (state == State.Extending)
             {
                 if (roundOver) state = State.Retracting;
-                else if (!CutAlongRope()) Extend();
+                else Extend();
             }
             else if (state == State.Retracting && (roundOver || Time.time >= holdUntil))
             {
-                if (roundOver || !CutAlongRope()) Retract(!roundOver);
+                Retract(!roundOver);
             }
         }
 
@@ -400,7 +400,8 @@ public class Hook : MonoBehaviour
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
 
         // An empty hook still catches treasure on the way back. A carrying hook ignores everything except
-        // a blocking pig, which cuts the rope. Neither hurts the player while retracting. A cut rope's stub touches nothing
+        // a blocking player at the claw, which drops its treasure without cutting the rope.
+        // Neither hurts the player while retracting. A cut rope's stub touches nothing.
         if (react && !cut && remaining > 0.0001f)
         {
             Vector2 back = (origin - pos) / remaining;
@@ -412,10 +413,12 @@ public class Hook : MonoBehaviour
                     if (player != null && player.IsBlocking && touched.Add(hit.collider))
                     {
                         PlayAnalytics.Steal();
-                        ReportCut();
+                        Defended = true;
+                        Report("blocked");
                         DropCarried();
                         player.OnTreasureKnocked();
-                        CutRope(ClosestOnRope(player.transform.position), player);
+                        player.OnHookBlocked();
+                        ShowBlock(hit.collider);
                         return;
                     }
                     continue;
@@ -446,56 +449,6 @@ public class Hook : MonoBehaviour
         dir = Vector2.down;
         transform.rotation = Quaternion.identity;
     }
-
-    // While a character is actively blocking (tip Space / brace), contact along the rope or head
-    // still resolves here. Rope-only J cuts go through TrySpaceCut instead, so they do not
-    // open a lasting IsBlocking window. a·b > 0 blocks at the tip; a·b < 0 cuts beside the rope.
-    bool CutAlongRope()
-    {
-        if (cut) return false;
-        Vector2 tip = transform.position;
-        Vector2 delta = tip - origin;
-        float length = delta.magnitude;
-        if (length < 0.05f) return false;
-
-        RaycastHit2D[] hits = Physics2D.CircleCastAll(origin, cutReach, delta / length, length);
-        foreach (RaycastHit2D hit in hits)
-        {
-            if (hit.collider == null) continue;
-            if (hit.collider.transform.IsChildOf(transform)) continue;
-            PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
-            // Lasting block only — rope-only cuts are handled on the J press via TrySpaceCut
-            if (player == null || !player.IsBlocking) continue;
-            if (!touched.Add(hit.collider)) continue;
-
-            Vector2 toPig = (Vector2)player.transform.position - tip;
-            float facing = toPig.sqrMagnitude < 0.0001f ? 0f : Vector2.Dot(delta / length, toPig.normalized);
-            bool block = facing > -BothBand;
-            bool slice = facing < BothBand;
-            Defended = true;
-
-            if (carried != null && RopeCuts)
-            {
-                PlayAnalytics.Steal();
-                ReportCut();
-                DropCarried();
-                player.OnTreasureKnocked();
-            }
-            else if (carried == null)
-            {
-                Report("blocked");
-                player.OnHookBlocked();
-            }
-
-            if (block) ShowBlock(hit.collider);
-            if (slice && RopeCuts) CutRope(ClosestOnRope(player.transform.position), player);
-            return true;
-        }
-        return false;
-    }
-
-    // |cos| below this between the hook's way and the way to the pig counts as both block and cut
-    const float BothBand = 0.15f;
 
     Vector2 ClosestOnRope(Vector2 point)
     {

@@ -2,59 +2,17 @@ using UnityEngine;
 
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
-// its skill is the block: K bounces a hook off, or knocks treasure off a passing hook (it never
-// hits). In the world map's battles the block is locked until the Level 2 summary unlocks it
-// (SkillUnlockSummary). J beside a rope cuts it. Space and the left mouse button do nothing.
+// shares K block with every character after Level 1. J cuts every nearby rope.
 public class MrHydeController : PlayerCharacter
 {
-    [Header("Block (K)")]
-    public bool canBlock = false;       // turned on per level by LevelLoader
-    public float blockDuration = 0.8f;  // how long one block lasts
-    public float blockCooldown = 1f;    // wait after a block ends before the next one
-    public Color blockTint = new Color(0.45f, 0.75f, 1f);
-
-    public override bool IsBlocking => Time.time < blockUntil || base.IsBlocking;
     // J beside a rope cuts it. A lesson can turn that off (suppressCut).
     public bool suppressCut;
-    public override bool CanCutRope => Hook.RopeCuts && LevelBlock && !suppressCut;
-    public override string SkillHint => (CanBlock ? "[K] block   " : "") + (CanCutRope ? "[J] cut rope" : "");
-    public override bool SkillActive => IsBlocking;
-    public override float SkillReadyIn => BlockReadyIn;
-    public override float SkillWait => BlockDuration + BlockCooldown;
-
-    // After the tutorial the record decides (the store can change it); in the tutorial, the level does
-    bool LevelBlock => Record != null ? Record.getCanBlock() : canBlock;
-    // ... and in a world map battle, only once the Level 2 summary has unlocked it
-    public bool CanBlock => LevelBlock && (!GameFlow.InMapBattle || SkillUnlockSummary.BlockUnlocked);
-    public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
-    public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
-
-    // Time left in the current block, and until the next one
-    public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
-    public float BlockReadyIn => Mathf.Max(0f, blockReadyAt - Time.time);
-
-    private float blockUntil;
-    private float blockReadyAt;
+    public override bool CanCutRope => base.CanCutRope && !suppressCut;
 
     // K: start a block if the skill is on and off cooldown
     protected override void UseSkill()
     {
         TryBlock();
-    }
-
-    // Maze QTEs also call this when K is pressed during a freeze-frame.
-    public bool TryBlock()
-    {
-        if (!CanBlock || Time.time < blockReadyAt) return false;
-        blockUntil = Time.time + BlockDuration;
-        blockReadyAt = blockUntil + BlockCooldown;
-        return true;
-    }
-
-    // The tutorial's scripted hit must not bounce off a block that is still running.
-    public void CancelBlock()
-    {
-        blockUntil = 0f;
     }
 
     protected override void Update()
@@ -131,14 +89,4 @@ public class MrHydeController : PlayerCharacter
         }
     }
 
-    // While blocking the whole body is blue
-    protected override Color BodyColor => IsBlocking ? blockTint : BaseColor;
-
-    // The block cooldown shows blue, draining from the top down
-    protected override bool SkillCooldown(out float left, out Color tint)
-    {
-        tint = blockTint;
-        left = !IsBlocking && BlockReadyIn > 0f && BlockCooldown > 0f ? BlockReadyIn / BlockCooldown : 0f;
-        return left > 0f;
-    }
 }

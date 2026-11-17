@@ -5,19 +5,25 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 
 // Owner: Butian (skill unlocks)
-// The summary after winning a level whose file says "unlock_block": 1 (Level 2 on the world map). It
-// hands Mr. Hyde his block for the levels after it:
+// The summary after winning a level whose file says "unlock_block": 1 (Level 1 on the world map).
+// K block is shared by every character, and is saved immediately on winning Level 1:
 //   the screen darkens over the level, and a big copy of the pig shows under "NEW SKILL: BLOCK";
 //   a red hook shoots at him and stops just short; "Press K" pulses until K is pressed;
 //   then the pig turns blue and bobs, the block's white flash shows on his head and the hook snaps
 //   back (the Select scene's Block preview, SkillPreview), and the unlock is saved.
-// Until then CanBlock stays off in world map battles (MrHydeController). It only plays while the block
+// Until then CanBlock stays off in world map battles (PlayerCharacter). It only plays while the block
 // is still locked (unless PlayEveryTime, on for now); ResetUnlock (or resetting all progress) makes it play again.
 // LevelLoader adds it; GameFlow and LevelLoader wait while Playing before leaving the level.
 public class SkillUnlockSummary : MonoBehaviour
 {
     public const string BlockUnlockId = "skill_block";   // saved with the cleared nodes (ProgressStore)
-    public static bool BlockUnlocked => ProgressStore.IsCompleted(BlockUnlockId);
+    public static bool BlockUnlocked => ProgressStore.IsCompleted(BlockUnlockId)
+        || ProgressStore.IsCompleted("battle_06");   // Level 1 on the map; includes existing saves.
+
+    public static void UnlockForWin(string levelName)
+    {
+        if (levelName == "level_01") ProgressStore.MarkCompleted(BlockUnlockId);
+    }
     public static bool Playing { get; private set; }
     // For now it plays on every win of the level, not only while the block is still locked. Set false to
     // play it once (the first win), as the unlock moment

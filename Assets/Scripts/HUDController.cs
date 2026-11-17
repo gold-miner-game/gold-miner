@@ -898,7 +898,7 @@ public class HUDController : MonoBehaviour
     bool UpdateSkill()
     {
         if (skillText == null) return false;
-        bool shown = player != null && player.SkillHint != "";
+        bool shown = player != null && player.CanBlock;
         if (skillBlock != null) skillBlock.SetActive(shown);
         else SetRow(skillText, shown);
         if (skillBarFill != null) skillBarFill.parent.gameObject.SetActive(shown);

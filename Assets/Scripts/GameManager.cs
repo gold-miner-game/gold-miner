@@ -241,6 +241,11 @@ public class GameManager : MonoBehaviour
     // For tutorial steps and stories that start when the round ends (TutorialEvents)
     void AnnounceEnd()
     {
+        if (PlayerWon)
+        {
+            LevelLoader loader = FindFirstObjectByType<LevelLoader>();
+            if (loader != null) SkillUnlockSummary.UnlockForWin(loader.LevelName());
+        }
         StoreView.ShuffleStock();
         TutorialEvents.Fire(PlayerWon ? "round_won" : "round_lost");
         TutorialEvents.Fire("round_end");

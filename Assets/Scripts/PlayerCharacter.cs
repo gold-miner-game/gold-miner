@@ -41,25 +41,46 @@ public abstract class PlayerCharacter : MonoBehaviour
     public bool IsDigesting => !CanEat && DigestLength > 0f;
     public float DigestProgress01 => IsDigesting ? 1f - DigestLeft / DigestLength : 0f;
 
-    // Hook asks this when it touches the character: a blocking one bounces the hook back.
-    // Only Mr. Hyde can block
-    // A timed block (Mr. Hyde's Space) or the brace item, which blocks for the whole level
-    public virtual bool IsBlocking => Record != null && Record.isBracing();
+    [Header("Block (K, shared by all characters)")]
+    public bool canBlock = false;
+    public float blockDuration = 0.8f;
+    public float blockCooldown = 1f;
+    public Color blockTint = new Color(0.45f, 0.75f, 1f);
+    float blockUntil;
+    float blockReadyAt;
 
-    // J beside a rope can cut it (Mr. Hyde, JK. Rolling). Tip Space still uses UseSkill.
-    public virtual bool CanCutRope => false;
+    public bool CanBlock => SkillUnlockSummary.BlockUnlocked
+        || (!GameFlow.InMapBattle && (Record != null ? Record.getCanBlock() : canBlock));
+    public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
+    public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
+    public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
+    public float BlockReadyIn => Mathf.Max(0f, blockReadyAt - Time.time);
+    public virtual bool IsBlocking => Time.time < blockUntil || (Record != null && Record.isBracing());
+
+    public bool TryBlock()
+    {
+        if (!CanBlock || Time.time < blockReadyAt) return false;
+        blockUntil = Time.time + BlockDuration;
+        blockReadyAt = blockUntil + BlockCooldown;
+        return true;
+    }
+
+    public void CancelBlock() { blockUntil = 0f; }
+
+    // J cuts every rope within reach. Cutting does not open a block window.
+    public virtual bool CanCutRope => Hook.RopeCuts;
 
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
     public virtual bool IsInvulnerable => false;
 
     // Shown in the level label, e.g. "[K] block". Empty: no skill on this level
-    public virtual string SkillHint => "";
+    public virtual string SkillHint => (CanBlock ? "[K] block   " : "") + (CanCutRope ? "[J] cut ropes" : "");
 
     // For the HUD's skill row: the skill is running right now (a block, a roll, the tongue out),
     // seconds until Space works again (0 = ready), and the whole wait after a use (0 = no cooldown)
-    public virtual bool SkillActive => false;
-    public virtual float SkillReadyIn => 0f;
-    public virtual float SkillWait => 0f;
+    public virtual bool SkillActive => IsBlocking;
+    public virtual float SkillReadyIn => BlockReadyIn;
+    public virtual float SkillWait => BlockDuration + BlockCooldown;
 
     // Hooks bounced off a block, and treasure knocked off a hook, this round (the tutorial's goals)
     public int HooksBlocked { get; private set; }
@@ -413,8 +434,8 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         MoveInput = input;
 
-        // K: the character's skill. J cuts a rope beside the player. Space and left click do nothing.
-        if (keyboard != null && keyboard.kKey.wasPressedThisFrame && IsPlaying) UseSkill();
+        // K only blocks, on every character. J independently cuts all nearby ropes.
+        if (keyboard != null && keyboard.kKey.wasPressedThisFrame && IsPlaying) TryBlock();
         if (keyboard != null && keyboard.jKey.wasPressedThisFrame && IsPlaying && CanCutRope) Hook.TrySpaceCut(this);
 
         // Flip only when the horizontal direction changes; keep facing when moving vertically
@@ -480,13 +501,13 @@ public abstract class PlayerCharacter : MonoBehaviour
     protected virtual void OnStopped() { }
 
     // The body's color right now (Mr. Hyde turns blue while blocking)
-    protected virtual Color BodyColor => BaseColor;
+    protected virtual Color BodyColor => IsBlocking ? blockTint : BaseColor;
 
     // A skill cooldown to draw on the body: left is 1 just after use and 0 when ready
     protected virtual bool SkillCooldown(out float left, out Color tint)
     {
-        left = 0f;
-        tint = Color.clear;
-        return false;
+        tint = blockTint;
+        left = !IsBlocking && BlockReadyIn > 0f && BlockCooldown > 0f ? BlockReadyIn / BlockCooldown : 0f;
+        return left > 0f;
     }
 }

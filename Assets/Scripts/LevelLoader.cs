@@ -825,13 +825,9 @@ public class LevelLoader : MonoBehaviour
             player.digestPerValue = level.Param("digest_per_value", 0f);
             player.digestMaxTime = level.Param("digest_max", player.digestMaxTime);
 
-            // Only Mr. Hyde blocks
-            if (player is MrHydeController hyde)
-            {
-                hyde.canBlock = level.Param("block", 0f) > 0.5f;
-                hyde.blockDuration = level.Param("block_duration", hyde.blockDuration);
-                hyde.blockCooldown = level.Param("block_cooldown", hyde.blockCooldown);
-            }
+            player.canBlock = level.Param("block", 0f) > 0.5f;
+            player.blockDuration = level.Param("block_duration", player.blockDuration);
+            player.blockCooldown = level.Param("block_cooldown", player.blockCooldown);
             return;
         }
 
@@ -852,12 +848,9 @@ public class LevelLoader : MonoBehaviour
         player.digestTime = record.getDigestTime();
         player.digestPerValue = record.getDigestPerValue();
         player.digestMaxTime = record.getDigestMaxTime();
-        if (player is MrHydeController blocker)
-        {
-            blocker.canBlock = record.getCanBlock();
-            blocker.blockDuration = record.getBlockDuration();
-            blocker.blockCooldown = record.getBlockCooldown();
-        }
+        player.canBlock = record.getCanBlock();
+        player.blockDuration = record.getBlockDuration();
+        player.blockCooldown = record.getBlockCooldown();
     }
 
     void SetUpMiners()
@@ -1451,7 +1444,7 @@ public class LevelLoader : MonoBehaviour
         if (level != null && level.Param("start_carrying", 0f) > 0.5f)
             BeginAlreadyCarrying();
         // "unlock_block": 1: winning this level plays the pig's block summary and unlocks the block (SkillUnlockSummary)
-        if (level != null && level.Param("unlock_block", 0f) > 0.5f && player is MrHydeController)
+        if (level != null && level.Param("unlock_block", 0f) > 0.5f && player != null)
             gameObject.AddComponent<SkillUnlockSummary>().player = player;
         // After every Awake (including GameManager): restore maze hub money / pose from the battle trip.
         // MapHub (grid world map) has no MazeRuntime — still push DisplayMoney onto GameManager.

@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 // The squirrel (Scrat). Moves, eats and blinks like every character (PlayerCharacter), at the level's
 // speed. It never flips; SquirrelFaceHeading and SquirrelTailHeading turn the face and tail instead.
@@ -12,9 +11,7 @@ public class SquirrelController : PlayerCharacter
     [Tooltip("Speed while the tail is firm, times the level's speed")]
     [Range(0f, 1f)] public float firmSpeedMultiplier = .5f;
 
-    public override string SkillHint => tail != null ? "[hold K] firm tail" : "";
     public bool TailFirm => tail != null && tail.IsCollecting;
-    public override bool SkillActive => TailFirm;
 
     // After the tutorial his record decides (the store can change it); before, the Inspector value
     public float FirmSpeedMultiplier => Record is SquirrelStatus s ? s.getFirmSpeedMultiplier() : firmSpeedMultiplier;
@@ -33,13 +30,6 @@ public class SquirrelController : PlayerCharacter
     void Start()
     {
         if (Record is SquirrelStatus s) s.seed(firmSpeedMultiplier, tail != null ? tail.hookStall : 1f);
-    }
-
-    protected override void Update()
-    {
-        base.Update();
-        Keyboard keyboard = Keyboard.current;
-        if (tail != null) tail.SetFirm(IsPlaying && keyboard != null && keyboard.kKey.isPressed);
     }
 
     // Half speed while the tail is firm
