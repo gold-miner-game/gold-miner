@@ -23,6 +23,7 @@ public static class HUDBuilder
     static Color MinerColor => theme.miner;
     static Color SkillColor => theme.skill;
     static Color DigestColor => theme.digest;
+    static Color CoinColor => theme.betaCoin;
     static Color BarBack => theme.barBack;
     static int SidebarPaddingX => theme.sidebarPaddingX;
     static int SidebarPaddingY => theme.sidebarPaddingY;
@@ -203,7 +204,10 @@ public static class HUDBuilder
     //   PigStatus  : pig avatar, SKILL pill (READY / ACTIVE / seconds), DIGEST pill (CAN EAT / seconds)
     //   Money      : "YOU $320"  timer  "$230 MINER", the tug bar under them (split by each side's share)
     //   LevelPause : LEVEL n and the pause button
-    // The Figma Coins panel is not built yet (no coins in the game). Life and Items are not shown.
+    //   Coins      : the wallet (coin icon + amount). Hidden in a level; on the world map it shows
+    //                where it is, with LevelPause hidden (HUDController)
+    //   Life (in PigStatus): LIFE xN, in place of SKILL / DIGEST when neither shows (the world map)
+    // Items are not shown.
     // Positions are Figma's, in canvas units from each panel's top left corner
     static void CreateBetaHUD(GameObject root)
     {
@@ -239,6 +243,13 @@ public static class HUDBuilder
             BetaText(digestRow, "DigestLabel", "DIGEST", 90f, 52f, 86f, 18f, 12f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
             TMP_Text digest = BetaPill(digestRow, "DigestBar", 182f, 52f, 160f, 18f, DigestColor, "CAN EAT", 11f, theme.betaDigestInk, out RectTransform digestFill);
 
+            // Life: shown in place of the SKILL / DIGEST rows when neither is (the world map), so it
+            // uses their columns: the label at x 90, the value at x 182, centered in the 80 px panel
+            RectTransform lifeRow = Stretch(pig, "Life");
+            BetaText(lifeRow, "LifeLabel", "LIFE", 90f, 28f, 86f, 24f, 14f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
+            TMP_Text lives = BetaText(lifeRow, "Lives", "\u00D73", 182f, 20f, 160f, 40f, 30f, TextAlignmentOptions.Left, Color.white, 0f);
+            lifeRow.gameObject.SetActive(false);
+
             // Money --------------------------------------------------------------------------------
             const float moneyWidth = 1016f;
             RectTransform money = BetaPanel(topBar, "Money", center, 0f, moneyWidth);
@@ -272,6 +283,28 @@ public static class HUDBuilder
             TMP_Text level = BetaText(levelPanel, "Level", "LEVEL 1", 22f, 20f, 130f, 40f, 17f, TextAlignmentOptions.Left, theme.betaLevel, 12f);
             Button pause = CreatePauseButton(levelPanel);
 
+            // Coins --------------------------------------------------------------------------------
+            // Figma "Coins": 150 x 80 at x 1508, 16 px left of LevelPause. A 24 px gold coin and the
+            // amount, 12 px apart, 30 px padding; the panel grows left when the amount gets longer
+            RectTransform coins = BetaPanel(topBar, "Coins", new Vector2(1f, 0.5f), -246f, 150f);
+            HorizontalLayoutGroup coinRow = coins.gameObject.AddComponent<HorizontalLayoutGroup>();
+            coinRow.padding = new RectOffset(30, 30, 0, 0);
+            coinRow.spacing = 12f;
+            coinRow.childAlignment = TextAnchor.MiddleCenter;
+            coinRow.childControlWidth = true;
+            coinRow.childControlHeight = true;
+            coinRow.childForceExpandWidth = false;
+            coinRow.childForceExpandHeight = false;
+            ContentSizeFitter coinsFit = coins.gameObject.AddComponent<ContentSizeFitter>();
+            coinsFit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            GameObject coinIcon = CreateImage(coins, "CoinIcon", CoinColor, Vector2.zero, Vector2.zero, 0f, false);
+            Round(coinIcon.GetComponent<Image>(), 12f);
+            LayoutElement coinSize = coinIcon.AddComponent<LayoutElement>();
+            coinSize.preferredWidth = coinSize.minWidth = 24f;
+            coinSize.preferredHeight = coinSize.minHeight = 24f;
+            TMP_Text coinsValue = BetaText(coins, "WalletValue", "0", 0f, 0f, 0f, 0f, 32f, TextAlignmentOptions.Left, CoinColor, 0f);
+            coins.gameObject.SetActive(false);
+
             // End panel: covers the arena only, so the score in the bar stays readable
             GameObject endPanel = CreateImage(canvas, "EndPanel", new Color(0f, 0f, 0f, 0.65f), Vector2.zero, new Vector2(1f, top), 0f, false);
             TMP_Text result = CreateText(endPanel.transform, "Result", "YOU WIN", center, new Vector2(0f, 90f), new Vector2(1200f, 140f), 110f, TextAlignmentOptions.Center);
@@ -290,6 +323,10 @@ public static class HUDBuilder
             hud.timerText = timer;
             hud.mapButton = pause;
             hud.levelText = level;
+            hud.coinsPanel = coins.gameObject;
+            hud.coinsText = coinsValue;
+            hud.lifeRow = lifeRow.gameObject;
+            hud.livesText = lives;
             hud.skillSection = pig.gameObject;   // the whole panel hides when the character has neither
             hud.skillBlock = skillRow.gameObject;
             hud.skillText = skill;

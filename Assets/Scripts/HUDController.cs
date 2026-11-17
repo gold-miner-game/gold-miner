@@ -12,8 +12,11 @@ public class HUDController : MonoBehaviour
 
     [Header("HUD Beta (top bar only; HUDBuilder wires these)")]
     public RectTransform topBar;     // Beta: the row of panels. Else the timer's parent is the top bar
-    public GameObject moneyPanel;    // Beta: YOU $ / timer / $ MINER + tug bar, hidden on the maze
+    public GameObject moneyPanel;    // Beta: YOU $ / timer / $ MINER + tug bar (also on the maze, timer blank)
     public GameObject levelPanel;    // Beta: LEVEL n + Pause, hidden on the maze
+    public GameObject coinsPanel;    // Beta: the wallet (coin + amount), shown only on the maze, in LevelPause's place
+    public TMP_Text coinsText;
+    public GameObject lifeRow;       // Beta: LIFE xN in PigStatus, in the SKILL / DIGEST rows' place when neither shows (the world map)
     public Color pillSkillInk = new Color(0.086f, 0.196f, 0.302f);   // READY / ACTIVE on the full skill pill
     public Color pillDigestInk = new Color(0.118f, 0.251f, 0.071f);  // CAN EAT on the full digest pill
     public Color pillWaitInk = Color.white;                          // the seconds while a pill refills
@@ -179,13 +182,19 @@ public class HUDController : MonoBehaviour
         if (!maze) return;
         mazeHudApplied = true;
 
-        // Beta: the skill / digest pills live in the top bar, so keep it and drop only the score,
-        // timer, level and Pause
+        // Beta: keep the top bar as in a level (PigStatus, Money, Coins) and drop only LevelPause.
+        // The timer is blank on the hub (UpdateTimer)
         if (Beta)
         {
-            if (moneyPanel != null) moneyPanel.SetActive(false);
             if (levelPanel != null) levelPanel.SetActive(false);
             if (mapButton != null) mapButton.gameObject.SetActive(false);
+            if (coinsPanel != null && coinsText != null)
+            {
+                // Coins keeps its Figma spot (left of where LevelPause was): the map's Quit button
+                // sits at the right end of the bar
+                coinsPanel.SetActive(true);
+                mazeMoneyText = coinsText;
+            }
             roundHasLives = true;
             ApplyFrame();
             GameplayCamera betaCam = FindFirstObjectByType<GameplayCamera>();
@@ -401,7 +410,9 @@ public class HUDController : MonoBehaviour
         {
             // World map: same wallet the store spends.
             int show = (flow != null && flow.InHub) ? MazeHubState.DisplayMoney : gm.PlayerMoney;
-            mazeMoneyText.text = "$" + show.ToString("N0");
+            // The Beta Coins panel shows the bare amount next to its coin icon (Figma "150")
+            string prefix = mazeMoneyText == coinsText ? "" : "$";
+            mazeMoneyText.text = prefix + show.ToString("N0");
         }
 
         playerMoney.Apply(moneyFlashScale);
@@ -675,8 +686,13 @@ public class HUDController : MonoBehaviour
 
         if (gm.Lives > 0) roundHasLives = true;   // e.g. a Life spawned at runtime
         // The whole section when there is one (the sidebar), else just the label (an older HUD)
-        GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
-        shown.SetActive(roundHasLives);
+        // Beta's lifeRow is shown by UpdateSidebar, which knows whether the SKILL / DIGEST rows are
+        bool rowStyle = lifeSection != null || lifeRow != null;
+        if (lifeRow == null)
+        {
+            GameObject shown = lifeSection != null ? lifeSection : livesText.gameObject;
+            shown.SetActive(roundHasLives);
+        }
         int bonus = gm.BonusLives;
         if (bonus <= 0 && ((flow != null && flow.InHub) || MazeRuntime.Active != null))
             bonus = LevelLoader.PendingBraceBonusLives();
@@ -687,16 +703,16 @@ public class HUDController : MonoBehaviour
         // Brace bonus: orange +N (matches the orange pip on the over-head life bar).
         if (bonus > 0 && shownLives > 0)
         {
-            string mark = StatRows || lifeSection != null ? "\u00D7" : "x";
+            string mark = StatRows || rowStyle ? "\u00D7" : "x";
             livesText.richText = true;
             // Keep face color white so TMP <color=#FF8C14> stays orange (Label.Apply multiplies tint).
             livesText.color = Color.white;
-            livesText.text = lifeSection == null
+            livesText.text = !rowStyle
                 ? "Life: <color=#FFFFFF>" + baseLives + "</color> <color=#FF8C14>+" + bonus + "</color>"
                 : "<color=#FFFFFF>" + mark + baseLives + "</color> <color=#FF8C14>+" + bonus + "</color>";
         }
-        else if (lifeSection == null) { livesText.text = "Life: " + gm.Lives; lives.Apply(moneyFlashScale); }
-        else { livesText.text = (StatRows ? "\u00D7" : "x") + gm.Lives; lives.Apply(moneyFlashScale); }
+        else if (!rowStyle) { livesText.text = "Life: " + gm.Lives; lives.Apply(moneyFlashScale); }
+        else { livesText.text = (StatRows || lifeRow != null ? "\u00D7" : "x") + gm.Lives; lives.Apply(moneyFlashScale); }
     }
 
     // The map node's name ("LEVEL 4") when the map sent us here, else "LV 4/10" for editor N/P play;
@@ -733,7 +749,9 @@ public class HUDController : MonoBehaviour
             // Skill / digest cooldowns stay visible on the world map.
             bool hasSkill = UpdateSkill();
             bool hasDigest = UpdateDigest();
-            if (skillSection != null) skillSection.SetActive(hasSkill || hasDigest);
+            UpdateLifeRow(hasSkill, hasDigest);
+            // Beta: PigStatus (the pig avatar) stays on the map even when neither pill is shown
+            if (skillSection != null) skillSection.SetActive(Beta || hasSkill || hasDigest);
             UpdateStatusSection();
             UpdateDividers();
             return;
@@ -742,10 +760,21 @@ public class HUDController : MonoBehaviour
         UpdateWallet(record);
         bool skill = UpdateSkill();
         bool digest = UpdateDigest();
-        if (skillSection != null) skillSection.SetActive(skill || digest);
+        bool life = UpdateLifeRow(skill, digest);
+        if (skillSection != null) skillSection.SetActive(skill || digest || life);
         UpdateItems(record);
         UpdateStatusSection();
         UpdateDividers();
+    }
+
+    // Beta: LIFE xN takes the SKILL / DIGEST rows' place in PigStatus when neither is shown (the
+    // world map), so the panel never needs a third row. Returns whether it is shown
+    bool UpdateLifeRow(bool hasSkill, bool hasDigest)
+    {
+        if (lifeRow == null) return false;
+        bool shown = roundHasLives && livesText != null && !hasSkill && !hasDigest;
+        if (lifeRow.activeSelf != shown) lifeRow.SetActive(shown);
+        return shown;
     }
 
     void UpdateWallet(CrossLevelStatus record)

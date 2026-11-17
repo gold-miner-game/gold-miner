@@ -68,6 +68,7 @@ public class HUDTheme
     public Color betaSkillInk = new Color32(0x16, 0x32, 0x4D, 0xFF);   // READY / ACTIVE on the full blue pill
     public Color betaDigestInk = new Color32(0x1E, 0x40, 0x12, 0xFF);  // CAN EAT on the full green pill
     public Color betaButton = new Color32(0x1D, 0x24, 0x21, 0xFF);     // pause button
+    public Color betaCoin = new Color32(0xF5, 0xC5, 0x18, 0xFF);       // Coins panel: coin icon and wallet amount
 
     static HUDTheme VersionBeta()
     {
