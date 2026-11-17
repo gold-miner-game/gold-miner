@@ -102,14 +102,9 @@ public static class HUDBuilder
         }
         else
         {
-            playerMoney = CreateText(topBar, "PlayerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(-50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Right);
-            playerMoney.rectTransform.pivot = new Vector2(1f, 0.5f);
+            playerMoney = CreateText(topBar, "PlayerMoney", "$0", center, Vector2.zero, new Vector2(400f, 60f), 40f, TextAlignmentOptions.Center);
             playerMoney.color = PigColor;
-            TMP_Text versus = CreateText(topBar, "Versus", "VS", center, Vector2.zero, new Vector2(80f, 60f), 26f, TextAlignmentOptions.Center);
-            versus.color = TitleColor;
-            minerMoney = CreateText(topBar, "MinerMoney", "$0", new Vector2(0.5f, 0.5f), new Vector2(50f, 0f), new Vector2(400f, 60f), 40f, TextAlignmentOptions.Left);
-            minerMoney.rectTransform.pivot = new Vector2(0f, 0.5f);
-            minerMoney.color = MinerColor;
+            minerMoney = null;
         }
         TMP_Text timer = CreateText(topBar, "Timer", "1:30", new Vector2(1f, 0.5f), new Vector2(-24f, 0f), new Vector2(200f, 60f), 36f, TextAlignmentOptions.Right);
         if (theme.timerBold) timer.fontStyle = FontStyles.Bold;
@@ -202,7 +197,7 @@ public static class HUDBuilder
     // HUD Beta: Figma "Oinky Oinky - HUD Redesign" > Version3 > "HUD - v3 topbar".
     // No sidebar. One 92 px row of panels across the top (HUDLayout.TopBarOnly), left to right:
     //   PigStatus  : pig avatar, SKILL pill (READY / ACTIVE / seconds), DIGEST pill (CAN EAT / seconds)
-    //   Money      : "YOU $320"  timer  "$230 MINER", the tug bar under them (split by each side's share)
+    //   Money      : player money, timer, fixed level progress and a halfway target flag
     //   LevelPause : LEVEL n and the pause button
     //   Coins      : the wallet (coin icon + amount). Hidden in a level; on the world map it shows
     //                where it is, with LevelPause hidden (HUDController)
@@ -256,13 +251,10 @@ public static class HUDBuilder
             Transform playerSide = BetaMoneySide(money, "PlayerSide", 24f, 0f);
             BetaText(playerSide, "YouLabel", "YOU", 0f, 0f, 0f, 0f, 13f, TextAlignmentOptions.Center, theme.betaLabel, 10f);
             TMP_Text playerMoney = BetaText(playerSide, "PlayerMoney", "$0", 0f, 0f, 0f, 0f, 30f, TextAlignmentOptions.Center, PigColor, 0f);
-            Transform minerSide = BetaMoneySide(money, "MinerSide", -24f, 1f);
-            TMP_Text minerMoney = BetaText(minerSide, "MinerMoney", "$0", 0f, 0f, 0f, 0f, 30f, TextAlignmentOptions.Center, MinerColor, 0f);
-            BetaText(minerSide, "MinerLabel", "MINER", 0f, 0f, 0f, 0f, 13f, TextAlignmentOptions.Center, theme.betaLabel, 10f);
 
             TMP_Text timer = BetaText(money, "Timer", "1:30", (moneyWidth - 200f) / 2f, 10f, 200f, 40f, 32f, TextAlignmentOptions.Center, Color.white, 0f);
 
-            // The tug bar always spans the panel; HUDController splits it player : miner
+            // Player progress through the full level value; the red flag stays halfway.
             GameObject bar = new GameObject("MoneyBar", typeof(RectTransform));
             RectTransform barRect = (RectTransform)bar.transform;
             barRect.SetParent(money, false);
@@ -272,11 +264,9 @@ public static class HUDBuilder
             barRect.sizeDelta = new Vector2(-48f, 8f);
             barRect.anchoredPosition = new Vector2(0f, -58f);
             RectTransform playerFill = (RectTransform)CreateImage(barRect, "PlayerFill", theme.betaPlayerBar, Vector2.zero, new Vector2(0.5f, 1f), 0f, false).transform;
-            RectTransform minerFill = (RectTransform)CreateImage(barRect, "MinerFill", theme.betaMinerBar, new Vector2(0.5f, 0f), Vector2.one, 0f, false).transform;
             Round(playerFill.GetComponent<Image>(), 4f);
-            Round(minerFill.GetComponent<Image>(), 4f);
-            playerFill.offsetMax = new Vector2(-2f, 0f);
-            minerFill.offsetMin = new Vector2(2f, 0f);
+            playerFill.anchorMax = new Vector2(0f, 1f);
+            HUDController.BuildMoneyTarget(barRect, playerMoney.font);
 
             // LevelPause ---------------------------------------------------------------------------
             RectTransform levelPanel = BetaPanel(topBar, "LevelPause", new Vector2(1f, 0.5f), 0f, 230f);
@@ -317,9 +307,7 @@ public static class HUDBuilder
             hud.moneyPanel = money.gameObject;
             hud.levelPanel = levelPanel.gameObject;
             hud.playerMoneyText = playerMoney;
-            hud.minerMoneyText = minerMoney;
             hud.playerBarFill = playerFill;
-            hud.minerBarFill = minerFill;
             hud.timerText = timer;
             hud.mapButton = pause;
             hud.levelText = level;
@@ -592,7 +580,7 @@ public static class HUDBuilder
     // Rounded uses Unity's built-in rounded UI sprite, sliced so the corners keep their shape
     // Version B score: the bar is fixed at the center of the top bar; "YOU $0" hangs off its left end
     // and "$0 MINER" off its right end, so longer amounts grow outward and never move the bar.
-    // The bar is a rounded track that masks two fills: pink from the left, gold from the right
+    // A rounded track showing only the player's progress from the left.
     static void CreateMoneyBar(Transform topBar, out TMP_Text playerMoney, out TMP_Text minerMoney,
         out RectTransform playerFill, out RectTransform minerFill)
     {
@@ -603,16 +591,14 @@ public static class HUDBuilder
         trackRect.anchoredPosition = Vector2.zero;
         track.AddComponent<Mask>().showMaskGraphic = true;
         playerFill = (RectTransform)CreateImage(track.transform, "PlayerFill", PigColor, Vector2.zero, new Vector2(0f, 1f), 0f, false).transform;
-        minerFill = (RectTransform)CreateImage(track.transform, "MinerFill", MinerColor, new Vector2(1f, 0f), Vector2.one, 0f, false).transform;
+        minerFill = null;
 
         float edge = theme.moneyBarWidth * 0.5f + theme.moneyGap;
         Transform playerSide = MoneySide(topBar, "PlayerSide", -edge, 1f);
         MoneyLabel(playerSide, "YouLabel", "YOU");
         playerMoney = MoneyAmount(playerSide, "PlayerMoney", PigColor);
 
-        Transform minerSide = MoneySide(topBar, "MinerSide", edge, 0f);
-        minerMoney = MoneyAmount(minerSide, "MinerMoney", MinerColor);
-        MoneyLabel(minerSide, "MinerLabel", "MINER");
+        minerMoney = null;
     }
 
     // A row that sizes to its content and is pinned at one end (pivotX 1: its right end, 0: its left)

@@ -18,6 +18,10 @@ public class GameManager : MonoBehaviour
     public int PlayerMoney { get; private set; }
     public float TimeSurvived { get; private set; }   // endless rounds: seconds since the start
     public int MinerMoney { get; private set; }
+    public int LevelGoldTotal { get; private set; }
+    public int MoneyTarget => Mathf.CeilToInt(LevelGoldTotal * 0.5f);
+    public bool UsesMoneyTarget => !endless && !timeUpWins && MoneyTarget > 0;
+    public bool MoneyTargetReached => UsesMoneyTarget && PlayerMoney >= MoneyTarget;
     public int Lives { get; private set; }
     // Bonus lives from Brace this round (orange on the HUD / over-head bar).
     public int BonusLives { get; private set; }
@@ -98,6 +102,13 @@ public class GameManager : MonoBehaviour
     {
         // An empty Dev scene should not end the round on the first frame
         hadTreasure = Treasure.Active.Count > 0;
+        // Freeze the full level value before play, including treasure travelling on a hook.
+        // Collecting or losing treasure must never move the halfway goal.
+        LevelGoldTotal = Mathf.Max(0, PlayerMoney) + Mathf.Max(0, MinerMoney);
+        foreach (Treasure treasure in Treasure.Active)
+            if (treasure != null) LevelGoldTotal += Mathf.Max(0, treasure.value);
+        foreach (Treasure treasure in Treasure.OnHooks)
+            if (treasure != null) LevelGoldTotal += Mathf.Max(0, treasure.value);
     }
 
     void Update()
@@ -203,7 +214,7 @@ public class GameManager : MonoBehaviour
         IsPlaying = false;
         PlayerDied = killed;
         EndReason = reason;
-        PlayerWon = !killed && PlayerMoney > MinerMoney;   // a tie is a loss
+        PlayerWon = !killed && MoneyTargetReached;
         RoundMarginLog.Record(this);
         AnnounceEnd();
     }

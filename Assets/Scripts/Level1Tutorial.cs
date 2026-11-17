@@ -13,7 +13,7 @@ using UnityEngine.UI;
 //   4. That same hook turns red and hits. One life, then the life bar: at 0, they die.
 //   5. A red hook waits on the pig. Two quick Space presses block it, and the hook bounces off.
 //   6. Walk onto the rope. Arriving shows "Press [J] to cut the rope." at once, and it stays up.
-//   7. Both money numbers: get more than the miner. That line stays up for the rest of the level.
+//   7. The halfway red flag: reach the target to pass. The line stays for the rest of the level.
 //   After every lesson, stopping shows "Stopping slows the hook." under the pig, with no circle.
 // The evil miner stays hidden here. The same level from the map keeps it.
 public class Level1Tutorial : MonoBehaviour
@@ -201,7 +201,7 @@ public class Level1Tutorial : MonoBehaviour
         ShowWasd(false);
 
         // The pink number just went up. Time stays frozen, so the digest they just started is still on screen.
-        yield return ShowMoney("Your money goes up.", 2f, "PlayerMoney");
+        yield return ShowMoney("Reach the red flag target to pass.", 3f, "PlayerMoney", "MoneyBar");
         yield return ShowMoney("Digest takes time.", 2f, "DigestBlock");
 
         // 3. The same hook, now red, runs into the pig. Then the life bar.
@@ -251,7 +251,7 @@ public class Level1Tutorial : MonoBehaviour
         }
 
         keepMoneyLine = true;
-        yield return ShowMoney("Get more money than the miner to pass.", 2f, "PlayerMoney", "MinerMoney");
+        yield return ShowMoney("Reach the red flag target to pass.", 2f, "PlayerMoney", "MoneyBar");
 
         GameManager gm = GameManager.Instance;
         // Gold and the diamond eaten while learning stay in the total. The race continues from there.
@@ -545,7 +545,7 @@ public class Level1Tutorial : MonoBehaviour
                     go.transform.SetParent(transform, false);
                     holeFor = go.AddComponent<TutorialUIHole>();
                     holeFor.target = name;
-                    holeFor.padding = 18f;
+                    holeFor.padding = name == "MoneyBar" ? 28f : 18f;
                     moneyHoles.Add(holeFor);
                 }
                 moneyShown.Add(holeFor);

@@ -6,6 +6,7 @@ using UnityEngine;
 // up fills one again (or adds a segment past the start). Hidden where Lives don't count: no round
 // (the character pick), no Lives (one hit ends it), or so many they can't run out (the block
 // tutorial's 999). PlayerCharacter adds it; nothing needs it in a scene.
+[DefaultExecutionOrder(100)]
 public class PlayerLifeBar : MonoBehaviour
 {
     [Tooltip("More Lives than this (e.g. the block tutorial's 999): no bar")]
@@ -30,7 +31,7 @@ public class PlayerLifeBar : MonoBehaviour
 
     static Sprite pixel;
 
-    void LateUpdate()
+    void Update()
     {
         GameManager gm = GameManager.Instance;
         if (gm != seenFor) { seenFor = gm; most = gm != null ? Mathf.Max(gm.Lives, gm.startingLives) : 0; }
@@ -52,7 +53,16 @@ public class PlayerLifeBar : MonoBehaviour
         if (segments.Length != most) Build(most);
 
         if (body == null) body = GetComponent<Collider2D>();
-        Vector2 at = body != null ? new Vector2(body.bounds.center.x, body.bounds.max.y) : (Vector2)transform.position + Vector2.up * 0.5f;
+        Vector2 at = (Vector2)transform.position + Vector2.up * 0.5f;
+        if (body != null)
+        {
+            // Bounds belong to the physics pose. Apply only their head offset to the rendered
+            // player pose, so Rigidbody2D interpolation cannot separate the pig and its bar.
+            Rigidbody2D rigidbody = body.attachedRigidbody;
+            Vector2 physicsPosition = rigidbody != null ? rigidbody.position : (Vector2)transform.position;
+            Vector2 headOffset = new Vector2(body.bounds.center.x, body.bounds.max.y) - physicsPosition;
+            at = (Vector2)transform.position + headOffset;
+        }
         bar.position = new Vector3(at.x, at.y + lift, 0f);
 
         // Rightmost filled segments are Brace bonus Lives (orange); the rest stay bright red.

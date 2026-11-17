@@ -12,7 +12,7 @@ public class HUDController : MonoBehaviour
 
     [Header("HUD Beta (top bar only; HUDBuilder wires these)")]
     public RectTransform topBar;     // Beta: the row of panels. Else the timer's parent is the top bar
-    public GameObject moneyPanel;    // Beta: YOU $ / timer / $ MINER + tug bar (also on the maze, timer blank)
+    public GameObject moneyPanel;    // Beta: player money / timer / level gold progress
     public GameObject levelPanel;    // Beta: LEVEL n + Pause, hidden on the maze
     public GameObject coinsPanel;    // Beta: the wallet (coin + amount), shown only on the maze, in LevelPause's place
     public TMP_Text coinsText;
@@ -20,8 +20,6 @@ public class HUDController : MonoBehaviour
     public Color pillSkillInk = new Color(0.086f, 0.196f, 0.302f);   // READY / ACTIVE on the full skill pill
     public Color pillDigestInk = new Color(0.118f, 0.251f, 0.071f);  // CAN EAT on the full digest pill
     public Color pillWaitInk = Color.white;                          // the seconds while a pill refills
-    public float tugGap = 4f;        // between the two sides of the tug bar
-    public float tugSpeed = 10f;     // how fast the split follows the score
 
     public TMP_Text playerMoneyText;
     public TMP_Text minerMoneyText;
@@ -88,7 +86,6 @@ public class HUDController : MonoBehaviour
     public Color lifeGainedColor = Color.green;
 
     private Label playerMoney;
-    private Label minerMoney;
     private Label lives;
     private Color timerBaseColor;
     private float timerHomeX;       // where the builder put the timer: the right edge when there is no Pause
@@ -104,7 +101,6 @@ public class HUDController : MonoBehaviour
     // Last values seen, to detect changes (not set until the first Update)
     private bool hasLast;
     private int lastPlayerMoney;
-    private int lastMinerMoney;
     private int lastLives;
 
     private readonly List<Popup> popups = new List<Popup>();
@@ -144,7 +140,7 @@ public class HUDController : MonoBehaviour
         flow = FindFirstObjectByType<GameFlow>();
 
         playerMoney = new Label(playerMoneyText);
-        minerMoney = new Label(minerMoneyText);
+        HideLegacyMinerScore();
         lives = new Label(livesText);
         EnsureMapButton();
         ApplyMazeHudIfNeeded();
@@ -317,11 +313,6 @@ public class HUDController : MonoBehaviour
                 playerMoney.Flash(playerPopupColor, moneyFlashTime);
                 SpawnPopup(playerMoneyText, gm.PlayerMoney - lastPlayerMoney, playerPopupColor);
             }
-            if (gm.MinerMoney != lastMinerMoney)
-            {
-                minerMoney.Flash(moneyFlashColor, moneyFlashTime);
-                SpawnPopup(minerMoneyText, gm.MinerMoney - lastMinerMoney, moneyFlashColor);
-            }
             if (gm.Lives != lastLives)
             {
                 lives.Flash(gm.Lives < lastLives ? lifeLostColor : lifeGainedColor, moneyFlashTime);
@@ -330,82 +321,201 @@ public class HUDController : MonoBehaviour
 
         hasLast = true;
         lastPlayerMoney = gm.PlayerMoney;
-        lastMinerMoney = gm.MinerMoney;
         lastLives = gm.Lives;
     }
 
-    // Version B score bar: each side fills with its share of all the gold in the level, which is the
-    // treasure still out plus what both have collected. Kept at its largest so a share never jumps
-    // up when a treasure leaves without being collected. Treasures are counted 4 times a second
-    private float levelGold;
-    private float nextGoldCount;
-    private int goldOut;
+    private TMP_Text targetLabel;
+    private RectTransform targetMarker;
+    private RawImage overTargetFill;
+
+    void HideLegacyMinerScore()
+    {
+        // Migrate HUDs already saved in scenes as well as ones made by the updated builder.
+        if (minerBarFill != null) minerBarFill.gameObject.SetActive(false);
+        if (minerMoneyText != null) minerMoneyText.gameObject.SetActive(false);
+        foreach (Transform child in GetComponentsInChildren<Transform>(true))
+            if (child.name == "MinerSide" || child.name == "MinerLabel" || child.name == "Versus")
+                child.gameObject.SetActive(false);
+    }
 
     void UpdateMoneyBar(GameManager gm)
     {
         if (playerBarFill == null && minerBarFill == null) return;
-        if (Beta)
+        RectTransform bar = (playerBarFill != null ? playerBarFill : minerBarFill).parent as RectTransform;
+        if (targetMarker == null && bar != null)
         {
-            UpdateTugBar(gm);
-            return;
+            targetMarker = BuildMoneyTarget(bar, playerMoneyText != null ? playerMoneyText.font : null);
+            targetLabel = targetMarker.GetComponentInChildren<TMP_Text>();
         }
-        if (Time.unscaledTime >= nextGoldCount)
+        if (targetMarker != null)
         {
-            nextGoldCount = Time.unscaledTime + 0.25f;
-            goldOut = 0;
-            foreach (Treasure treasure in FindObjectsByType<Treasure>(FindObjectsSortMode.None))
-                goldOut += Mathf.Max(0, treasure.value);
+            targetMarker.gameObject.SetActive(gm.UsesMoneyTarget);
+            if (targetLabel != null) targetLabel.text = "TARGET $" + gm.MoneyTarget.ToString("N0");
         }
-        levelGold = Mathf.Max(levelGold, goldOut + Mathf.Max(0, gm.PlayerMoney) + Mathf.Max(0, gm.MinerMoney));
-        float player = levelGold > 0f ? Mathf.Clamp01(gm.PlayerMoney / levelGold) : 0f;
-        float miner = levelGold > 0f ? Mathf.Clamp01(gm.MinerMoney / levelGold) : 0f;
-        if (playerBarFill != null) playerBarFill.anchorMax = new Vector2(player, 1f);
-        if (minerBarFill != null) minerBarFill.anchorMin = new Vector2(1f - miner, 0f);
-    }
-
-    // Beta score bar: always the full width, split between the two sides by what each has collected
-    // (player / (player + miner)); half and half while both have $0. The split slides to the new
-    // share, and a side with nothing disappears
-    private float tugShare = -1f;
-
-    void UpdateTugBar(GameManager gm)
-    {
-        int player = Mathf.Max(0, gm.PlayerMoney);
-        int miner = Mathf.Max(0, gm.MinerMoney);
-        float target = player + miner > 0 ? (float)player / (player + miner) : 0.5f;
-        if (tugShare < 0f) tugShare = target;
-        else tugShare = Mathf.Lerp(tugShare, target, 1f - Mathf.Exp(-tugSpeed * Time.unscaledDeltaTime));
-        if (Mathf.Abs(tugShare - target) < 0.001f) tugShare = target;
-
-        float half = tugShare > 0f && tugShare < 1f ? tugGap * 0.5f : 0f;
+        float total = gm.LevelGoldTotal;
+        float player = total > 0f ? Mathf.Clamp01(gm.PlayerMoney / total) : 0f;
         if (playerBarFill != null)
         {
-            playerBarFill.gameObject.SetActive(tugShare > 0f);
+            playerBarFill.gameObject.SetActive(player > 0f);
             playerBarFill.anchorMin = Vector2.zero;
-            playerBarFill.anchorMax = new Vector2(tugShare, 1f);
+            playerBarFill.anchorMax = new Vector2(player, 1f);
             playerBarFill.offsetMin = Vector2.zero;
-            playerBarFill.offsetMax = new Vector2(-half, 0f);
+            playerBarFill.offsetMax = Vector2.zero;
         }
-        if (minerBarFill != null)
+        UpdateOverTargetFill(bar, gm.UsesMoneyTarget && player > 0.5f, player);
+    }
+
+    void UpdateOverTargetFill(RectTransform bar, bool show, float playerShare)
+    {
+        if (bar == null) return;
+        if (overTargetFill == null && show)
         {
-            minerBarFill.gameObject.SetActive(tugShare < 1f);
-            minerBarFill.anchorMin = new Vector2(tugShare, 0f);
-            minerBarFill.anchorMax = Vector2.one;
-            minerBarFill.offsetMin = new Vector2(half, 0f);
-            minerBarFill.offsetMax = Vector2.zero;
+            overTargetFill = new GameObject("OverTargetFill", typeof(RectTransform), typeof(RawImage)).GetComponent<RawImage>();
+            overTargetFill.transform.SetParent(bar, false);
+            overTargetFill.texture = GoldWhiteStripes();
+            overTargetFill.raycastTarget = false;
+            // The target flag must remain visible above the striped progress.
+            if (targetMarker != null) targetMarker.SetAsLastSibling();
         }
+        if (overTargetFill == null) return;
+        overTargetFill.gameObject.SetActive(show);
+        if (!show) return;
+        RectTransform rect = overTargetFill.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(playerShare, 1f);
+        rect.offsetMin = rect.offsetMax = Vector2.zero;
+        // Repeat at a fixed size, so a small excess doesn't squeeze all the stripes together.
+        overTargetFill.uvRect = new Rect(0f, 0f,
+            bar.rect.width * (playerShare - 0.5f) / 32f, bar.rect.height / 32f);
+    }
+
+    static Texture2D goldWhiteStripes;
+    static Texture2D GoldWhiteStripes()
+    {
+        if (goldWhiteStripes != null) return goldWhiteStripes;
+        const int size = 32;
+        goldWhiteStripes = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        goldWhiteStripes.wrapMode = TextureWrapMode.Repeat;
+        goldWhiteStripes.filterMode = FilterMode.Bilinear;
+        Color gold = HUDTheme.For(HUDVariant.Beta).miner;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                goldWhiteStripes.SetPixel(x, y, (x + y) % size < size / 2 ? gold : Color.white);
+        goldWhiteStripes.Apply();
+        return goldWhiteStripes;
+    }
+
+    // Shared by the editor builder and saved HUDs, so existing scenes need no rebuild.
+    public static RectTransform BuildMoneyTarget(RectTransform bar, TMP_FontAsset font)
+    {
+        RectTransform existing = bar.Find("MoneyTarget") as RectTransform;
+        if (existing != null)
+        {
+            // Procedural sprites are recreated after reopening a scene saved by HUDBuilder.
+            Image savedFlag = existing.Find("Flag")?.GetComponent<Image>();
+            if (savedFlag != null && savedFlag.sprite == null) savedFlag.sprite = TargetFlagSprite();
+            PlaceMoneyTarget(existing);
+            return existing;
+        }
+        Image track = bar.GetComponent<Image>();
+        if (track == null) track = bar.gameObject.AddComponent<Image>();
+        track.color = HUDTheme.For(HUDVariant.Beta).barBack;
+        track.raycastTarget = false;
+
+        RectTransform marker = new GameObject("MoneyTarget", typeof(RectTransform)).GetComponent<RectTransform>();
+        marker.SetParent(bar, false);
+        marker.anchorMin = marker.anchorMax = new Vector2(0.5f, 0f);
+        marker.pivot = new Vector2(0.5f, 1f);
+        marker.sizeDelta = new Vector2(2f, 22f);
+        marker.anchoredPosition = Vector2.zero;
+        Color red = new Color(1f, 0.28f, 0.32f);
+        TargetImage(marker, "Pole", new Vector2(0f, 3f), new Vector2(2f, 23f), red);
+        Image flag = TargetImage(marker, "Flag", new Vector2(8f, -2f), new Vector2(16f, 12f), red);
+        flag.sprite = TargetFlagSprite();
+
+        TMP_Text caption = new GameObject("TargetLabel", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+        caption.transform.SetParent(marker, false);
+        caption.font = font;
+        caption.fontSize = 16f;
+        caption.fontStyle = FontStyles.Bold;
+        caption.color = Color.white;
+        caption.alignment = TextAlignmentOptions.MidlineLeft;
+        caption.raycastTarget = false;
+        caption.text = "TARGET";
+        caption.rectTransform.anchorMin = caption.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        caption.rectTransform.pivot = new Vector2(0f, 1f);
+        caption.rectTransform.anchoredPosition = new Vector2(23f, -2f);
+        caption.rectTransform.sizeDelta = new Vector2(190f, 18f);
+        PlaceMoneyTarget(marker);
+        return marker;
+    }
+
+    static void PlaceMoneyTarget(RectTransform marker)
+    {
+        // Center the marker on the track: its pole crosses the full bar, with a larger pennant.
+        marker.anchorMin = marker.anchorMax = new Vector2(0.5f, 0.5f);
+        marker.anchoredPosition = Vector2.zero;
+        marker.SetAsLastSibling();
+        RectTransform pole = marker.Find("Pole") as RectTransform;
+        if (pole != null)
+        {
+            pole.anchoredPosition = new Vector2(0f, 12f);
+            pole.sizeDelta = new Vector2(3f, 28f);
+        }
+        RectTransform flag = marker.Find("Flag") as RectTransform;
+        if (flag != null)
+        {
+            flag.anchoredPosition = new Vector2(11f, 12f);
+            flag.sizeDelta = new Vector2(22f, 18f);
+        }
+        RectTransform caption = marker.Find("TargetLabel") as RectTransform;
+        if (caption != null)
+        {
+            caption.anchoredPosition = new Vector2(29f, -4f);
+            caption.sizeDelta = new Vector2(230f, 20f);
+            TMP_Text words = caption.GetComponent<TMP_Text>();
+            if (words != null) words.fontSize = 16f;
+        }
+    }
+
+    static Image TargetImage(RectTransform parent, string name, Vector2 at, Vector2 size, Color color)
+    {
+        Image image = new GameObject(name, typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+        image.transform.SetParent(parent, false);
+        image.rectTransform.anchorMin = image.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        image.rectTransform.pivot = new Vector2(0.5f, 1f);
+        image.rectTransform.anchoredPosition = at;
+        image.rectTransform.sizeDelta = size;
+        image.color = color;
+        image.raycastTarget = false;
+        return image;
+    }
+
+    static Sprite targetFlagSprite;
+    static Sprite TargetFlagSprite()
+    {
+        if (targetFlagSprite != null) return targetFlagSprite;
+        const int size = 32;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float edge = size - 2f * Mathf.Abs(y + 0.5f - size * 0.5f);
+                texture.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(edge - x)));
+            }
+        texture.Apply();
+        targetFlagSprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        return targetFlagSprite;
     }
 
     void UpdateMoney(GameManager gm)
     {
-        // The leader is bold, the side behind is dimmed; a tie shows both normally
-        playerMoney.bold = gm.PlayerMoney > gm.MinerMoney;
-        minerMoney.bold = gm.MinerMoney > gm.PlayerMoney;
-        playerMoney.alpha = gm.PlayerMoney < gm.MinerMoney ? trailingAlpha : 1f;
-        minerMoney.alpha = gm.MinerMoney < gm.PlayerMoney ? trailingAlpha : 1f;
+        playerMoney.bold = gm.MoneyTargetReached;
+        playerMoney.alpha = 1f;
 
         if (playerMoneyText != null) playerMoneyText.text = "$" + gm.PlayerMoney.ToString("N0");
-        if (minerMoneyText != null) minerMoneyText.text = "$" + gm.MinerMoney.ToString("N0");
         if (mazeMoneyText != null)
         {
             // World map: same wallet the store spends.
@@ -416,7 +526,6 @@ public class HUDController : MonoBehaviour
         }
 
         playerMoney.Apply(moneyFlashScale);
-        minerMoney.Apply(moneyFlashScale);
     }
 
     void UpdateTimer(GameManager gm)
