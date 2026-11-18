@@ -22,7 +22,7 @@ public class SurvivalLoader : MonoBehaviour
     }
 
     [Header("Prefabs")]
-    [Tooltip("Same order as ChampionSpawner: 0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Penguin, 5 Rhino")]
+    [Tooltip("Same order as ChampionSpawner: 0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Elsa, 5 Hulk")]
     public GameObject[] champions = new GameObject[6];
     [Tooltip("What turns up on the map, and how often")]
     public ItemChance[] items;

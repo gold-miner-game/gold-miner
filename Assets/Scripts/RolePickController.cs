@@ -17,8 +17,8 @@ public class RolePickController : MonoBehaviour
         new Champion { index = 1, name = "JK. Rolling", desc = "The cat.",      skill = "She is already through the moment that meant to catch her." },
         new Champion { index = 2, name = "Scrat",       desc = "The squirrel.", skill = "Nothing near his feet stays where he found it." },
         new Champion { index = 3, name = "Rero Rero",   desc = "The frog.",     skill = "Some treasures only look far away." },
-        new Champion { index = 4, name = "Penguin",     desc = "The penguin.",  skill = "" },
-        new Champion { index = 5, name = "Rhino",       desc = "The rhinoceros.", skill = "" },
+        new Champion { index = 4, name = "Elsa",     desc = "The penguin.",  skill = "" },
+        new Champion { index = 5, name = "Hulk",       desc = "The rhinoceros.", skill = "" },
     };
 
     GUIStyle title;
