@@ -153,6 +153,8 @@ MonoBehaviour:
   - {fileID: 4310000000000000001, guid: 961e788c3a70421298d40ea942b421b6, type: 3}
   - {fileID: 1000, guid: 956766ce2a4943b0b0d06b4c3b2d99b4, type: 3}
   - {fileID: 1000, guid: 04c4c7fd42d841e9aebb1e5555478bc7, type: 3}
+  - {fileID: 8301956976538111651, guid: 977064d5033cc124ba7d042d0d2679fc, type: 3}
+  - {fileID: 8206534422256314450, guid: 789c70f0d4ecf6d43af8b61d6afb932f, type: 3}
   items:
   - prefab: {fileID: 3699368570777298312, guid: 91900b9bedffd4b4c98ae8c0c16e1ba8, type: 3}
     weight: 40

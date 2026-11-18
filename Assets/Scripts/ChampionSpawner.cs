@@ -8,15 +8,16 @@ public class ChampionSpawner : MonoBehaviour
 {
     public const int MrHyde = 0;
 
-    [Header("Same order as the select buttons: 0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero")]
-    public GameObject[] champions = new GameObject[4];
+    [Header("0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Penguin, 5 Rhino")]
+    public GameObject[] champions = new GameObject[6];
 
     // Set by ChampionSelect. Static, so it survives scene loads (and level reloads). -1 = not picked yet
     public static int Chosen = -1;
 
     // Each champion's cross-level record, in the same order. Mr. Hyde keeps Zhan Li's PigStatus
     static readonly System.Type[] recordTypes =
-        { typeof(PigStatus), typeof(CatStatus), typeof(SquirrelStatus), typeof(FrogStatus) };
+        { typeof(PigStatus), typeof(CatStatus), typeof(SquirrelStatus), typeof(FrogStatus),
+          typeof(PenguinStatus), typeof(RhinoStatus) };
 
     public static System.Type RecordType(int index)
     {

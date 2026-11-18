@@ -43,7 +43,7 @@ public static class WalletAndMovementSmokeTest
             InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
             keyboard = InputSystem.AddDevice<Keyboard>();
             MethodInfo read = typeof(PlayerCharacter).GetMethod("ReadInput", BindingFlags.Instance | BindingFlags.NonPublic);
-            foreach (string name in new[] { "MrHyde", "Cat", "Squirrel", "Frog" })
+            foreach (string name in new[] { "MrHyde", "Cat", "Squirrel", "Frog", "Penguin", "Rhino" })
             {
                 GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Teams/" + name + ".prefab");
                 GameObject instance = UnityEngine.Object.Instantiate(prefab);
@@ -57,7 +57,7 @@ public static class WalletAndMovementSmokeTest
                 CheckInput(player, read, keyboard, Vector2.zero, Key.A, Key.RightArrow);
                 CheckInput(player, read, keyboard, new Vector2(1f, 1f), Key.D, Key.UpArrow);
             }
-            Debug.Log("WALLET_MOVEMENT_PASS: full earnings, replay and loss credits, no double payment, persistence, and arrow/WASD input on all four characters.");
+            Debug.Log("WALLET_MOVEMENT_PASS: full earnings, replay and loss credits, no double payment, persistence, and arrow/WASD input on all six characters.");
         }
         catch (Exception error)
         {

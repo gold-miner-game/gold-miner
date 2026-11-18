@@ -54,7 +54,7 @@ public static class TutorialEvents
     //   picked_<who>       the same, for that character: picked_mr_hyde, picked_jk_rolling, ...
     public const string RolePickOpen = "role_pick_open";
     public const string CharacterPicked = "character_picked";
-    static readonly string[] PickNames = { "mr_hyde", "jk_rolling", "scrat", "rero_rero" };   // ChampionSpawner order
+    static readonly string[] PickNames = { "mr_hyde", "jk_rolling", "scrat", "rero_rero", "penguin", "rhino" };   // ChampionSpawner order
     public static string Picked(int champion) =>
         "picked_" + (champion >= 0 && champion < PickNames.Length ? PickNames[champion] : champion.ToString());
 
