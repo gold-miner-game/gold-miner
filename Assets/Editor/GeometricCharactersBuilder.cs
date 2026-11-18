@@ -150,8 +150,25 @@ public static class GeometricCharactersBuilder
         finally { PrefabUtility.UnloadPrefabContents(root); }
     }
 
+    [MenuItem("Tools/Gold Miner/Move Cat Catchlights Lower Right")]
+    public static void UpdateCatCatchlights()
+    {
+        circle = SpriteAt("Circle");
+        UpdateExistingEyeCatchlights("Cat");
+        EditorSceneManager.OpenScene("Assets/Scenes/Select.unity");
+        SkillPreview portrait = Object.FindObjectsByType<SkillPreview>(FindObjectsSortMode.None)
+            .Single(p => p.skill == SkillPreview.Skill.Roll);
+        AddEyeCatchlights(portrait.gameObject);
+        EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
+        Capture();
+        Debug.Log("CAT_CATCHLIGHT_PASS: updated the cat prefab and select portrait; other characters were not rebuilt.");
+    }
+
     static void AddEyeCatchlights(GameObject root)
     {
+        CatController cat = root.GetComponent<CatController>();
+        SkillPreview portrait = root.GetComponent<SkillPreview>();
+        bool lowerRight = cat != null || (portrait != null && portrait.skill == SkillPreview.Skill.Roll);
         string[] names = { "EyeL", "EyeR", "Eye Left", "Eye Right", "Eye L", "Eye R" };
         var eyes = root.GetComponentsInChildren<Transform>(true).Where(t => names.Contains(t.name))
             .Select(t => t.GetComponent<SpriteRenderer>() != null ? t.GetComponent<SpriteRenderer>() : t.GetComponentInChildren<SpriteRenderer>(true))
@@ -165,12 +182,20 @@ public static class GeometricCharactersBuilder
         Debug.Log("EYE_HIGHLIGHTS " + root.name + ": " + eyes.Count);
         foreach (SpriteRenderer blackEye in eyes.Distinct())
         {
-            if (blackEye.transform.Find("Catchlight") != null) continue;
+            Bounds b = blackEye.sprite.bounds;
+            float offsetX = (lowerRight ? .18f : -.18f) * b.size.x;
+            float offsetY = (lowerRight ? -.20f : .20f) * b.size.y;
+            Transform existing = blackEye.transform.Find("Catchlight");
+            if (existing != null)
+            {
+                if (lowerRight)
+                    existing.localPosition = new Vector3(b.center.x + offsetX, b.center.y + offsetY, existing.localPosition.z);
+                continue;
+            }
             // Keep the existing eye object so tired-eye switching and heading animation
             // also control its catchlight. Preserve the black sprite, size and colour.
-            Bounds b = blackEye.sprite.bounds;
-            SpriteRenderer glint = Oval(blackEye.transform, "Catchlight", b.center.x - .18f * b.size.x,
-                b.center.y + .20f * b.size.y, b.size.x * .24f, b.size.y * .24f,
+            SpriteRenderer glint = Oval(blackEye.transform, "Catchlight", b.center.x + offsetX,
+                b.center.y + offsetY, b.size.x * .24f, b.size.y * .24f,
                 Color.white, blackEye.sortingOrder + 1);
             glint.sharedMaterial = blackEye.sharedMaterial;
         }
