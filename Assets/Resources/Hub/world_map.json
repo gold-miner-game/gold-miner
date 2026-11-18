@@ -1,6 +1,6 @@
 {
   "name": "World Map",
-  "_comment": "The world-map hub (MapHub), drawn as the evil cat (EvilMeowmeow.prefab), design V156. honeycomb: odd rows sit half a tile right. # wall, G green wall = a level not disclosed yet, P start. Portals unlock in the WorldMap order (Store, Pick Character, Tutorial, Level 1, Level 2, Level 3). Survival occupies the lower left-edge green hexagon (2, 14), and Level 3 occupies the green hexagon above it (2, 10). Survival opens after beating Level 3. The former Level 1 is now Tutorial. Finishing Tutorial reveals Level 1 (formerly Level 2). The Store opens after beating Level 2. Leaving the Store unseals Level 3; no purchase is required. All locked portals are solid green blocks and get a one-time spotlight when first unsealed. Pick Character and Level 1 open after Tutorial; Level 2 opens immediately after winning Level 1, with no earnings requirement. Tutorial and Level 1 are in the eyes, Level 2 is in the teeth. The two eyes are hollow, their outlines run green, rock, gap, rock round from the tip, with a miner in each (compete: they shoot at the player and time slows while the player stands still); a hook costs 1 HP; at 0 HP the player revives at Pick Character with full HP, and every won level refills it. still_time_scale = how slow time gets while standing still. The miners hunt only the player (hunt_player) and guard 4 one-time small gold in the eyes' top corners ($200, enough for the cheapest Store item). hook_wall_grace 0: the eye miners' hooks stop at the first rock they touch.",
+  "_comment": "The world-map hub (MapHub), drawn as the evil cat (EvilMeowmeow.prefab), design V156. honeycomb: odd rows sit half a tile right. # wall, G green wall = a level not disclosed yet, P start. Portals unlock in the WorldMap order (Store, Pick Character, Tutorial, Level 1, Level 2, Level 3). Survival occupies the lower left-edge green hexagon (2, 14). Level 3 occupies the bottom-left tooth, the leftmost green hex of the lower teeth (13, 18). Survival opens after beating Level 3. The former Level 1 is now Tutorial. Finishing Tutorial reveals Level 1 (formerly Level 2). The Store opens after beating Level 2. Leaving the Store unseals Level 3; no purchase is required. All locked portals are solid green blocks and get a one-time spotlight when first unsealed. Pick Character and Level 1 open after Tutorial; Level 2 opens immediately after winning Level 1, with no earnings requirement. Tutorial and Level 1 are in the eyes, Level 2 is in the teeth. The two eyes are hollow, their outlines run green, rock, gap, rock round from the tip, with a miner in each (compete: they shoot at the player and time slows while the player stands still); a hook costs 1 HP; at 0 HP the player revives at Pick Character with full HP, and every won level refills it. still_time_scale = how slow time gets while standing still. The miners hunt only the player (hunt_player) and guard 4 one-time small gold in the eyes' top corners ($200, enough for the cheapest Store item). hook_wall_grace 0: the eye miners' hooks stop at the first rock they touch.",
   "params": {
     "pig_speed": 4.0,
     "tile_size": 0.42,
@@ -32,7 +32,7 @@
     "##...............................###",
     ".##..........##########..........##.",
     ".##.........##.##.##.##.........##..",
-    "..###........G.....G..G........###..",
+    "..###..............G..G........###..",
     "..####.......................####...",
     "....#####..................#####....",
     ".....#########################......",
@@ -66,8 +66,8 @@
     },
     {
       "target": "battle_04",
-      "x": 2,
-      "y": 10
+      "x": 13,
+      "y": 18
     },
     {
       "target": "survival",

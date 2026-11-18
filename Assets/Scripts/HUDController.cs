@@ -577,9 +577,7 @@ public class HUDController : MonoBehaviour
         }
 
         if (mapButton == null) mapButton = CreateMapButton(timerText);
-        // A HUD saved before the pause popup still says "Exit"
-        TMP_Text buttonLabel = mapButton.GetComponentInChildren<TMP_Text>(true);
-        if (buttonLabel != null) buttonLabel.text = "Pause";
+        ShowAsQuit(mapButton);
         mapButton.onClick.AddListener(OpenPause);
         PlaceMapButton();
     }
@@ -616,8 +614,8 @@ public class HUDController : MonoBehaviour
         labelRect.offsetMax = Vector2.zero;
         TextMeshProUGUI label = labelGo.GetComponent<TextMeshProUGUI>();
         label.font = timer.font;
-        label.text = "Pause";
-        label.fontSize = 24f;
+        label.text = "Quit";
+        label.fontSize = 27f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.color = new Color(0.86f, 0.90f, 0.96f, 1f);
@@ -640,6 +638,68 @@ public class HUDController : MonoBehaviour
         float timerX = show ? timerHomeX - rect.sizeDelta.x - 50f : timerHomeX;
         timerRect.anchoredPosition = new Vector2(timerX, timerRect.anchoredPosition.y);
         if (show) rect.anchoredPosition = new Vector2(timerHomeX, timerRect.anchoredPosition.y);
+    }
+
+    // The saved button is a pause icon (two bars). Show the same Quit label the map uses.
+    // Canvas is 1920x1080; the map button is 88x32 in the 1280x720 frame, so 132x48 here.
+    void ShowAsQuit(Button button)
+    {
+        RectTransform rect = button.GetComponent<RectTransform>();
+        const float width = 132f;
+        const float height = 48f;
+        float grow = width - rect.sizeDelta.x;
+        rect.sizeDelta = new Vector2(width, height);
+
+        if (grow > 1f && rect.parent is RectTransform panel && panel.name == "LevelPause")
+        {
+            panel.sizeDelta += new Vector2(grow, 0f);
+            if (coinsPanel != null)
+            {
+                RectTransform coins = coinsPanel.GetComponent<RectTransform>();
+                coins.anchoredPosition += new Vector2(-grow, 0f);
+            }
+        }
+
+        for (int i = 0; i < rect.childCount; i++)
+        {
+            Transform child = rect.GetChild(i);
+            if (child.name == "BarL" || child.name == "BarR") child.gameObject.SetActive(false);
+        }
+
+        TextMeshProUGUI label = null;
+        foreach (TextMeshProUGUI text in button.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            if (text.transform.parent == rect) { label = text; break; }
+        }
+        if (label == null)
+        {
+            var go = new GameObject("Label", typeof(RectTransform));
+            go.transform.SetParent(rect, false);
+            var labelRect = (RectTransform)go.transform;
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+            label = go.AddComponent<TextMeshProUGUI>();
+            label.raycastTarget = false;
+            if (levelText != null) label.font = levelText.font;
+        }
+        label.gameObject.SetActive(true);
+        label.text = "Quit";
+        label.fontSize = 27f;
+        label.fontStyle = FontStyles.Bold;
+        label.alignment = TextAlignmentOptions.Center;
+        label.color = new Color(0.10f, 0.12f, 0.11f);
+
+        Image image = button.targetGraphic as Image;
+        if (image != null) image.color = Color.white;
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.94f, 0.95f, 0.94f);
+        colors.pressedColor = new Color(0.82f, 0.84f, 0.82f);
+        colors.selectedColor = Color.white;
+        colors.disabledColor = new Color(1f, 1f, 1f, 0.5f);
+        button.colors = colors;
     }
 
     public bool IsPaused => pausePopup != null && pausePopup.activeSelf;

@@ -139,6 +139,11 @@ public class MapHub : MonoBehaviour
     void Start()
     {
         TutorialEvents.Fire(TutorialEvents.MapOpen);
+        QuitChrome.Create(QuitChrome.MapOffset(), () =>
+        {
+            Time.timeScale = 1f;
+            GameFlow.Instance.OpenMenu();
+        });
         if (lastPortal == null) return;
         TutorialEvents.Fire(TutorialEvents.MapBackFrom(lastPortal));
         if (ProgressStore.IsCompleted(lastPortal)) TutorialEvents.Fire(TutorialEvents.MapCleared(lastPortal));
@@ -335,24 +340,6 @@ public class MapHub : MonoBehaviour
     void OnGUI()
     {
         ScreenFrame.BeginGUI();
-        if (quitStyle == null)
-        {
-            quitStyle = new GUIStyle(GUI.skin.button)
-            {
-                fontSize = 16,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-            };
-            quitStyle.normal.textColor = Color.white;
-        }
-        float mapWidth = ScreenFrame.GuiWidth * (1f - HUDLayout.SidebarWidth);
-        var quitRect = new Rect(mapWidth - 92f, 12f, 76f, 28f);
-        if (GUI.Button(quitRect, "Quit", quitStyle))
-        {
-            Time.timeScale = 1f;
-            GameFlow.Instance.OpenMenu();
-        }
-
         if (hint == "" || Time.time > hintUntil) return;
         if (hintStyle == null)
         {
@@ -363,6 +350,4 @@ public class MapHub : MonoBehaviour
         Vector2 size = hintStyle.CalcSize(new GUIContent(hint)) + new Vector2(32f, 14f);
         GUI.Box(new Rect((arenaWidth - size.x) * 0.5f, ScreenFrame.GuiHeight - size.y - 24f, size.x, size.y), hint, hintStyle);
     }
-
-    GUIStyle quitStyle;
 }

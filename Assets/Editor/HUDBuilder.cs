@@ -269,14 +269,14 @@ public static class HUDBuilder
             HUDController.BuildMoneyTarget(barRect, playerMoney.font);
 
             // LevelPause ---------------------------------------------------------------------------
-            RectTransform levelPanel = BetaPanel(topBar, "LevelPause", new Vector2(1f, 0.5f), 0f, 230f);
+            RectTransform levelPanel = BetaPanel(topBar, "LevelPause", new Vector2(1f, 0.5f), 0f, 306f);
             TMP_Text level = BetaText(levelPanel, "Level", "LEVEL 1", 22f, 20f, 130f, 40f, 17f, TextAlignmentOptions.Left, theme.betaLevel, 12f);
             Button pause = CreatePauseButton(levelPanel);
 
             // Coins --------------------------------------------------------------------------------
             // Figma "Coins": 150 x 80 at x 1508, 16 px left of LevelPause. A 24 px gold coin and the
             // amount, 12 px apart, 30 px padding; the panel grows left when the amount gets longer
-            RectTransform coins = BetaPanel(topBar, "Coins", new Vector2(1f, 0.5f), -246f, 150f);
+            RectTransform coins = BetaPanel(topBar, "Coins", new Vector2(1f, 0.5f), -322f, 150f);
             HorizontalLayoutGroup coinRow = coins.gameObject.AddComponent<HorizontalLayoutGroup>();
             coinRow.padding = new RectOffset(30, 30, 0, 0);
             coinRow.spacing = 12f;
@@ -470,14 +470,14 @@ public static class HUDBuilder
         return rect;
     }
 
-    // 56 px dark rounded button with a white pause icon, 12 px in from the panel's right edge.
-    // HUDController hooks it up (Pause popup) and shows it only when the map opened this round
+    // Quit label, same proportion as the map's Quit (88x32 in the 1280x720 frame).
+    // HUDController hooks it up (Quit Game? popup) and shows it only when the map opened this round
     static Button CreatePauseButton(RectTransform panel)
     {
         GameObject go = CreateImage(panel, "MapButton", Color.white, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), 0f, false);
         RectTransform rect = (RectTransform)go.transform;
         rect.pivot = new Vector2(1f, 0.5f);
-        rect.sizeDelta = new Vector2(56f, 56f);
+        rect.sizeDelta = new Vector2(132f, 48f);
         rect.anchoredPosition = new Vector2(-12f, 0f);
         Image image = go.GetComponent<Image>();
         Round(image, 10f);
@@ -486,21 +486,17 @@ public static class HUDBuilder
         Button button = go.AddComponent<Button>();
         button.targetGraphic = image;
         ColorBlock colors = button.colors;
-        colors.normalColor = theme.betaButton;
-        colors.highlightedColor = new Color32(0x2C, 0x36, 0x31, 0xFF);
-        colors.pressedColor = new Color32(0x12, 0x17, 0x14, 0xFF);
-        colors.selectedColor = theme.betaButton;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(0.94f, 0.95f, 0.94f);
+        colors.pressedColor = new Color(0.82f, 0.84f, 0.82f);
+        colors.selectedColor = Color.white;
         colors.fadeDuration = 0.08f;
         button.colors = colors;
 
-        foreach (float x in new[] { -6f, 6f })
-        {
-            GameObject barGo = CreateImage(rect, x < 0f ? "BarL" : "BarR", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), 0f, false);
-            RectTransform bar = (RectTransform)barGo.transform;
-            bar.sizeDelta = new Vector2(6f, 20f);
-            bar.anchoredPosition = new Vector2(x, 0f);
-            Round(barGo.GetComponent<Image>(), 1.5f);
-        }
+        TMP_Text label = StretchText(rect, "Label", "Quit", 27f);
+        label.color = new Color(0.10f, 0.12f, 0.11f);
+        label.fontStyle = FontStyles.Bold;
+        label.raycastTarget = false;
         return button;
     }
 

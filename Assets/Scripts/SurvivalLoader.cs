@@ -144,6 +144,11 @@ public class SurvivalLoader : MonoBehaviour
         for (int i = 0; i < treasureNearby; i++)
             SpawnTreasure(i < treasureNearby / 3 ? 2.5f : treasureMinDistance, treasureMaxDistance);
         nextHookAt = 0.5f;
+        QuitChrome.Create(QuitChrome.CornerOffset(), () =>
+        {
+            Time.timeScale = 1f;
+            LeaveToMap();
+        });
     }
 
     // The round: endless, with the starting Lives (plus any the store sold) and no clock
