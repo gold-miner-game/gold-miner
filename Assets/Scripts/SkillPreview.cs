@@ -16,7 +16,7 @@ using UnityEngine.UI;
 // its name and remark read "???", and its Select button is locked (ChampionSelect skips it).
 public class SkillPreview : MonoBehaviour
 {
-    public enum Skill { Block, Roll, Tail, Tongue }
+    public enum Skill { Block, Roll, Tail, Tongue, Portrait }
 
     public Skill skill;
     [Tooltip("Not explored yet: a black silhouette with a \"?\", \"???\" for its name and remark, and it can't be picked")]

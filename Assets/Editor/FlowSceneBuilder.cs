@@ -117,8 +117,8 @@ public static class FlowSceneBuilder
     static void WireSurvival(SurvivalLoader loader)
     {
         const string dir = "Assets/Prefabs/";
-        loader.champions = new[] { "MrHyde", "Cat", "Squirrel", "Frog" }
-            .Select(n => AssetDatabase.LoadAssetAtPath<GameObject>(dir + n + ".prefab")).ToArray();
+        loader.champions = new[] { "MrHyde", "Cat", "Squirrel", "Frog", "Penguin", "Rhino" }
+            .Select(n => AssetDatabase.LoadAssetAtPath<GameObject>(dir + "Teams/" + n + ".prefab")).ToArray();
         (string name, float weight)[] items =
             { ("Gold_Small", 40f), ("Gold_Medium", 28f), ("Gold_Large", 14f), ("Diamond", 10f), ("Life", 3f) };
         loader.items = items.Select(i => new SurvivalLoader.ItemChance

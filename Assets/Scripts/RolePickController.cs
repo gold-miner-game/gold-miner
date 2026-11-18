@@ -17,6 +17,8 @@ public class RolePickController : MonoBehaviour
         new Champion { index = 1, name = "JK. Rolling", desc = "The cat.",      skill = "She is already through the moment that meant to catch her." },
         new Champion { index = 2, name = "Scrat",       desc = "The squirrel.", skill = "Nothing near his feet stays where he found it." },
         new Champion { index = 3, name = "Rero Rero",   desc = "The frog.",     skill = "Some treasures only look far away." },
+        new Champion { index = 4, name = "Penguin",     desc = "The penguin.",  skill = "" },
+        new Champion { index = 5, name = "Rhino",       desc = "The rhinoceros.", skill = "" },
     };
 
     GUIStyle title;
@@ -31,7 +33,7 @@ public class RolePickController : MonoBehaviour
         GUI.Label(new Rect(0, 24, ScreenFrame.GuiWidth, 40), "PICK YOUR CHARACTER", title);
 
         // 2x2 grid, centred under the title.
-        const int cols = 2;
+        const int cols = 3;
         int rows = Mathf.CeilToInt(Champions.Length / (float)cols);
         float cardW = 320f;
         float cardH = 172f;
