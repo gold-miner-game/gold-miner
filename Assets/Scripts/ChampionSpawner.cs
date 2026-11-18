@@ -8,7 +8,7 @@ public class ChampionSpawner : MonoBehaviour
 {
     public const int MrHyde = 0;
 
-    [Header("0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Penguin, 5 Rhino")]
+    [Header("0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Elsa, 5 Hulk")]
     public GameObject[] champions = new GameObject[6];
 
     // Set by ChampionSelect. Static, so it survives scene loads (and level reloads). -1 = not picked yet

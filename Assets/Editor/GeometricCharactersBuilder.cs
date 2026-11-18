@@ -23,12 +23,13 @@ public static class GeometricCharactersBuilder
         WalletAndMovementSmokeTest.Run();
     }
 
-    [MenuItem("Tools/Gold Miner/Build Penguin And Rhino")]
+    [MenuItem("Tools/Gold Miner/Build Elsa And Hulk")]
     public static void Build()
     {
         circle = SpriteAt("Circle"); square = SpriteAt("Square"); triangle = SpriteAt("Triangle");
         Make("Penguin", true);
         Make("Rhino", false);
+        foreach (string name in new[] { "MrHyde", "Cat", "Squirrel", "Frog" }) UpdateExistingEyeCatchlights(name);
         BuildSelect();
         foreach (string path in new[] { "Assets/Scenes/Game.unity", "Assets/Scenes/Survival.unity" })
         {
@@ -72,15 +73,18 @@ public static class GeometricCharactersBuilder
         {
             body = Oval(art, "Body", .10f, .07f, 1.12f, 1.12f, Ink, 0);
             Oval(art, "White Bib", -.135f, .045f, .51f, .85f, Color.white, 1);
-            // A single small acute triangle: no rounded rectangle behind the beak.
-            // Anchor the base inside the head; this sprite's pivot is below its centre.
-            const float beakLength = .435f;
-            float beakX = -.445f + triangle.bounds.min.y * beakLength / triangle.bounds.size.y;
-            Part(art, "Beak", triangle, beakX, .03f, .15f, beakLength, 90, Orange, 3);
+            // Equal mandibles narrow toward the tip but keep a visible opening.
+            // The dark pocket stays close to the head, behind the bright blue tongue.
+            Oval(art, "Mouth Interior", -.45f, .025f, .105f, .12f, Ink, 2);
+            Capsule(art, "Blue Tongue", -.495f, .025f, .145f, .065f, 0, Hex("159CFF"), 3);
+            BeakHalf(art, "Upper Beak", new Vector2(-.42f, .115f), 101.4f);
+            BeakHalf(art, "Lower Beak", new Vector2(-.42f, -.065f), 78.6f);
             Oval(art, "Gold Eye Ring", -.20f, .17f, .257f, .275f, Hex("F3D142"), 4);
             Oval(art, "Eye", -.20f, .17f, .204f, .217f, Ink, 5);
             Oval(art, "Eye Catchlight", -.234f, .213f, .044f, .044f, Color.white, 6);
-            Part(art, "Orange Head Patch", circle, .49f, .34f, .105f, .312f, 28, Orange, 3);
+            // Keep both arcs convex: a complete tilted ellipse, with a thin black
+            // rim on the right and its lower end hidden behind the scarf fold.
+            Part(art, "Orange Head Patch", circle, .51f, -.01f, .19f, .59f, -12, Orange, 3);
             Capsule(art, "Scarf Front", -.02f, -.39f, .88f, .20f, -16, Blue, 6);
             Capsule(art, "Scarf Fold", .20f, -.43f, .72f, .20f, 26, Blue, 7);
             Capsule(art, "Scarf End", .13f, -.51f, .46f, .19f, 24, Blue, 8);
@@ -120,6 +124,57 @@ public static class GeometricCharactersBuilder
 
     static SpriteRenderer Oval(Transform parent, string name, float x, float y, float w, float h, Color color, int order)
         => Part(parent, name, circle, x, y, w, h, 0, color, order);
+
+    static void BeakHalf(Transform parent, string name, Vector2 atBase, float angle)
+    {
+        Vector2[] vertices = triangle.vertices;
+        float minX = vertices.Min(v => v.x), maxX = vertices.Max(v => v.x);
+        float minY = vertices.Min(v => v.y), maxY = vertices.Max(v => v.y);
+        Vector3 scale = new Vector3(.09f / (maxX - minX), .335f / (maxY - minY), 1);
+        Quaternion turn = Quaternion.Euler(0, 0, angle);
+        Vector3 baseOffset = turn * Vector3.Scale(new Vector3((minX + maxX) * .5f, minY, 0), scale);
+        SpriteRenderer sr = Part(parent, name, triangle, 0, 0, 1, 1, angle, Orange, 4);
+        sr.transform.localScale = scale;
+        sr.transform.localPosition = (Vector3)atBase - baseOffset;
+    }
+
+    static void UpdateExistingEyeCatchlights(string name)
+    {
+        string path = Teams + name + ".prefab";
+        GameObject root = PrefabUtility.LoadPrefabContents(path);
+        try
+        {
+            AddEyeCatchlights(root);
+            PrefabUtility.SaveAsPrefabAsset(root, path);
+        }
+        finally { PrefabUtility.UnloadPrefabContents(root); }
+    }
+
+    static void AddEyeCatchlights(GameObject root)
+    {
+        string[] names = { "EyeL", "EyeR", "Eye Left", "Eye Right", "Eye L", "Eye R" };
+        var eyes = root.GetComponentsInChildren<Transform>(true).Where(t => names.Contains(t.name))
+            .Select(t => t.GetComponent<SpriteRenderer>() != null ? t.GetComponent<SpriteRenderer>() : t.GetComponentInChildren<SpriteRenderer>(true))
+            .Where(sr => sr != null).ToList();
+        // The cat portrait is an older flattened drawing: its two black circles
+        // have no EyeL/EyeR objects. Their colour and shape distinguish them from the ears/body.
+        if (eyes.Count == 0)
+            eyes.AddRange(root.GetComponentsInChildren<SpriteRenderer>(true).Where(sr => sr.sprite != null
+                && sr.color.r < .3f && sr.color.g < .3f && sr.color.b < .3f
+                && sr.transform.localScale.x > .07f && sr.transform.localScale.x < .20f));
+        Debug.Log("EYE_HIGHLIGHTS " + root.name + ": " + eyes.Count);
+        foreach (SpriteRenderer blackEye in eyes.Distinct())
+        {
+            if (blackEye.transform.Find("Catchlight") != null) continue;
+            // Keep the existing eye object so tired-eye switching and heading animation
+            // also control its catchlight. Preserve the black sprite, size and colour.
+            Bounds b = blackEye.sprite.bounds;
+            SpriteRenderer glint = Oval(blackEye.transform, "Catchlight", b.center.x - .18f * b.size.x,
+                b.center.y + .20f * b.size.y, b.size.x * .24f, b.size.y * .24f,
+                Color.white, blackEye.sortingOrder + 1);
+            glint.sharedMaterial = blackEye.sharedMaterial;
+        }
+    }
 
     static SpriteRenderer Part(Transform parent, string name, Sprite sprite, float x, float y, float w, float h, float angle, Color color, int order)
     {
@@ -174,10 +229,14 @@ public static class GeometricCharactersBuilder
         {
             // Safe to rerun: keep existing cards and their persistent button binding.
             string name = i == 4 ? "Penguin" : "Rhino";
+            string displayName = i == 4 ? "Elsa" : "Hulk";
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(Teams + name + ".prefab");
             SkillPreview existing = previous.FirstOrDefault(p => p.selectButton != null && p.selectButton.name == "Select " + i);
             if (existing != null)
             {
+                existing.name = displayName;
+                existing.namePlate.name = displayName;
+                existing.namePlate.GetComponentInChildren<TMP_Text>(true).text = displayName;
                 // Portraits have no controller. Refresh their artwork when proportions change.
                 for (int child = existing.transform.childCount - 1; child >= 0; child--)
                     Object.DestroyImmediate(existing.transform.GetChild(child).gameObject);
@@ -186,17 +245,18 @@ public static class GeometricCharactersBuilder
             }
             GameObject portrait = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
             PrefabUtility.UnpackPrefabInstance(portrait, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            portrait.name = displayName;
             Object.DestroyImmediate(portrait.GetComponent<PlayerCharacter>());
             Object.DestroyImmediate(portrait.GetComponent<Collider2D>());
             Object.DestroyImmediate(portrait.GetComponent<Rigidbody2D>());
             var preview = portrait.AddComponent<SkillPreview>();
             preview.skill = SkillPreview.Skill.Portrait;
             preview.namePlate = Object.Instantiate(template.namePlate, template.namePlate.parent);
-            preview.namePlate.name = name;
+            preview.namePlate.name = displayName;
             // Name plates in the original scene also have Button components, with no action.
-            preview.namePlate.GetComponentInChildren<TMP_Text>(true).text = name;
+            preview.namePlate.GetComponentInChildren<TMP_Text>(true).text = displayName;
             preview.remark = Object.Instantiate(template.remark, template.remark.parent);
-            preview.remark.name = name + " Remark";
+            preview.remark.name = displayName + " Remark";
             preview.remark.GetComponentInChildren<TMP_Text>(true).text = i == 4 ? "The penguin." : "The rhinoceros.";
             preview.selectButton = Object.Instantiate(template.selectButton, template.selectButton.parent);
             preview.selectButton.name = "Select " + i;
@@ -220,6 +280,7 @@ public static class GeometricCharactersBuilder
         foreach (SkillPreview preview in Object.FindObjectsByType<SkillPreview>(FindObjectsSortMode.None))
         {
             int index = int.Parse(preview.selectButton.name.Substring(7));
+            if (index < 4) AddEyeCatchlights(preview.gameObject);
             float x = (index % 3 - 1) * 380f;
             float offset = index / 3 * -296f;
             Place(preview.namePlate, x, 73 + offset, 250, 40);
