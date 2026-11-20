@@ -58,12 +58,25 @@ public class SkillPreview : MonoBehaviour
     // The Select button's character is a mystery: ChampionSelect neither labels nor picks it
     public static bool IsLocked(Button button)
     {
+        if (button == null) return false;
+        if (button.name.StartsWith("Select ") && int.TryParse(button.name.Substring(7), out int index))
+            return !CharacterUnlocks.IsUnlocked(index);
         foreach (SkillPreview p in FindObjectsByType<SkillPreview>(FindObjectsSortMode.None))
-            if (p.mystery && p.selectButton != null && p.selectButton.gameObject == button.gameObject) return true;
+            if (p.Locked && p.selectButton != null && p.selectButton.gameObject == button.gameObject) return true;
         return false;
     }
 
+    public int ChampionIndex => selectButton != null && selectButton.name.StartsWith("Select ")
+        && int.TryParse(selectButton.name.Substring(7), out int index) ? index : -1;
+    bool Locked => ChampionIndex >= 0 ? !CharacterUnlocks.IsUnlocked(ChampionIndex)
+        : mystery;
+    SpriteRenderer[] originalSprites;
+    Color[] originalColors;
+    string originalName, originalRemark;
+    bool maskApplied;
+
     Bounds area;            // the picture at rest, in world space
+    public Bounds PortraitArea => area;
     Vector3 restPos;
     Quaternion restRot;
     Vector3 restScale;
@@ -88,6 +101,11 @@ public class SkillPreview : MonoBehaviour
 
     void Awake()
     {
+        originalSprites = GetComponentsInChildren<SpriteRenderer>(true);
+        originalColors = new Color[originalSprites.Length];
+        for (int i = 0; i < originalSprites.Length; i++) originalColors[i] = originalSprites[i].color;
+        originalName = namePlate != null ? namePlate.GetComponentInChildren<TMP_Text>(true)?.text : "";
+        originalRemark = remark != null ? remark.GetComponentInChildren<TMP_Text>(true)?.text : "";
         restPos = transform.position;
         restRot = transform.rotation;
         restScale = transform.localScale;
@@ -112,11 +130,18 @@ public class SkillPreview : MonoBehaviour
         if (mouth != null) mouthScale = mouth.localScale;
         if (mouthLine != null) lineScale = mouthLine.localScale;
 
-        if (mystery) Hide();
+        RefreshLock();
     }
 
     void Update()
     {
+        if (CharacterSkillDemo.Supports(ChampionIndex))
+        {
+            // Recorded gameplay is available even when this character or its skill is locked.
+            if (!TutorialDialogue.Playing && Hovered()) CharacterSkillDemo.Show(this, area);
+            else CharacterSkillDemo.Hide(this);
+            return;
+        }
         if (t < 0f)
         {
             if (!Hovered()) return;
@@ -143,10 +168,10 @@ public class SkillPreview : MonoBehaviour
 
     bool Hovered()
     {
-        Mouse mouse = Mouse.current;
+        Mouse mouse = DeveloperConsole.CapturesInput ? null : Mouse.current;
         if (mouse == null) return false;
         Vector2 screen = mouse.position.ReadValue();
-        foreach (RectTransform rect in new[] { namePlate, selectButton })
+        foreach (RectTransform rect in new[] { namePlate, remark, selectButton })
             if (rect != null && rect.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rect, screen, null))
                 return true;
         Camera cam = Camera.main;
@@ -185,6 +210,38 @@ public class SkillPreview : MonoBehaviour
             Button button = selectButton.GetComponent<Button>();
             if (button != null) button.interactable = false;
             SetWords(selectButton, "Locked");
+            ChampionSelect.ApplyButtonStyle(button, ChampionIndex);
+        }
+    }
+
+    public void RefreshLock()
+    {
+        if (originalSprites == null) return; // Awake has not captured the original artwork yet.
+        bool locked = Locked;
+        int price = CharacterUnlocks.Price(ChampionIndex);
+        mystery = locked && price <= 0;
+        if (mystery)
+        {
+            if (!maskApplied) { Hide(); maskApplied = true; }
+            return;
+        }
+        if (maskApplied)
+        {
+            for (int i = 0; i < originalSprites.Length; i++)
+                if (originalSprites[i] != null) originalSprites[i].color = originalColors[i];
+            if (body != null) bodyColor = body.color;
+            if (question != null) { question.gameObject.SetActive(false); Destroy(question.gameObject); question = null; }
+            SetWords(namePlate, originalName);
+            SetWords(remark, originalRemark);
+            maskApplied = false;
+            t = -1f;
+        }
+        if (selectButton != null)
+        {
+            Button button = selectButton.GetComponent<Button>();
+            if (button != null) button.interactable = true;
+            SetWords(selectButton, locked ? "$" + price.ToString("N0") : "Select");
+            ChampionSelect.ApplyButtonStyle(button, ChampionIndex);
         }
     }
 
@@ -328,6 +385,7 @@ public class SkillPreview : MonoBehaviour
 
     void OnDisable()
     {
+        CharacterSkillDemo.Hide(this);
         if (t >= 0f) { t = -1f; ResetLook(); }
     }
 

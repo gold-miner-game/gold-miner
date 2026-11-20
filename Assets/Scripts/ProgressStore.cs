@@ -120,6 +120,7 @@ public static class ProgressStore
     // A hidden hub portal (HubPortal) turns from rock into portal once; after that it stays a portal
     public static bool WasRevealed(string nodeId)
     {
+        if (GameUnlocks.EverythingUnlocked) return true;
         foreach (string id in PlayerPrefs.GetString(RevealedKey, "").Split(';'))
             if (id == nodeId) return true;
         return false;
@@ -160,6 +161,8 @@ public static class ProgressStore
     // Dev helper: wipe all meta progress (also clear the in-memory cache).
     public static void ResetAll()
     {
+        MapRockDamage.ResetDamage();
+        GameUnlocks.ResetOverride();
         completed = null;
         bestMargins = null;
         PlayerPrefs.DeleteKey(CompletedKey);

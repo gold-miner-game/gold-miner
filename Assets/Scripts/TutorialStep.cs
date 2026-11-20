@@ -80,6 +80,8 @@ public class TutorialStep : MonoBehaviour
     public int maxTimes = 1;
     [Tooltip("Play only the first time ever (saved), not again on later visits, e.g. the store's introduction. Tools > Gold Miner > Reset Tutorials Seen shows them again")]
     public bool onlyFirstTime = false;
+    [Tooltip("Play once per save: remember immediately when started, including interrupted stories. Ignores the editor replay setting. New Game resets it.")]
+    public bool oncePerSave = false;
 
     // Tools > Gold Miner > Replay Only First Time Steps (editor, while testing): they play every time
     public static bool ReplaySeen;
@@ -169,7 +171,8 @@ public class TutorialStep : MonoBehaviour
 
         if (afterStep == null && startOn == StartTrigger.AfterStep) afterStep = StepAbove();
         inLevel = FindFirstObjectByType<LevelLayout>() != null;
-        if (onlyFirstTime && !ReplaySeen && PlayerPrefs.GetInt(SeenKey, 0) == 1) Current = State.Done;
+        if ((onlyFirstTime || oncePerSave) && (!ReplaySeen || oncePerSave)
+            && PlayerPrefs.GetInt(SeenKey, 0) == 1) Current = State.Done;
     }
 
     bool inLevel;   // in a level scene: the player is on its way with the Game scene
@@ -288,8 +291,8 @@ public class TutorialStep : MonoBehaviour
             case EndTrigger.Seconds: return now - shownAt >= seconds + fadeTime;
             case EndTrigger.AnyKey:
                 if (!settled) return false;
-                return (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
-                    || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
+                return (!DeveloperConsole.CapturesInput && Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+                    || (!DeveloperConsole.CapturesInput && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
             case EndTrigger.PlayerMoves:
                 return settled && player != null && Vector2.Distance(player.transform.position, playerAtStart) > 0.3f;
             case EndTrigger.PlayerEntersArea: return inArea;
@@ -301,6 +304,7 @@ public class TutorialStep : MonoBehaviour
 
     void Begin()
     {
+        if (oncePerSave) SaveSeen();
         Current = State.Showing;
         TimesPlayed++;
         shownAt = Time.unscaledTime;
@@ -339,17 +343,22 @@ public class TutorialStep : MonoBehaviour
         if (showing.Count == 0) SetDark(0f, null);
         TimesFinished++;
         Current = maxTimes <= 0 || TimesPlayed < maxTimes ? State.Waiting : State.Done;
-        if (onlyFirstTime)
+        if (onlyFirstTime || oncePerSave)
         {
-            PlayerPrefs.SetInt(SeenKey, 1);
-            string list = PlayerPrefs.GetString(SeenListKey, "");   // so ResetSeen can find them
-            if (("\n" + list + "\n").IndexOf("\n" + SeenKey + "\n") < 0)
-                PlayerPrefs.SetString(SeenListKey, list.Length == 0 ? SeenKey : list + "\n" + SeenKey);
-            PlayerPrefs.Save();
+            SaveSeen();
             Current = State.Done;
         }
         onEnd.Invoke();
         TutorialEvents.Fire(name + ".end");
+    }
+
+    void SaveSeen()
+    {
+        PlayerPrefs.SetInt(SeenKey, 1);
+        string list = PlayerPrefs.GetString(SeenListKey, ""); // so New Game / ResetSeen can find it
+        if (("\n" + list + "\n").IndexOf("\n" + SeenKey + "\n") < 0)
+            PlayerPrefs.SetString(SeenListKey, list.Length == 0 ? SeenKey : list + "\n" + SeenKey);
+        PlayerPrefs.Save();
     }
 
     void UpdateFade(float now)
@@ -440,7 +449,7 @@ public class TutorialStep : MonoBehaviour
     static bool HudPaused()
     {
         if (hud == null) hud = FindFirstObjectByType<HUDController>();
-        return hud != null && hud.IsPaused;
+        return DeveloperConsole.IsOpen || (hud != null && hud.IsPaused);
     }
 
     bool InArea()

@@ -130,6 +130,8 @@ public class SurvivalLoader : MonoBehaviour
 
     void Awake()
     {
+        LevelLoader.BeginStandaloneRound();
+        Hook.RopeCuts = true; // Never inherit a previous scene's rope-cut setting.
         // A battle's random_seed may have fixed the sequence; every run here should differ
         Random.InitState(System.Environment.TickCount);
         bestTime = PlayerPrefs.GetFloat(BestTimeKey, 0f);
@@ -155,6 +157,8 @@ public class SurvivalLoader : MonoBehaviour
     void SetUpRound()
     {
         CrossLevelStatus record = EnsureRecord();
+        // Consume reserved goods before calculating HP, including Brace's bonus life.
+        if (record != null) record.onLevelStarted();
         int lives = startingLives + (record != null ? record.getExtraLives() : 0);
         if (record != null)
         {
@@ -170,6 +174,7 @@ public class SurvivalLoader : MonoBehaviour
         gm.startingLives = lives;
         gm.invincibleTime = invincibleTime;
         go.SetActive(true);
+        gm.SetBonusLives(record != null ? record.getBraceBonusLives() : 0);
     }
 
     // The champion picked on the role-pick screen, else whatever ChampionSpawner remembers
@@ -188,13 +193,14 @@ public class SurvivalLoader : MonoBehaviour
         ChampionSpawner.Chosen = champion;
         System.Type want = ChampionSpawner.RecordType(champion);
         if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
-            CrossLevelStatus.StartFresh(want);
+            CrossLevelStatus.Install(want);
         return CrossLevelStatus.Active;
     }
 
     void SetUpPlayer()
     {
         int champion = ChampionSpawner.Chosen;
+        if (!CharacterUnlocks.IsUnlocked(champion)) champion = ChampionSpawner.MrHyde;
         GameObject prefab = champion >= 0 && champion < champions.Length ? champions[champion] : null;
         if (prefab == null && champions.Length > 0) prefab = champions[0];
         if (prefab == null)
@@ -220,7 +226,6 @@ public class SurvivalLoader : MonoBehaviour
             record.setDigestTime(digestTime);
             record.setDigestPerValue(digestPerValue);
             record.setDigestMaxTime(digestMaxTime);
-            record.onLevelStarted();
             TimeMovesWithPlayer.ApplyStoreEffect(player, record);
         }
         player.moveSpeed = (record != null ? record.getSpeed() : playerSpeed * gameSpeed) * player.speedScale;
@@ -254,7 +259,7 @@ public class SurvivalLoader : MonoBehaviour
     {
         if (gm == null) return;
 
-        if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+        if (!DeveloperConsole.CapturesInput && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
             LeaveToMap();
             return;

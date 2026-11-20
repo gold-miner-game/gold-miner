@@ -36,6 +36,7 @@ public class ChampionSpawner : MonoBehaviour
     public PlayerCharacter Spawn(int index)
     {
         if (index < 0) return null;
+        if (!CharacterUnlocks.IsUnlocked(index)) index = MrHyde;
         GameObject prefab = index < champions.Length ? champions[index] : null;
         PlayerCharacter wanted = prefab != null ? prefab.GetComponent<PlayerCharacter>() : null;
         if (wanted == null)

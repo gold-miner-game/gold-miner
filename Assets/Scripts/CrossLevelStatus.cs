@@ -39,6 +39,10 @@ public class CrossLevelStatus : MonoBehaviour
 
     public static CrossLevelStatus Active { get; private set; }
 
+    // The hub has a running GameManager for walking and hazards, but is not an item-using round.
+    public static bool StoreRoundActive => !LevelLoader.Tutorial && MapHub.Active == null
+        && GameManager.Instance != null && GameManager.Instance.IsPlaying;
+
     static readonly List<Type> preferred = new List<Type>();
 
     string skinId = "default";
@@ -99,6 +103,24 @@ public class CrossLevelStatus : MonoBehaviour
         var go = new GameObject(typeof(T).Name);
         DontDestroyOnLoad(go);
         return go.AddComponent<T>();
+    }
+
+    // Restore the saved champion without starting a new run or discarding reserved goods.
+    public static CrossLevelStatus Install(Type type)
+    {
+        if (type == null || !typeof(CrossLevelStatus).IsAssignableFrom(type)) type = typeof(PigStatus);
+        preferred.Clear();
+        preferred.Add(type);
+        if (Active != null && Active.GetType() == type) return Active;
+        if (Active == null) return Create(type);
+
+        CrossLevelStatus previous = Active;
+        Active = null;
+        var created = (CrossLevelStatus)previous.gameObject.AddComponent(type);
+        created.copyFrom(previous);
+        Debug.Log($"[Goods record] Restored {type.Name} from {previous.GetType().Name}; wallet and goods preserved.");
+        Destroy(previous);
+        return created;
     }
 
     // A new run: throw the current record away (if any) and start a fresh one of this type.
@@ -162,7 +184,7 @@ public class CrossLevelStatus : MonoBehaviour
         tickSkills(Time.deltaTime);
         onTick(Time.deltaTime);
 
-        bool playing = GameManager.Instance != null && GameManager.Instance.IsPlaying && !LevelLoader.Tutorial;
+        bool playing = StoreRoundActive;
         if (levelInProgress && !playing) onLevelEnded();
         levelInProgress = playing;
     }
@@ -225,7 +247,7 @@ public class CrossLevelStatus : MonoBehaviour
         return ration != null && ration.active;
     }
 
-    public virtual bool getCanBlock() { return canBlock; }
+    public virtual bool getCanBlock() { return GameUnlocks.IsUnlocked(canBlock); }
     public virtual void setCanBlock(bool value) { canBlock = value; }
 
     public virtual float getBlockDuration() { return blockDuration; }
@@ -299,6 +321,7 @@ public class CrossLevelStatus : MonoBehaviour
 
     public virtual void onLevelStarted()
     {
+        if (LevelLoader.Tutorial || MapHub.Active != null) return;
         bankedLevels.Clear();
         onLevelEnded();
 
@@ -400,6 +423,7 @@ public class CrossLevelStatus : MonoBehaviour
 
         if (id == "shield")
         {
+            if (roundIsOver() && skill.armed) return false;
             skill.stock--;
             skill.unlocked = true;
             float duration = armedDuration(skill);
@@ -460,6 +484,7 @@ public class CrossLevelStatus : MonoBehaviour
         for (int i = 0; i < skills.Count; i++)
         {
             PlayerSkill skill = skills[i];
+            if (IsStoreEffect(skill.id) && !StoreRoundActive) continue;
             if (skill.secondsLeft <= 0f) continue;
             skill.secondsLeft = Mathf.Max(0f, skill.secondsLeft - deltaTime);
             if (skill.secondsLeft <= 0f) skill.active = false;
@@ -468,7 +493,7 @@ public class CrossLevelStatus : MonoBehaviour
 
     static bool roundIsOver()
     {
-        return GameManager.Instance == null || !GameManager.Instance.IsPlaying;
+        return !StoreRoundActive;
     }
 }
 

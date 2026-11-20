@@ -17,6 +17,7 @@ public class ChampionSelect : MonoBehaviour
 
     Coroutine leaving;
     float openedAt;
+    string unlockMessage = "";
 
     void Start()
     {
@@ -33,8 +34,14 @@ public class ChampionSelect : MonoBehaviour
     {
         if (leaving != null) return;                          // already picked, leaving
         if (TutorialDialogue.Playing) return;                 // a story is on screen: read it first
-        foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
-            if (button.name == "Select " + champion && SkillPreview.IsLocked(button)) return;   // a mystery character
+        if (DeveloperConsole.CapturesInput || champion < 0 || champion >= CharacterUnlocks.Count) return;
+        if (!CharacterUnlocks.IsUnlocked(champion))
+        {
+            if (CharacterUnlocks.TryPurchase(champion, out unlockMessage))
+                foreach (SkillPreview preview in FindObjectsByType<SkillPreview>(FindObjectsSortMode.None))
+                    preview.RefreshLock();
+            return;
+        }
         ShowSelected(champion);
         if (leaving != null) StopCoroutine(leaving);
         leaving = StartCoroutine(Leave(champion));
@@ -66,6 +73,16 @@ public class ChampionSelect : MonoBehaviour
         SceneManager.LoadScene(gameplayScene);
     }
 
+    void OnGUI()
+    {
+        if (DeveloperConsole.CapturesInput) return;
+        ScreenFrame.BeginGUI();
+        var style = new GUIStyle(GUI.skin.label) { fontSize = 20, richText = false };
+        GUI.Label(new Rect(24, 18, 350, 36), "Wallet: $" + MazeHubState.WalletBalance.ToString("N0"), style);
+        style.alignment = TextAnchor.MiddleCenter;
+        GUI.Label(new Rect(24, 677, 1232, 30), unlockMessage, style);
+    }
+
     void ShowSelected(int champion)
     {
         foreach (Button button in FindObjectsByType<Button>(FindObjectsSortMode.None))
@@ -78,20 +95,35 @@ public class ChampionSelect : MonoBehaviour
             if (!int.TryParse(button.name.Substring("Select ".Length), out index)) continue;
             bool on = index == champion;
             label.text = on ? "Selected" : "Select";
-            label.color = on ? ChosenText : IdleText;
-            Image fill = null;
-            foreach (Image image in button.GetComponentsInChildren<Image>(true))
-            {
-                if (image.gameObject.name == "Fill") fill = image;
-            }
-            if (fill != null) fill.color = on ? ChosenFill : IdleFill;
+            ApplyButtonStyle(button, index, on);
         }
     }
 
-    // Hollow blue with a white ring, so the button does not look like the solid name plate.
-    // Chosen buttons fill in gold; the plate itself stays a plain white label.
-    static readonly Color IdleFill = new Color(0.192f, 0.302f, 0.475f, 1f);
-    static readonly Color ChosenFill = new Color(0.93f, 0.78f, 0.42f, 1f);
-    static readonly Color IdleText = Color.white;
-    static readonly Color ChosenText = new Color(0.16f, 0.12f, 0.06f, 1f);
+    public static void ApplyButtonStyle(Button button, int champion, bool selected = false)
+    {
+        if (button == null) return;
+        bool available = CharacterUnlocks.IsUnlocked(champion);
+        bool selling = !available && CharacterUnlocks.Price(champion) > 0;
+        Color background = available
+            ? (selected ? new Color(.16f, .68f, .32f) : new Color(.10f, .48f, .23f))
+            : selling ? new Color(.93f, .72f, .22f) : Color.black;
+        Image fill = null;
+        foreach (Image image in button.GetComponentsInChildren<Image>(true))
+            if (image.name == "Fill") { fill = image; break; }
+        if (fill == null) fill = button.targetGraphic as Image;
+        if (fill != null)
+        {
+            fill.color = background;
+            button.targetGraphic = fill;
+        }
+        ColorBlock colors = button.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
+        colors.selectedColor = Color.white;
+        colors.pressedColor = new Color(.8f, .8f, .8f, 1f);
+        colors.disabledColor = Color.white; // mystery buttons stay black when disabled
+        button.colors = colors;
+        TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
+        if (label != null) label.color = selling ? new Color(.14f, .10f, .03f) : Color.white;
+    }
 }

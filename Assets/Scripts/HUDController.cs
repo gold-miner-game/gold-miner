@@ -96,6 +96,9 @@ public class HUDController : MonoBehaviour
     private readonly List<TMP_Text> itemRows = new List<TMP_Text>();
     private GameFlow flow;
     private GameObject pausePopup;
+    RectTransform characterAvatar;
+    RectTransform avatarFigure;
+    GameObject avatarSource;
     private string endDetail;   // the result lines, set once when the round ends   // found, not GameFlow.Instance: that would create one in Dev scenes
 
     // Last values seen, to detect changes (not set until the first Update)
@@ -907,7 +910,8 @@ public class HUDController : MonoBehaviour
     void UpdateSidebar()
     {
         // Champions are spawned at level start, so keep looking until one is there
-        if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
+        if (player == null || !player.gameObject.activeInHierarchy) player = FindFirstObjectByType<PlayerCharacter>();
+        UpdateCharacterAvatar();
         CrossLevelStatus record = PlayerCharacter.Record;
 
         if (mazeHudApplied)
@@ -936,6 +940,41 @@ public class HUDController : MonoBehaviour
         UpdateDividers();
     }
 
+    void UpdateCharacterAvatar()
+    {
+        if (player == null) return;
+        if (avatarSource != null && avatarSource.GetComponent<PlayerCharacter>().GetType() == player.GetType()) return;
+        if (characterAvatar == null)
+            foreach (RectTransform rect in GetComponentsInChildren<RectTransform>(true))
+                if (rect.name == "CharacterAvatar" || rect.name == "PigAvatar") { characterAvatar = rect; break; }
+        if (characterAvatar == null) return;
+
+        ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
+        SurvivalLoader survival = spawner == null ? FindFirstObjectByType<SurvivalLoader>() : null;
+        GameObject[] roster = spawner != null ? spawner.champions : survival != null ? survival.champions : null;
+        if (roster == null) return;
+        GameObject source = null;
+        foreach (GameObject prefab in roster)
+        {
+            PlayerCharacter character = prefab != null ? prefab.GetComponent<PlayerCharacter>() : null;
+            if (character != null && character.GetType() == player.GetType()) { source = prefab; break; }
+        }
+        if (source == null) return;
+
+        // Copy the untouched prefab used by the character shop, never the animated live player.
+        // Keep the circular background; retire the old pig drawing or previous character copy.
+        foreach (Transform child in characterAvatar) child.gameObject.SetActive(false);
+        if (avatarFigure != null) Destroy(avatarFigure.gameObject);
+        float height = Mathf.Max(1f, characterAvatar.rect.height - 8f);
+        avatarFigure = UISpriteCopy.Build(source, characterAvatar, height);
+        avatarFigure.name = "CharacterPortrait";
+        float scale = Mathf.Min(1f, Mathf.Max(1f, characterAvatar.rect.width - 8f) / Mathf.Max(1f, avatarFigure.sizeDelta.x));
+        avatarFigure.localScale = Vector3.one * scale;
+        avatarFigure.anchorMin = avatarFigure.anchorMax = Vector2.one * .5f;
+        avatarFigure.anchoredPosition = new Vector2(0f, -avatarFigure.sizeDelta.y * scale * .5f);
+        avatarSource = source;
+    }
+
     // Beta: LIFE xN takes the SKILL / DIGEST rows' place in PigStatus when neither is shown (the
     // world map), so the panel never needs a third row. Returns whether it is shown
     bool UpdateLifeRow(bool hasSkill, bool hasDigest)
@@ -958,7 +997,7 @@ public class HUDController : MonoBehaviour
     bool UpdateSkill()
     {
         if (skillText == null) return false;
-        bool shown = player != null && player.CanBlock;
+        bool shown = player != null && player.HasSkill;
         if (skillBlock != null) skillBlock.SetActive(shown);
         else SetRow(skillText, shown);
         if (skillBarFill != null) skillBarFill.parent.gameObject.SetActive(shown);

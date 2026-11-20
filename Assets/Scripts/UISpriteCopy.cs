@@ -58,7 +58,9 @@ public static class UISpriteCopy
             Vector3 at = m.MultiplyPoint(Vector3.zero);
             pr.anchoredPosition = new Vector2(at.x - outline.center.x, at.y - outline.min.y) * unit;
             Vector3 xAxis = m.GetColumn(0), yAxis = m.GetColumn(1);
-            pr.localScale = new Vector3(xAxis.magnitude * (sr.flipX ? -1f : 1f), yAxis.magnitude * (sr.flipY ? -1f : 1f), 1f);
+            float handedness = Vector3.Cross(xAxis, yAxis).z < 0f ? -1f : 1f;
+            pr.localScale = new Vector3(xAxis.magnitude * (sr.flipX ? -1f : 1f),
+                yAxis.magnitude * handedness * (sr.flipY ? -1f : 1f), 1f);
             pr.localEulerAngles = new Vector3(0f, 0f, Mathf.Atan2(xAxis.y, xAxis.x) * Mathf.Rad2Deg);
 
             Image image = piece.GetComponent<Image>();

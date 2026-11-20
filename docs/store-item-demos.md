@@ -1,8 +1,13 @@
 # Store hover demos
 
 Each hover shows two separate tips: a square 4.5-second, 20 fps recording above
-the item, and its name and description below the item. Leaving the
-item stops playback; returning restarts it. The player cannot interact with the
+the item, and its name and description below the item. The recording screen expands
+vertically from its center over 0.25 seconds, keeping its full width. A black mask
+fades from fully opaque to transparent during the expansion, gradually revealing
+the still first frame. Playback begins only once the screen reaches the existing
+256-by-256 size and the mask has fully faded.
+The expansion uses unscaled time so it also works during tutorial pauses. Leaving the
+item cancels the expansion and stops playback; returning restarts both. The player cannot interact with the
 recorded scene, and playback does not touch the real game's state.
 
 The clips use the actual `Teams/MrHyde`, `Object/Gold_Small`, and

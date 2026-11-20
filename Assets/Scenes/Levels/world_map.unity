@@ -1134,6 +1134,7 @@ MonoBehaviour:
   fadeTime: 0.4
   maxTimes: 1
   onlyFirstTime: 1
+  oncePerSave: 1
   onStart:
     m_PersistentCalls:
       m_Calls: []

@@ -16,6 +16,7 @@ public class MinerAI : MonoBehaviour
     public IEnumerator FireScripted(Vector2 targetPos, bool aimAtPlayer)
     {
         if (hook == null || hookOrigin == null) yield break;
+        while (IsFrozen) yield return null;
         bool prev = autoShoot;
         autoShoot = false;
 
@@ -31,8 +32,12 @@ public class MinerAI : MonoBehaviour
         {
             telegraph.Show(origin, origin + dir * length, color);
             float wait = telegraphMin;
-            float end = Time.time + wait;
-            while (Time.time < end) yield return null;
+            float elapsed = 0f;
+            while (elapsed < wait)
+            {
+                yield return null;
+                if (!IsFrozen) elapsed += Time.deltaTime;
+            }
             telegraph.Hide();
         }
 
@@ -95,6 +100,24 @@ public class MinerAI : MonoBehaviour
     // Treasure each miner is going for, until its hook is home (Efficient strategy)
     private static readonly Dictionary<MinerAI, Treasure> claims = new Dictionary<MinerAI, Treasure>();
     private static readonly List<MinerAI> miners = new List<MinerAI>();
+    SpriteRenderer[] frostBody;
+    public bool IsFrozen
+    {
+        get
+        {
+            if (frostBody == null) frostBody = GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sprite in frostBody)
+                if (sprite != null && sprite.GetComponentInParent<Hook>() == null
+                    && sprite.GetComponentInParent<TelegraphLine>() == null && FrostField2D.IsFrozen(sprite)) return true;
+            return false;
+        }
+    }
+    public static bool ControllerFrozen(Hook controlled)
+    {
+        foreach (MinerAI miner in miners) if (miner != null && miner.hook == controlled && miner.IsFrozen) return true;
+        return false;
+    }
+    void OnTransformChildrenChanged() { frostBody = null; }
 
     // From the telegraph until the hook is home: the hook's origin must stay put (a walking enemy waits)
     public bool Aiming { get; private set; }
@@ -130,13 +153,13 @@ public class MinerAI : MonoBehaviour
     // Waits in game time, except during bullet time (TimeMovesWithPlayer slowing the world while the
     // player stands still): then in real time, so the miner keeps aiming and firing at its usual pace
     // and only the hook flies in slow motion. A pause (time scale 0) still holds it.
-    static IEnumerator Wait(float seconds)
+    IEnumerator Wait(float seconds)
     {
         float t = 0f;
         while (t < seconds)
         {
             yield return null;
-            if (Time.timeScale <= 0f) continue;
+            if (Time.timeScale <= 0f || IsFrozen) continue;
             t += TimeMovesWithPlayer.Slowness > 0f ? Time.unscaledDeltaTime : Time.deltaTime;
         }
     }
@@ -147,6 +170,7 @@ public class MinerAI : MonoBehaviour
 
         while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
+            if (IsFrozen) { yield return null; continue; }
             if (!autoShoot)
             {
                 // The opening diamond was this hook's first grab. Once that pull is over, it

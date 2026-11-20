@@ -2,7 +2,7 @@ using UnityEngine;
 
 // The squirrel (Scrat). Moves, eats and blinks like every character (PlayerCharacter), at the level's
 // speed. It never flips; SquirrelFaceHeading and SquirrelTailHeading turn the face and tail instead.
-// Its skill is the tail: while Space is held the see-through tail is firm, collects treasure with the
+// Its skill is the tail: while K is held the see-through tail is firm, collects treasure with the
 // body's digest and stops hooks (SquirrelTailCollector), and the squirrel moves at half speed.
 // Penny's speed-up / slide-to-stop movement is saved in E:\Create with code\Squirrel Record.
 public class SquirrelController : PlayerCharacter
@@ -10,6 +10,19 @@ public class SquirrelController : PlayerCharacter
     [Header("Tail (hold K)")]
     [Tooltip("Speed while the tail is firm, times the level's speed")]
     [Range(0f, 1f)] public float firmSpeedMultiplier = .5f;
+
+    public override bool HasSkill => tail != null && tail.isActiveAndEnabled;
+    public override string SkillName => "hold for firm tail";
+    public override bool SkillActive => TailFirm;
+    public override float SkillReadyIn => 0f;
+    public override float SkillWait => 0f;
+
+    protected override void SetSkillHeld(bool held)
+    {
+        if (tail != null) tail.SetFirm(held);
+    }
+
+    void OnDisable() { SetSkillHeld(false); }
 
     public bool TailFirm => tail != null && tail.IsCollecting;
 

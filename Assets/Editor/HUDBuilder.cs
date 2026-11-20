@@ -228,7 +228,7 @@ public static class HUDBuilder
 
             // PigStatus ----------------------------------------------------------------------------
             RectTransform pig = BetaPanel(topBar, "PigStatus", new Vector2(0f, 0.5f), 0f, 360f);
-            CreatePigAvatar(pig);
+            CreateCharacterAvatar(pig);
 
             RectTransform skillRow = Stretch(pig, "Skill");
             BetaText(skillRow, "SkillLabel", "SKILL", 90f, 10f, 86f, 32f, 14f, TextAlignmentOptions.Left, theme.betaLabel, 10f);
@@ -439,26 +439,10 @@ public static class HUDBuilder
         return side.transform;
     }
 
-    // The pig face from Figma, in a 64 px dark circle. Pink circles for the head and snout; the ears
-    // use the project's Triangle sprite when it is there
-    static void CreatePigAvatar(RectTransform panel)
+    // HUDController fills the circle with the current character's normal shop artwork at runtime.
+    static void CreateCharacterAvatar(RectTransform panel)
     {
-        Color pink = theme.pig;
-        RectTransform avatar = Shape(panel, "PigAvatar", new Color32(0x2A, 0x26, 0x22, 0xFF), 10f, 8f, 64f, 64f, 32f);
-        Sprite triangle = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/Triangle.png");
-        if (triangle != null)
-        {
-            Shape(avatar, "EarL", pink, 13f, 8f, 16f, 16f, 0f).GetComponent<Image>().sprite = triangle;
-            Shape(avatar, "EarR", pink, 35f, 8f, 16f, 16f, 0f).GetComponent<Image>().sprite = triangle;
-        }
-        Shape(avatar, "Head", pink, 10f, 14f, 44f, 40f, 20f);
-        Color dark = new Color32(0x2A, 0x26, 0x22, 0xFF);
-        Shape(avatar, "EyeL", dark, 22f, 26f, 5f, 5f, 2.5f);
-        Shape(avatar, "EyeR", dark, 37f, 26f, 5f, 5f, 2.5f);
-        Shape(avatar, "Snout", new Color32(0xE0, 0x70, 0x9A, 0xFF), 23f, 35f, 18f, 12f, 6f);
-        Color nostril = new Color32(0x7A, 0x2E, 0x48, 0xFF);
-        Shape(avatar, "NostrilL", nostril, 28f, 39f, 3f, 4f, 1.5f);
-        Shape(avatar, "NostrilR", nostril, 35f, 39f, 3f, 4f, 1.5f);
+        Shape(panel, "CharacterAvatar", new Color32(0x2A, 0x26, 0x22, 0xFF), 10f, 8f, 64f, 64f, 32f);
     }
 
     static RectTransform Shape(Transform parent, string name, Color color, float x, float y, float width, float height, float radius)

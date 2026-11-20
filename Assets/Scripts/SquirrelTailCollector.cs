@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // The squirrel's skill (from Penny's version). The tail is see-through, and firm for as long as
-// Space is held (SquirrelController sets it, and halves the speed meanwhile). While firm it:
+// K is held (SquirrelController sets it, and halves the speed meanwhile). While firm it:
 // - picks up everything it sweeps over that the body would (treasure and Life items), sharing the
 //   body's digest: a bite by either starts it, and while digesting neither can eat;
 // - holds every hook it touches: the hook can't get past while they touch, and carries on hookStall
@@ -89,7 +89,7 @@ public class SquirrelTailCollector : MonoBehaviour
         }
     }
 
-    // Called by SquirrelController every frame: firm while Space is held during a round
+    // Called by SquirrelController every frame: firm while K is held during a round
     public void SetFirm(bool firm)
     {
         if (firm && !IsCollecting)

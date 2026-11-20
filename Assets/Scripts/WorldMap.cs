@@ -67,7 +67,9 @@ public class WorldMap : ScriptableObject
     {
         if (index < 0 || index >= nodes.Count) return false;
         MapNode node = nodes[index];
-        if (node == null || node.comingSoon) return false;
+        if (node == null) return false;
+        if (GameUnlocks.EverythingUnlocked) return true;
+        if (node.comingSoon) return false;
         // Old saves may have visited the Store when it started open. Its prerequisite still applies.
         if (node.type == NodeType.Store) return PrerequisiteCleared(node);
         if (ProgressStore.IsCompleted(node.id)) return true;
@@ -78,6 +80,7 @@ public class WorldMap : ScriptableObject
 
     public bool PrerequisiteCleared(MapNode node)
     {
+        if (GameUnlocks.EverythingUnlocked) return true;
         if (node.prerequisites == null || node.prerequisites.Length == 0) return true;
         for (int i = 0; i < node.prerequisites.Length; i++)
             if (node.prerequisites[i] == ProgressStore.TutorialDoneId

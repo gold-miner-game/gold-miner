@@ -54,7 +54,7 @@ public class LevelPortal : MonoBehaviour
         var body = gameObject.AddComponent<Rigidbody2D>();
         body.bodyType = RigidbodyType2D.Static;
 
-        if (IsLevel1)
+        if (IsLevel1 || GameUnlocks.EverythingUnlocked)
         {
             morphDone = true;
             SetAsPortalCollider();
@@ -87,7 +87,7 @@ public class LevelPortal : MonoBehaviour
         get
         {
             if (string.IsNullOrEmpty(requiresCompleted)) return true;
-            return ProgressStore.IsCompleted(requiresCompleted);
+            return GameUnlocks.IsUnlocked(ProgressStore.IsCompleted(requiresCompleted));
         }
     }
 

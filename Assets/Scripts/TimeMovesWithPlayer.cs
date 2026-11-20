@@ -33,12 +33,16 @@ public class TimeMovesWithPlayer : MonoBehaviour
     // Called after the round consumes armed items. The component belongs to this scene's player.
     public static void ApplyStoreEffect(PlayerCharacter player, CrossLevelStatus record)
     {
-        if (player == null || record == null) return;
+        // LevelLoader applies reserved goods in Awake, before GameManager may have awakened.
+        // Exclude the map/tutorial, but allow the next battle's initialization.
+        if (player == null || record == null || LevelLoader.Tutorial || MapHub.Active != null) return;
         PlayerSkill item = record.getSkill("time_machine");
         if (item == null || !item.active) return;
         var time = player.GetComponent<TimeMovesWithPlayer>();
         if (time == null) time = player.gameObject.AddComponent<TimeMovesWithPlayer>();
         time.player = player;
+        time.body = player.GetComponent<Rigidbody2D>();
+        time.enabled = true;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

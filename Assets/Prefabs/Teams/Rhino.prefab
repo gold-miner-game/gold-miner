@@ -8503,6 +8503,18 @@ MonoBehaviour:
   digestLabelHeight: 0.95
   digestLabelColor: {r: 0.25, g: 0.8, b: 0.3, a: 1}
   body: {fileID: 7241344030827102101}
+  skillDuration: 0.8
+  rotateAngle: 15
+  shakeFrequency: 12
+  shakeHalfArc: 3
+  acceleration: 12
+  rockBreakSpeedFactor: 0.049180328
+  maximumChargeSpeed: 20
+  skillCooldown: 5
+  chargedHornColor: {r: 1, g: 0, b: 0, a: 1}
+  visualRoot: {fileID: 0}
+  largeHorn: {fileID: 0}
+  smashReach: 0.08
 --- !u!1 &8330575502523840122
 GameObject:
   m_ObjectHideFlags: 0

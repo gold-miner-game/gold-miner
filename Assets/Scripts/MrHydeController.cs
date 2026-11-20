@@ -2,9 +2,12 @@ using UnityEngine;
 
 // Owner: B (Player & Rocks)
 // Mr. Hyde (the pig). Moves, eats and blinks like every character (PlayerCharacter);
-// shares K block with every character after Level 1. J cuts every nearby rope.
+// K blocks after Level 1. J cuts every nearby rope.
 public class MrHydeController : PlayerCharacter
 {
+    public override bool CanBlock => SkillUnlockSummary.BlockUnlocked
+        || (LevelLoader.Tutorial && canBlock);
+
     // J beside a rope cuts it. A lesson can turn that off (suppressCut).
     public bool suppressCut;
     public override bool CanCutRope => base.CanCutRope && !suppressCut;

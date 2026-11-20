@@ -41,7 +41,7 @@ public class MainMenu : MonoBehaviour
 
     void Update()
     {
-        Keyboard keyboard = Keyboard.current;
+        Keyboard keyboard = DeveloperConsole.CapturesInput ? null : Keyboard.current;
         if (keyboard == null) return;
         if (keyboard.escapeKey.wasPressedThisFrame && page != Page.Main) page = Page.Main;
         else if (keyboard.enterKey.wasPressedThisFrame && page == Page.Main) Play();
@@ -49,6 +49,7 @@ public class MainMenu : MonoBehaviour
 
     void OnGUI()
     {
+        if (DeveloperConsole.CapturesInput) return;
         ScreenFrame.BeginGUI();
         EnsureStyles();
         float w = ScreenFrame.GuiWidth;
@@ -99,8 +100,7 @@ public class MainMenu : MonoBehaviour
 
     void Play()
     {
-        // Every story plays again in a new session: the Only First Time ones count from here
-        TutorialStep.ResetSeen();
+        // Continuing keeps one-time stories seen. NewGame resets them with the save.
         GameFlow.Instance.OpenMap();
     }
 

@@ -44,10 +44,12 @@ public class Hook : MonoBehaviour
     public float cutFadeTime = 0.8f;  // seconds the claw's half takes to fade out
 
     public bool IsBusy => state != State.Idle;
+    public bool IsFrozen => !cut && ((clawLeft != null && clawLeft.IsFrozen) || (clawRight != null && clawRight.IsFrozen));
+    public bool ControllerFrozen => MinerAI.ControllerFrozen(this) || SurvivalHookAI.ControllerFrozen(this);
 
     // J checks all busy hooks without opening a lasting IsBlocking window.
     static readonly List<Hook> Active = new List<Hook>();
-    // Level files turn off J cuts with "cut_rope": false.
+    // Shared J ability; scene loaders enable it for every character.
     public static bool RopeCuts = true;
     public bool HitPlayer { get; private set; }   // this shot touched the player (a block doesn't count)
     public bool Defended { get; private set; }    // the player blocked this shot or cut its rope
@@ -148,7 +150,7 @@ public class Hook : MonoBehaviour
     // Returns true when at least one rope was cut.
     public static bool TrySpaceCut(PlayerCharacter player)
     {
-        if (!RopeCuts || player == null || !player.CanCutRope) return false;
+        if (!GameUnlocks.IsUnlocked(RopeCuts) || player == null || !player.CanCutRope) return false;
         Collider2D body = player.GetComponent<Collider2D>();
         Vector2 centre = body != null ? (Vector2)body.bounds.center : (Vector2)player.transform.position;
         bool anyCut = false;
@@ -201,7 +203,7 @@ public class Hook : MonoBehaviour
     // Called by MinerAI when the telegraph ends. Yellow = treasure shot, red = player shot.
     public void Fire(Vector2 from, Vector2 direction, float length, Color shotColor)
     {
-        if (IsBusy) return;
+        if (IsBusy || ControllerFrozen) return;
 
         origin = from;
         dir = direction.normalized;
@@ -228,6 +230,7 @@ public class Hook : MonoBehaviour
     // Tutorial: the rope is already out and still extending. `already` is how far it has traveled.
     public void BeginExtended(Vector2 from, Vector2 direction, float length, float already, Color shotColor)
     {
+        if (ControllerFrozen) return;
         Fire(from, direction, length, shotColor);
         already = Mathf.Clamp(already, 0f, Mathf.Max(0f, length - 0.05f));
         traveled = already;
@@ -244,6 +247,7 @@ public class Hook : MonoBehaviour
     // from wherever the head is, instead of snapping back to the miner.
     public void KeepExtendingToward(Vector2 from, Vector2 point, float extra, Color shotColor)
     {
+        if (ControllerFrozen) return;
         color = shotColor;
         if (state == State.Idle)
         {
@@ -300,6 +304,8 @@ public class Hook : MonoBehaviour
     // A scripted hit that does not bounce off a block. The tutorial uses this when the head reaches the pig.
     public void ApplyHit(PlayerCharacter player)
     {
+        if (ControllerFrozen) return;
+        if (IsFrozen) { BreakClawIce(); SendHome(); return; }
         if (player == null || GameManager.Instance == null) return;
         hitsPig = true;
         HitPlayer = true;
@@ -321,7 +327,7 @@ public class Hook : MonoBehaviour
     // `hold` seconds with the rope out, then pulls it home (the steal tutorial)
     public void PullBack(Vector2 from, Treasure treasure, Color shotColor, float hold)
     {
-        if (IsBusy || treasure == null || treasure.IsTaken) return;
+        if (IsBusy || ControllerFrozen || treasure == null || treasure.IsTaken || treasure.IsFrozen) return;
 
         Vector2 at = treasure.transform.position;
         Fire(from, at - from, Vector2.Distance(from, at), shotColor);
@@ -330,7 +336,7 @@ public class Hook : MonoBehaviour
 
         Collider2D col = treasure.GetComponent<Collider2D>();
         if (col != null) touched.Add(col);   // don't grab it again once knocked loose
-        treasure.GrabByHook(transform);
+        if (!treasure.GrabByHook(transform)) { SendHome(); return; }
         carried = treasure;
         grabbedAt = Time.time;
         HoldInClaw();
@@ -351,10 +357,12 @@ public class Hook : MonoBehaviour
     {
         if (Application.isPlaying)
         {
+            rope?.TrackFrostRope();
+            if (carried != null && (IsFrozen || carried.IsFrozen)) DropCarried();
             // When the round ends mid-shot, the hook still comes home but stops reacting
             bool roundOver = GameManager.Instance != null && !GameManager.Instance.IsPlaying;
 
-            if (IsStalled && !roundOver)
+            if (ControllerFrozen || (IsStalled && !roundOver))
             {
                 // Held in place: only redraw
             }
@@ -398,6 +406,8 @@ public class Hook : MonoBehaviour
         Vector2 pos = transform.position;
         float remaining = Vector2.Distance(pos, origin);
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
+        if (rope != null) step = rope.LimitReelStep(step);
+        if (remaining > .0001f && step <= .000001f) return;
 
         // An empty hook still catches treasure on the way back. A carrying hook ignores everything except
         // a blocking player at the claw, which drops its treasure without cutting the rope.
@@ -407,6 +417,11 @@ public class Hook : MonoBehaviour
             Vector2 back = (origin - pos) / remaining;
             foreach (RaycastHit2D hit in CastAhead(back, step))
             {
+                if (TryFrostImpact(hit.collider))
+                {
+                    transform.position = pos + back * hit.distance;
+                    return;
+                }
                 if (carried != null)
                 {
                     PlayerCharacter player = hit.collider.GetComponent<PlayerCharacter>();
@@ -500,6 +515,7 @@ public class Hook : MonoBehaviour
     // Returns true if this object is a valid stop (treasure, rock or pig)
     bool HandleHit(Collider2D col)
     {
+        if (TryFrostImpact(col)) return true;
         // The pig is checked before the touched set, so a hook that passed through it can still be
         // bounced by a block later in the same shot
         PlayerCharacter player = col.GetComponent<PlayerCharacter>();
@@ -511,7 +527,7 @@ public class Hook : MonoBehaviour
         if (treasure != null)
         {
             if (treasure.IsTaken || !grabsTreasure) return false;
-            treasure.GrabByHook(transform);
+            if (!treasure.GrabByHook(transform)) return false;
             carried = treasure;
             grabbedAt = Time.time;
             return true;
@@ -530,6 +546,27 @@ public class Hook : MonoBehaviour
         }
 
         return false; // walls, Life items: the hook passes through
+    }
+
+    void BreakClawIce()
+    {
+        clawLeft?.BreakIce(); clawRight?.BreakIce();
+    }
+
+    // Ice consumes this impact. Nothing is grabbed, damaged, blocked, or shattered by it.
+    bool TryFrostImpact(Collider2D col)
+    {
+        if (col == null || cut) return false;
+        Treasure treasure = col.GetComponent<Treasure>();
+        Rock rock = col.GetComponent<Rock>();
+        bool itemFrozen = (treasure != null && treasure.IsFrozen) || (rock != null && rock.IsFrozen);
+        if (!IsFrozen && !itemFrozen) return false;
+        if (col.isTrigger && col.GetComponentInChildren<Renderer>() == null) return false;
+        touched.Add(col);
+        BreakClawIce();
+        if (itemFrozen) FrostField2D.BreakIce(col.transform);
+        SendHome();
+        return true;
     }
 
     // The block's flash: a white half sphere where the hook head meets the player's body, facing the hook
@@ -771,6 +808,11 @@ public class Hook : MonoBehaviour
     {
         private readonly LineRenderer fill;
         private readonly LineRenderer outline;
+        public bool IsFrozen => FrostField2D.IsFrozen(fill) || FrostField2D.IsFrozen(outline);
+        public void BreakIce() { FrostField2D.BreakIce(fill); FrostField2D.BreakIce(outline); }
+        public void TrackFrostRope() { FrostField2D.TrackRope(fill); FrostField2D.TrackRope(outline); }
+        public float LimitReelStep(float step)
+            => Mathf.Min(FrostField2D.LimitReelStep(fill, step), FrostField2D.LimitReelStep(outline, step));
 
         public Stroke(Transform parent, string name, int points, Material material, int sortingLayer, int sortingOrder)
         {

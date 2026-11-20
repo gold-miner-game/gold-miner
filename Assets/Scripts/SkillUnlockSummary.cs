@@ -4,30 +4,31 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// Owner: Butian (skill unlocks)
-// The summary after winning a level whose file says "unlock_block": 1 (Level 1 on the world map).
-// K block is shared by every character, and is saved immediately on winning Level 1:
-//   the screen darkens over the level, and a big copy of the pig shows under "NEW SKILL: BLOCK";
-//   a red hook shoots at him and stops just short; "Press K" pulses until K is pressed;
-//   then the pig turns blue and bobs, the block's white flash shows on his head and the hook snaps
-//   back (the Select scene's Block preview, SkillPreview), and the unlock is saved.
-// Until then CanBlock stays off in world map battles (PlayerCharacter). It only plays while the block
-// is still locked (unless PlayEveryTime, on for now); ResetUnlock (or resetting all progress) makes it play again.
-// LevelLoader adds it; GameFlow and LevelLoader wait while Playing before leaving the level.
+// Level 1 grants both starting characters their K skills, regardless of the winner.
+// The one-time reward demonstrates the winner's own ability: pig block or cat roll.
+// GameManager saves the milestone on victory; the summary captures the pre-round state
+// so that saving immediately cannot hide the first reward animation.
 public class SkillUnlockSummary : MonoBehaviour
 {
     public const string BlockUnlockId = "skill_block";   // saved with the cleared nodes (ProgressStore)
-    public static bool BlockUnlocked => ProgressStore.IsCompleted(BlockUnlockId)
-        || ProgressStore.IsCompleted("battle_06");   // Level 1 on the map; includes existing saves.
+    public const string RollUnlockId = "skill_roll";
+    // Level 1 is a shared milestone: both starting characters receive their own K skill.
+    // The old block flag also migrates saves that cleared Level 1 before roll had its own id.
+    public static bool RollUnlocked => GameUnlocks.IsUnlocked(ProgressStore.IsCompleted(RollUnlockId)
+        || ProgressStore.IsCompleted(BlockUnlockId) || ProgressStore.IsCompleted("battle_06"));
+    public static bool BlockUnlocked => GameUnlocks.IsUnlocked(ProgressStore.IsCompleted(BlockUnlockId)
+        || ProgressStore.IsCompleted("battle_06"));   // Level 1 on the map; includes existing saves.
 
     public static void UnlockForWin(string levelName)
     {
-        if (levelName == "level_01") ProgressStore.MarkCompleted(BlockUnlockId);
+        if (levelName != "level_01") return;
+        ProgressStore.MarkCompleted(BlockUnlockId);
+        ProgressStore.MarkCompleted(RollUnlockId);
     }
     public static bool Playing { get; private set; }
-    // For now it plays on every win of the level, not only while the block is still locked. Set false to
-    // play it once (the first win), as the unlock moment
-    public static bool PlayEveryTime = true;
+    // Optional developer replay; normal play shows the reward once. The pre-round state is
+    // captured because GameManager saves the unlock before this summary begins.
+    public static bool PlayEveryTime = false;
 
     public PlayerCharacter player;
     [Tooltip("Seconds the win result shows before the summary starts")]
@@ -40,6 +41,17 @@ public class SkillUnlockSummary : MonoBehaviour
     static Sprite pixel;
 
     bool started;
+    bool unlockedBeforeRound;
+
+    bool RollReward => player is CatController;
+
+    // LevelLoader assigns player immediately after AddComponent; capture both before the win.
+    bool rollUnlockedBeforeRound;
+    void Awake()
+    {
+        unlockedBeforeRound = BlockUnlocked;
+        rollUnlockedBeforeRound = RollUnlocked;
+    }
     readonly List<Canvas> hiddenCanvases = new List<Canvas>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -48,6 +60,7 @@ public class SkillUnlockSummary : MonoBehaviour
     public static void ResetUnlock()
     {
         ProgressStore.ClearCompleted(BlockUnlockId);
+        ProgressStore.ClearCompleted(RollUnlockId);
     }
 
     void Update()
@@ -56,7 +69,7 @@ public class SkillUnlockSummary : MonoBehaviour
         GameManager gm = GameManager.Instance;
         if (gm == null || gm.IsPlaying || !gm.PlayerWon) return;
         started = true;
-        if (BlockUnlocked && !PlayEveryTime) return;   // already handed over on an earlier win
+        if ((RollReward ? rollUnlockedBeforeRound : unlockedBeforeRound) && !PlayEveryTime) return;   // already handed over on an earlier win
         Playing = true;
         StartCoroutine(Run());
     }
@@ -84,10 +97,10 @@ public class SkillUnlockSummary : MonoBehaviour
         SpriteRenderer dark = Box(root, "Dark", c, new Vector2(w * 2.4f, h * 2.4f), new Color(0f, 0f, 0f, 0f), Order);
 
         // The pig, big, a little below the middle
-        Transform pig = CopyPig(root, c + new Vector3(0f, -0.12f * h, 0f), h * 0.42f, out SpriteRenderer pigBody, out Bounds pigBox);
+        Transform pig = CopyRewardPortrait(root, c + new Vector3(0f, -0.12f * h, 0f), h * 0.42f, out SpriteRenderer pigBody, out Bounds pigBox);
         Vector3 pigRest = pig != null ? pig.localScale : Vector3.one;
 
-        TextMeshPro title = Text(root, "NEW SKILL: BLOCK", c + new Vector3(0f, 0.62f * h, 0f), h * 1.5f, new Color(1f, 0.85f, 0.3f), w * 1.8f);
+        TextMeshPro title = Text(root, RollReward ? "JK. ROLLING: ROLL UNLOCKED" : "MR. HYDE: BLOCK UNLOCKED", c + new Vector3(0f, 0.62f * h, 0f), h * 1.5f, new Color(1f, 0.85f, 0.3f), w * 1.8f);
         TextMeshPro prompt = Text(root, "Press  <color=#FFD84D>K</color>", c + new Vector3(0f, -0.66f * h, 0f), h * 0.95f, Color.white, w * 1.8f);
         SetAlpha(prompt, 0f);
 
@@ -104,60 +117,68 @@ public class SkillUnlockSummary : MonoBehaviour
         SetAlpha(title, 1f); SetPigAlpha(pig, 1f);
         yield return Wait(0.4f);
 
-        // The hook shoots in from the top right and stops just short of the pig's head
-        Vector2 head = new Vector2(pigBox.center.x, pigBox.max.y - pigBox.size.y * 0.15f);
-        Vector2 from = new Vector2(c.x + w * 1.05f, c.y + h * 0.95f);
-        Vector2 dir = (head - from).normalized;
-        Vector2 stop = head - dir * (pigBox.size.x * 0.55f + 0.35f);
-        LineRenderer rope = Line(root, "Rope", ropeColor, 0.06f, Order + 5, 2);
-        LineRenderer claw = Line(root, "Claw", hookColor, 0.09f, Order + 6, 3);
-        for (float t = 0f; t < 0.55f; t += Time.unscaledDeltaTime)
+        if (RollReward)
         {
-            float k = 1f - Mathf.Pow(1f - t / 0.55f, 3f);   // fast, then easing in
-            DrawHook(rope, claw, from, Vector2.Lerp(from, stop, k), dir, 0.35f);
-            yield return null;
+            yield return DemonstrateRoll(pig, prompt, h);
         }
-
-        // Wait for K, the hook trembling at the pig
-        float since = 0f;
-        while (Keyboard.current == null || !Keyboard.current.kKey.wasPressedThisFrame)
+        else
         {
-            since += Time.unscaledDeltaTime;
-            Vector2 shake = new Vector2(Mathf.Sin(since * 47f), Mathf.Cos(since * 39f)) * 0.025f;
-            DrawHook(rope, claw, from, stop + shake, dir, 0.35f);
-            SetAlpha(prompt, Mathf.Min(1f, since * 3f) * (0.65f + 0.35f * Mathf.Sin(since * 6f)));
-            if (prompt != null) prompt.transform.localScale = Vector3.one * (1f + 0.04f * Mathf.Sin(since * 6f));
-            yield return null;
-        }
-
-        // Blocked: the pig turns blue and bobs, the flash shows on his head, the hook snaps back
-        ProgressStore.MarkCompleted(BlockUnlockId);
-        TutorialEvents.Fire("block_unlocked");
-        Color bodyColor = pigBody != null ? pigBody.color : Color.white;
-        if (pigBody != null) pigBody.color = blockTint;
-        BlockFlash.Show(head, -dir, pigBox.size.x * 0.9f, Order + 30);
-        prompt.text = "Blocked!";
-        prompt.transform.localScale = Vector3.one;
-        SetAlpha(prompt, 1f);
-        Vector2 headAtHit = stop;
-        for (float t = 0f; t < 0.8f; t += Time.unscaledDeltaTime)
-        {
-            if (pig != null)
+            // The hook shoots in from the top right and stops just short of the pig's head
+            Vector2 head = new Vector2(pigBox.center.x, pigBox.max.y - pigBox.size.y * 0.15f);
+            Vector2 from = new Vector2(c.x + w * 1.05f, c.y + h * 0.95f);
+            Vector2 dir = (head - from).normalized;
+            Vector2 stop = head - dir * (pigBox.size.x * 0.55f + 0.35f);
+            LineRenderer rope = Line(root, "Rope", ropeColor, 0.06f, Order + 5, 2);
+            LineRenderer claw = Line(root, "Claw", hookColor, 0.09f, Order + 6, 3);
+            for (float t = 0f; t < 0.55f; t += Time.unscaledDeltaTime)
             {
-                float bump = 1f + 0.06f * Mathf.Sin(Mathf.Clamp01(t / 0.25f) * Mathf.PI);
-                pig.localScale = new Vector3(pigRest.x * bump, pigRest.y / bump, pigRest.z);
+                float k = 1f - Mathf.Pow(1f - t / 0.55f, 3f);   // fast, then easing in
+                DrawHook(rope, claw, from, Vector2.Lerp(from, stop, k), dir, 0.35f);
+                yield return null;
             }
-            float back = Mathf.Clamp01(t / 0.35f);
-            // A small knock away from the pig, then reeled out fast
-            Vector2 knock = headAtHit - dir * 0.4f * Mathf.Sin(Mathf.Clamp01(t / 0.12f) * Mathf.PI * 0.5f);
-            DrawHook(rope, claw, from, Vector2.Lerp(knock, from, back * back), dir, 0.35f * (1f - back * 0.5f));
-            yield return null;
-        }
-        if (pig != null) pig.localScale = pigRest;
-        if (pigBody != null) pigBody.color = bodyColor;
-        rope.enabled = claw.enabled = false;
 
-        yield return Wait(1.2f);
+            // Wait for K, the hook trembling at the pig
+            float since = 0f;
+            while (DeveloperConsole.CapturesInput || Keyboard.current == null || !Keyboard.current.kKey.wasPressedThisFrame)
+            {
+                since += Time.unscaledDeltaTime;
+                Vector2 shake = new Vector2(Mathf.Sin(since * 47f), Mathf.Cos(since * 39f)) * 0.025f;
+                DrawHook(rope, claw, from, stop + shake, dir, 0.35f);
+                SetAlpha(prompt, Mathf.Min(1f, since * 3f) * (0.65f + 0.35f * Mathf.Sin(since * 6f)));
+                if (prompt != null) prompt.transform.localScale = Vector3.one * (1f + 0.04f * Mathf.Sin(since * 6f));
+                yield return null;
+            }
+
+            // Blocked: the pig turns blue and bobs, the flash shows on his head, the hook snaps back
+            ProgressStore.MarkCompleted(BlockUnlockId);
+            TutorialEvents.Fire("block_unlocked");
+            Color bodyColor = pigBody != null ? pigBody.color : Color.white;
+            if (pigBody != null) pigBody.color = blockTint;
+            BlockFlash.Show(head, -dir, pigBox.size.x * 0.9f, Order + 30);
+            prompt.text = "Blocked!";
+            prompt.transform.localScale = Vector3.one;
+            SetAlpha(prompt, 1f);
+            Vector2 headAtHit = stop;
+            for (float t = 0f; t < 0.8f; t += Time.unscaledDeltaTime)
+            {
+                if (pig != null)
+                {
+                    float bump = 1f + 0.06f * Mathf.Sin(Mathf.Clamp01(t / 0.25f) * Mathf.PI);
+                    pig.localScale = new Vector3(pigRest.x * bump, pigRest.y / bump, pigRest.z);
+                }
+                float back = Mathf.Clamp01(t / 0.35f);
+                // A small knock away from the pig, then reeled out fast
+                Vector2 knock = headAtHit - dir * 0.4f * Mathf.Sin(Mathf.Clamp01(t / 0.12f) * Mathf.PI * 0.5f);
+                DrawHook(rope, claw, from, Vector2.Lerp(knock, from, back * back), dir, 0.35f * (1f - back * 0.5f));
+                yield return null;
+            }
+            if (pig != null) pig.localScale = pigRest;
+            if (pigBody != null) pigBody.color = bodyColor;
+            rope.enabled = claw.enabled = false;
+            prompt.text = "K: BLOCK     JK. Rolling also unlocked K: ROLL";
+            yield return Wait(1.5f);
+
+        }
 
         // Fade out, then the level's result comes back and the game moves on
         for (float t = 0f; t < 0.4f; t += Time.unscaledDeltaTime)
@@ -171,6 +192,59 @@ public class SkillUnlockSummary : MonoBehaviour
         Destroy(root.gameObject);
         RestoreCanvases();
         Playing = false;
+    }
+
+    IEnumerator DemonstrateRoll(Transform cat, TextMeshPro prompt, float screenHalfHeight)
+    {
+        float since = 0f;
+        while (DeveloperConsole.CapturesInput || Keyboard.current == null || !Keyboard.current.kKey.wasPressedThisFrame)
+        {
+            since += Time.unscaledDeltaTime;
+            SetAlpha(prompt, Mathf.Min(1f, since * 3f) * (0.65f + 0.35f * Mathf.Sin(since * 6f)));
+            prompt.transform.localScale = Vector3.one * (1f + 0.04f * Mathf.Sin(since * 6f));
+            yield return null;
+        }
+        TutorialEvents.Fire("roll_unlocked");
+        prompt.text = "Roll through danger!";
+        prompt.transform.localScale = Vector3.one;
+        SetAlpha(prompt, 1f);
+        if (cat == null) { yield return Wait(1.2f); yield break; }
+
+        Vector3 home = cat.position;
+        Quaternion rest = cat.localRotation;
+        float distance = screenHalfHeight * .9f;
+        var streaks = new List<LineRenderer>();
+        for (int i = 0; i < 3; i++)
+            streaks.Add(Line(cat.parent, "Roll speed streak", new Color(.45f, .75f, 1f, .8f), .045f, Order + 5, 2));
+
+        // Two full turns and a quick dash, followed by a short reset and return dash.
+        for (int pass = 0; pass < 2; pass++)
+        {
+            float direction = pass == 0 ? 1f : -1f;
+            for (float t = 0f; t < .65f; t += Time.unscaledDeltaTime)
+            {
+                float progress = Mathf.Clamp01(t / .65f);
+                float x = Mathf.Lerp(-distance * .5f, distance * .5f, progress) * direction;
+                cat.position = home + Vector3.right * x;
+                cat.localRotation = rest * Quaternion.Euler(0f, 0f, -720f * progress * direction);
+                for (int i = 0; i < streaks.Count; i++)
+                {
+                    Vector3 tip = cat.position + Vector3.up * ((i - 1) * screenHalfHeight * .07f);
+                    streaks[i].SetPosition(0, tip - Vector3.right * direction * screenHalfHeight * .35f);
+                    streaks[i].SetPosition(1, tip - Vector3.right * direction * screenHalfHeight * .7f);
+                }
+                yield return null;
+            }
+            foreach (LineRenderer streak in streaks) streak.enabled = false;
+            cat.localRotation = rest;
+            yield return Wait(.25f);
+            foreach (LineRenderer streak in streaks) streak.enabled = true;
+        }
+        foreach (LineRenderer streak in streaks) Destroy(streak.gameObject);
+        cat.position = home;
+        cat.localRotation = rest;
+        prompt.text = "K: ROLL     Mr. Hyde also unlocked K: BLOCK";
+        yield return Wait(1.5f);
     }
 
     static IEnumerator Wait(float seconds)
@@ -195,19 +269,37 @@ public class SkillUnlockSummary : MonoBehaviour
         hiddenCanvases.Clear();
     }
 
+    PlayerCharacter RewardPreviewSource()
+    {
+        int index = RollReward ? 1 : ChampionSpawner.MrHyde;
+        ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
+        if (spawner != null && spawner.champions != null && spawner.champions.Length > index
+            && spawner.champions[index] != null)
+            return spawner.champions[index].GetComponent<PlayerCharacter>();
+        return player;
+    }
+
+    static bool ArtworkActive(Transform part, Transform root)
+    {
+        for (Transform at = part; at != null && at != root.parent; at = at.parent)
+            if (!at.gameObject.activeSelf) return false;
+        return true;
+    }
+
     // A still copy of the pig's drawing (sprites only, no scripts), `height` world units tall at `at`.
     // `body` is its biggest part, the one that turns blue
-    Transform CopyPig(Transform parent, Vector3 at, float height, out SpriteRenderer body, out Bounds box)
+    Transform CopyRewardPortrait(Transform parent, Vector3 at, float height, out SpriteRenderer body, out Bounds box)
     {
         body = null;
         box = new Bounds(at, Vector3.one);
-        if (player == null) return null;
+        PlayerCharacter source = RewardPreviewSource();
+        if (source == null) return null;
         var parts = new List<SpriteRenderer>();
         Bounds src = new Bounds();
         bool any = false;
-        foreach (SpriteRenderer r in player.GetComponentsInChildren<SpriteRenderer>())
+        foreach (SpriteRenderer r in source.GetComponentsInChildren<SpriteRenderer>(true))
         {
-            if (!r.enabled || r.sprite == null || r.color.a < 0.05f || !r.gameObject.activeInHierarchy) continue;
+            if (!r.enabled || r.sprite == null || r.color.a < 0.05f || !ArtworkActive(r.transform, source.transform)) continue;
             if (r.maskInteraction != SpriteMaskInteraction.None) continue;   // the digest tint and such overlays
             parts.Add(r);
             if (!any) { src = r.bounds; any = true; } else src.Encapsulate(r.bounds);
@@ -215,7 +307,7 @@ public class SkillUnlockSummary : MonoBehaviour
         if (!any) return null;
 
         float scale = height / Mathf.Max(0.01f, src.size.y);
-        var pig = new GameObject("Pig").transform;
+        var pig = new GameObject(RollReward ? "Cat Roll Preview" : "Pig Block Preview").transform;
         pig.SetParent(parent, false);
         pig.position = at;
         var group = pig.gameObject.AddComponent<UnityEngine.Rendering.SortingGroup>();

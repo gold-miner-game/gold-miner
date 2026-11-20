@@ -1739,6 +1739,7 @@ GameObject:
   - component: {fileID: 8034899179005324606}
   - component: {fileID: 871530676555628755}
   - component: {fileID: 1749170793783999}
+  - component: {fileID: 620260001}
   m_Layer: 0
   m_Name: Penguin
   m_TagString: Untagged
@@ -1847,6 +1848,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c1f839dd73e3cf04f8dfbe0fc64f9a8d, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PenguinController
+  flipCost: 0.5
+  rotationCostPer45: 1
   moveSpeed: 5
   speedScale: 1
   digestTime: 0
@@ -1860,6 +1863,7 @@ MonoBehaviour:
   blockDuration: 0.8
   blockCooldown: 1
   blockTint: {r: 0.45, g: 0.75, b: 1, a: 1}
+  visualRoot: {fileID: 3481730864576859689}
 --- !u!1 &8525196455700117263
 GameObject:
   m_ObjectHideFlags: 0
@@ -2224,3 +2228,22 @@ SpriteRenderer:
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
   m_SpriteSortPoint: 0
+--- !u!114 &620260001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8301956976538111651}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8b7ad52b72e43f9bf33a0d98bc64b7e, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::ElsaMouthPose
+  showIce: 1
+  iceTint: {r: 0.8, g: 0.86, b: 0.9, a: 1}
+  mouthHalfArc: 0
+  upperBeak: {fileID: 0}
+  lowerBeak: {fileID: 0}
+  ice: {fileID: 0}
+  initialized: 0

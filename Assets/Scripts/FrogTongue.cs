@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// The frog's skill (from Penny's FrogTongue). Space (via FrogController) shoots the tongue straight out
+// The frog's skill (from Penny's FrogTongue). K (via FrogController) shoots the tongue straight out
 // of the mouth, the way the frog faces, and opens the mouth meanwhile. The frog keeps moving and turning;
 // the tongue comes out of the mouth wherever it is and swings with it. The tongue is as wide as the mouth
 // and reaches maximumLengthMultiplier times the frog's width. The first treasure any part of it touches
@@ -8,7 +8,7 @@ using UnityEngine;
 // in to it at snapSpeedMultiplier times the shooting speed; then the tongue comes back at retractSpeed,
 // and the treasure is eaten when it arrives: money and digest, like the body eating it. The tongue can shoot while digesting, but the frog can't
 // eat then: the catch is dropped at the mouth, and the body eats it once the digest ends.
-// No cooldown: Space works again as soon as the tongue is back.
+// No cooldown: K works again as soon as the tongue is back.
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(250)]
 public class FrogTongue : MonoBehaviour
@@ -68,7 +68,7 @@ public class FrogTongue : MonoBehaviour
             s.seed(maximumLengthMultiplier, extensionSpeed, retractSpeed, snapSpeedMultiplier);
     }
 
-    // Called by FrogController when Space is pressed during a round. Returns true if the tongue shot
+    // Called by FrogController when K is pressed during a round. Returns true if the tongue shot
     public bool Fire()
     {
         if (!CanFire || mouth == null || mouth.sprite == null || frogBodyArtwork == null
@@ -173,7 +173,7 @@ public class FrogTongue : MonoBehaviour
     // Take a loose treasure, or one off a miner's hook (that hook goes home empty)
     bool TryTake(Treasure treasure)
     {
-        if (treasure == null || tongueTip == null) return false;
+        if (treasure == null || treasure.IsFrozen || tongueTip == null) return false;
         if (treasure.IsTaken)
         {
             bool released = false;
@@ -181,8 +181,7 @@ public class FrogTongue : MonoBehaviour
                 if (hook.Release(treasure)) { released = true; break; }
             if (!released) return false;   // held by something else: leave it
         }
-        treasure.GrabByHook(tongueTip);
-        return true;
+        return treasure.GrabByHook(tongueTip);
     }
 
     void LateUpdate()

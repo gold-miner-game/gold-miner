@@ -206,14 +206,14 @@ public class TutorialDialogue : MonoBehaviour
         if (awaitingChoice)
         {
             // Fallback if EventSystem / GraphicRaycaster miss the buttons: 1/2 or left/right click halves.
-            if (Keyboard.current != null)
+            if (!DeveloperConsole.CapturesInput && Keyboard.current != null)
             {
                 if (Keyboard.current.digit1Key.wasPressedThisFrame || Keyboard.current.numpad1Key.wasPressedThisFrame)
                     PickChoiceAt(0);
                 else if (Keyboard.current.digit2Key.wasPressedThisFrame || Keyboard.current.numpad2Key.wasPressedThisFrame)
                     PickChoiceAt(1);
             }
-            if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame
+            if (!DeveloperConsole.CapturesInput && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame
                 && index >= 0 && index < script.Count && script[index].IsChoice)
             {
                 float x = Mouse.current.position.ReadValue().x;
@@ -231,8 +231,8 @@ public class TutorialDialogue : MonoBehaviour
         bodyText.maxVisibleCharacters = shown;
         hintImage.enabled = !typing && line.autoNext <= 0f && !stormingOff;
 
-        bool pressed = (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
-                    || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
+        bool pressed = (!DeveloperConsole.CapturesInput && Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+                    || (!DeveloperConsole.CapturesInput && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
         if (pressed && t > 0.15f && !stormingOff)
         {
             if (typing) lineStart = Time.unscaledTime - line.text.Length / Mathf.Max(1f, lettersPerSecond);   // show it all

@@ -34,6 +34,7 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     // Treasure asks this before letting the character eat it
     public bool CanEat => Time.time >= digestUntil;
+    public virtual bool CanEatFrozenTreasure => false;
 
     public bool UsesDigest => digestTime > 0f || digestPerValue > 0f;
     public float DigestLeft => Mathf.Max(0f, digestUntil - Time.time);
@@ -41,7 +42,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     public bool IsDigesting => !CanEat && DigestLength > 0f;
     public float DigestProgress01 => IsDigesting ? 1f - DigestLeft / DigestLength : 0f;
 
-    [Header("Block (K, shared by all characters)")]
+    [Header("Block (Mr. Hyde, K)")]
     public bool canBlock = false;
     public float blockDuration = 0.8f;
     public float blockCooldown = 1f;
@@ -49,8 +50,9 @@ public abstract class PlayerCharacter : MonoBehaviour
     float blockUntil;
     float blockReadyAt;
 
-    public bool CanBlock => SkillUnlockSummary.BlockUnlocked
-        || (!GameFlow.InMapBattle && (Record != null ? Record.getCanBlock() : canBlock));
+    public virtual bool CanBlock => false;
+    public virtual bool HasSkill => CanBlock;
+    public virtual string SkillName => "block";
     public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
     public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
     public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
@@ -68,16 +70,19 @@ public abstract class PlayerCharacter : MonoBehaviour
     public void CancelBlock() { blockUntil = 0f; }
 
     // J cuts every rope within reach. Cutting does not open a block window.
-    public virtual bool CanCutRope => Hook.RopeCuts;
+    public virtual bool CanCutRope => GameUnlocks.IsUnlocked(Hook.RopeCuts);
+
+    // J is independent of the character's K skill, its active state, and its cooldown.
+    public bool TryCutRopes() => IsPlaying && CanCutRope && Hook.TrySpaceCut(this);
 
     // Hook asks this too: while true, hooks pass through without hurting it (the cat's roll)
     public virtual bool IsInvulnerable => false;
 
     // Shown in the level label, e.g. "[K] block". Empty: no skill on this level
-    public virtual string SkillHint => (CanBlock ? "[K] block   " : "") + (CanCutRope ? "[J] cut ropes" : "");
+    public virtual string SkillHint => (HasSkill ? "[K] " + SkillName + "   " : "") + (CanCutRope ? "[J] cut ropes" : "");
 
     // For the HUD's skill row: the skill is running right now (a block, a roll, the tongue out),
-    // seconds until Space works again (0 = ready), and the whole wait after a use (0 = no cooldown)
+    // seconds until K works again (0 = ready), and the whole wait after a use (0 = no cooldown)
     public virtual bool SkillActive => IsBlocking;
     public virtual float SkillReadyIn => BlockReadyIn;
     public virtual float SkillWait => BlockDuration + BlockCooldown;
@@ -106,7 +111,7 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     // No GameManager in the scene = always playing (handy in Dev scenes)
     // Not while the HUD's pause popup has time stopped, so Space can't queue a skill behind it
-    public static bool IsPlaying => (GameManager.Instance == null || GameManager.Instance.IsPlaying) && Time.timeScale > 0f;
+    public static bool IsPlaying => !DeveloperConsole.CapturesInput && (GameManager.Instance == null || GameManager.Instance.IsPlaying) && Time.timeScale > 0f;
 
     // The cross-level record, or null in the tutorial (which never touches it) or a Dev scene without one
     public static CrossLevelStatus Record => LevelLoader.Tutorial ? null : CrossLevelStatus.Active;
@@ -119,6 +124,7 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     // Mirror the whole character when it turns left or right
     protected virtual bool FlipsWhenTurning => true;
+    protected virtual bool UsesSharedCooldownTint => true;
 
     private bool facingRight = true; // Default facing is right
     private float digestUntil;
@@ -151,7 +157,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         if (body != null)
         {
             BaseColor = body.color;
-            CreateCooldownTint();
+            if (UsesSharedCooldownTint) CreateCooldownTint();
             CreateShieldBubble();
         }
 
@@ -274,6 +280,8 @@ public abstract class PlayerCharacter : MonoBehaviour
     public void DigestTreasure(Treasure treasure, int value)
     {
         LastEatenId = treasure != null ? treasure.name : "";
+        // Preserve the original pickup behavior: touching treasure starts digestion immediately,
+        // including during a cat roll. The separate virtual Digest path remains unchanged.
         StartDigest(value);
         if (MazeRuntime.Active != null) MazeRuntime.Active.NotifyEatStart(treasure);
     }
@@ -319,7 +327,7 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     void UpdateTutorialDigest()
     {
-        if (!IsDigesting || Time.timeScale >= 1f) return;
+        if (DeveloperConsole.CapturesInput || !IsDigesting || Time.timeScale >= 1f) return;
         if (!LevelLoader.Tutorial && !Level1Tutorial.Running && !TutorialStep.HoldingTime) return;
         GameManager gm = GameManager.Instance;
         if (gm == null || !gm.IsPlaying) return;
@@ -337,7 +345,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     // so the pig walks and eats from here. Digestion is updated separately at normal speed.
     bool TutorialFrozen()
     {
-        if (Time.timeScale > 0f || !TutorialStep.AnyShowing) return false;
+        if (DeveloperConsole.CapturesInput || Time.timeScale > 0f || !TutorialStep.AnyShowing) return false;
         GameManager gm = GameManager.Instance;
         if (gm == null || !gm.IsPlaying) return false;
         HUDController hud = FindFirstObjectByType<HUDController>();
@@ -423,7 +431,7 @@ public abstract class PlayerCharacter : MonoBehaviour
 
     void ReadInput()
     {
-        Keyboard keyboard = Keyboard.current;
+        Keyboard keyboard = DeveloperConsole.CapturesInput ? null : Keyboard.current;
         Vector2 input = Vector2.zero;
         if (keyboard != null)
         {
@@ -434,9 +442,10 @@ public abstract class PlayerCharacter : MonoBehaviour
         }
         MoveInput = input;
 
-        // K only blocks, on every character. J independently cuts all nearby ropes.
-        if (keyboard != null && keyboard.kKey.wasPressedThisFrame && IsPlaying) TryBlock();
-        if (keyboard != null && keyboard.jKey.wasPressedThisFrame && IsPlaying && CanCutRope) Hook.TrySpaceCut(this);
+        // Dispatch K to the selected character; held skills also receive release/pause.
+        HandleSkillInput(keyboard != null && keyboard.kKey.wasPressedThisFrame,
+            keyboard != null && keyboard.kKey.isPressed);
+        if (keyboard != null && keyboard.jKey.wasPressedThisFrame) TryCutRopes();
 
         // Flip only when the horizontal direction changes; keep facing when moving vertically
         if (!FlipsWhenTurning) return;
@@ -494,8 +503,17 @@ public abstract class PlayerCharacter : MonoBehaviour
         return CurrentSpeed * input.normalized;
     }
 
-    // Space was pressed during a round
+    // One gate for pressed and held abilities; console, pause, and round-end all use IsPlaying.
+    void HandleSkillInput(bool pressed, bool held)
+    {
+        bool canUse = IsPlaying && HasSkill;
+        SetSkillHeld(canUse && held);
+        if (canUse && pressed) UseSkill();
+    }
+
+    // K was pressed during a round. Held skills receive false on release or pause.
     protected virtual void UseSkill() { }
+    protected virtual void SetSkillHeld(bool held) { }
 
     // The round is over: cancel whatever the skill is doing
     protected virtual void OnStopped() { }

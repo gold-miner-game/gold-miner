@@ -113,7 +113,7 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.R)) { Restart(); return; }
+        if (!DeveloperConsole.CapturesInput && Input.GetKeyDown(KeyCode.R)) { Restart(); return; }
         if (!IsPlaying) return;
 
         if (endless)
@@ -211,6 +211,7 @@ public class GameManager : MonoBehaviour
 
     void EndRound(bool killed, string reason)
     {
+        if (killed && MapHub.Active != null) MapRockDamage.ResetDamage();
         IsPlaying = false;
         PlayerDied = killed;
         EndReason = reason;

@@ -163,6 +163,7 @@ public class HookHealth : MonoBehaviour
             pixel = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
         }
         bar = new GameObject(name + " HP").transform;
+        bar.gameObject.AddComponent<FrostIgnore2D>();
         SpriteRenderer Part(string partName, Color color, int order)
         {
             var go = new GameObject(partName);

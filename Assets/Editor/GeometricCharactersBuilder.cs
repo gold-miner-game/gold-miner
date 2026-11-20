@@ -111,12 +111,18 @@ public static class GeometricCharactersBuilder
         collider.offset = penguin ? Vector2.zero : new Vector2(.01f, -.06f);
         PlayerCharacter controller = penguin ? (PlayerCharacter)root.AddComponent<PenguinController>() : root.AddComponent<RhinoController>();
         controller.body = body;
+        if (penguin) root.AddComponent<ElsaMouthPose>();
+        if (controller is PenguinController elsa)
+        {
+            elsa.visualRoot = art;
+        }
         PrefabUtility.SaveAsPrefabAsset(root, Teams + name + ".prefab");
 
         // A reusable canvas portrait, using exactly the same editable pieces.
         RectTransform ui = UISpriteCopy.Build(root, null, 200);
         ui.name = name + "UI";
         ui.localScale = new Vector3(-1, 1, 1);
+        if (penguin) ui.gameObject.AddComponent<ElsaMouthPose>();
         PrefabUtility.SaveAsPrefabAsset(ui.gameObject, Teams + name + "UI.prefab");
         Object.DestroyImmediate(ui.gameObject);
         Object.DestroyImmediate(root);
@@ -306,8 +312,10 @@ public static class GeometricCharactersBuilder
         {
             int index = int.Parse(preview.selectButton.name.Substring(7));
             if (index < 4) AddEyeCatchlights(preview.gameObject);
-            float x = (index % 3 - 1) * 380f;
-            float offset = index / 3 * -296f;
+            // Keep purchasable characters ahead of the two mystery slots.
+            int slot = index switch { 2 => 4, 3 => 5, 4 => 3, 5 => 2, _ => index };
+            float x = (slot % 3 - 1) * 380f;
+            float offset = slot / 3 * -296f;
             Place(preview.namePlate, x, 73 + offset, 250, 40);
             Place(preview.remark, x, 33 + offset, 340, 30);
             Place(preview.selectButton, x, -6 + offset, 160, 30);

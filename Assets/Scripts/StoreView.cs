@@ -346,9 +346,9 @@ public class StoreView : MonoBehaviour
                 float tilt;
                 if (t < 0.72f)
                 {
-                    // Cycle quickly, then slow the changes before revealing the final goods.
+                    // Three times as many goods changes, with the same shuffle timing and movement.
                     float progress = t / 0.72f;
-                    int cycle = Mathf.FloorToInt(9f * (1f - (1f - progress) * (1f - progress)));
+                    int cycle = Mathf.FloorToInt(27f * (1f - (1f - progress) * (1f - progress)));
                     int choice = (cycle + i) % previewOffers.Count;
                     for (int v = 0; v < variants[i].Count; v++)
                         variants[i][v].SetActive(v == choice);
@@ -459,13 +459,72 @@ public class StoreView : MonoBehaviour
         CrossLevelStatus player = CrossLevelStatus.Active;
         if (player == null || PurchasedThisShuffle(id) || player.getWallet() < price) return false;
         player.addWallet(-price);
-        PlayerSkill skill = player.addSkill(id);
-        skill.stock++;
-        skill.unlocked = true;
-        player.useSkill(id);
+        GrantItem(player, id);
         purchasedThisShuffle.Add(id);
         PlayAnalytics.Purchase(id);
         return true;
+    }
+
+    // Console and purchases share the same stock/activation rules, including arming outside rounds.
+    static void GrantItem(CrossLevelStatus player, string id)
+    {
+        PlayerSkill skill = player.addSkill(id);
+        skill.stock++;
+        skill.unlocked = true;
+        bool used = player.useSkill(id);
+        // The loader normally copies an armed Life into the next round's HP. A grant during
+        // play needs the same HP immediately, since this round has already been configured.
+        GameManager round = GameManager.Instance;
+        if (used && id == "brace" && CrossLevelStatus.StoreRoundActive)
+        {
+            round.AddLife();
+            round.SetBonusLives(round.BonusLives + 1);
+        }
+        if (id == "time_machine" && skill.active && CrossLevelStatus.StoreRoundActive)
+            TimeMovesWithPlayer.ApplyStoreEffect(FindFirstObjectByType<PlayerCharacter>(), player);
+    }
+
+    public static List<string> ConsoleItemNames()
+    {
+        var names = new List<string>();
+        foreach (ShopOffer offer in Offers()) names.Add(offer.title.Replace(' ', '_'));
+        return names;
+    }
+
+    public static void RefreshWallet()
+    {
+        if (active != null) active.Refresh();
+    }
+
+    public static string GrantConsoleItem(string name)
+    {
+        string key = ConsoleItemKey(name);
+        foreach (ShopOffer offer in Offers())
+        {
+            if (key != ConsoleItemKey(offer.title) && key != ConsoleItemKey(offer.id)) continue;
+            CrossLevelStatus record = CrossLevelStatus.Ensure();
+            int beforeStock = record.getSkill(offer.id)?.stock ?? 0;
+            GrantItem(record, offer.id);
+            PlayerSkill item = record.getSkill(offer.id);
+            if (active != null) active.Refresh();
+            string state = item.stock > beforeStock ? "Added to spare stock."
+                : item.armed ? "Ready for your next level."
+                : "Active in this level.";
+            PlayerCharacter target = FindFirstObjectByType<PlayerCharacter>();
+            TimeMovesWithPlayer time = target != null ? target.GetComponent<TimeMovesWithPlayer>() : null;
+            Debug.Log($"[Console goods] {offer.id}: active={item.active}, armed={item.armed}, stock={item.stock}, seconds={item.secondsLeft:F2}, round={CrossLevelStatus.StoreRoundActive}, tutorial={LevelLoader.Tutorial}, map={MapHub.Active != null}, player={(target != null ? target.name : "none")}, timeEffect={(time != null ? (time.enabled ? "enabled" : "disabled") : "absent")}, scene={UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}");
+            return "Granted " + offer.title + ". " + state;
+        }
+        return "Usage: good <item_name> (e.g. good Time Machine). Items: " + string.Join(", ", ConsoleItemNames());
+    }
+
+    static string ConsoleItemKey(string name)
+    {
+        var key = new System.Text.StringBuilder();
+        foreach (char character in (name ?? "").Trim().Trim('"', '\''))
+            if (!char.IsWhiteSpace(character) && character != '_' && character != '-')
+                key.Append(char.ToLowerInvariant(character));
+        return key.ToString();
     }
 
     void DrawIcon(RectTransform parent, string icon, Color color)
@@ -656,16 +715,19 @@ public class StoreView : MonoBehaviour
             {
                 Image border = Panel(canvas.transform, "DemoTip", new Color(0.15f, 0.09f, 0.05f));
                 demoTip = border.rectTransform;
-                demoTip.pivot = new Vector2(0.5f, 0f);
+                demoTip.pivot = new Vector2(0.5f, 0.5f);
                 demoTip.sizeDelta = new Vector2(256f, 256f);
                 border.gameObject.AddComponent<CanvasGroup>().blocksRaycasts = false;
+                Image background = Panel(border.transform, "ScreenBackground", Color.black);
+                background.raycastTarget = false;
+                Stretch(background.rectTransform, 3f, 3f, 3f, 3f);
                 var screen = new GameObject("GameplayDemo", typeof(RectTransform));
                 screen.transform.SetParent(border.transform, false);
                 Stretch((RectTransform)screen.transform, 3f, 3f, 3f, 3f);
                 itemDemo = screen.AddComponent<StoreItemDemo>();
             }
             demoTip.gameObject.SetActive(true);
-            itemDemo.Play(id);
+            itemDemo.Play(id, demoTip);
         }
         else if (demoTip != null) demoTip.gameObject.SetActive(false);
         tipText.supportRichText = true;
@@ -692,7 +754,7 @@ public class StoreView : MonoBehaviour
         centerX = Mathf.Clamp(centerX, frame.xMin + tipWidth * 0.5f + 12f, frame.xMax - tipWidth * 0.5f - 12f);
         y = Mathf.Clamp(y, frame.yMin + 12f, frame.yMax - tipHeight - 12f);
         if (RectTransformUtility.ScreenPointToWorldPointInRectangle((RectTransform)canvas.transform,
-            new Vector2(centerX, y), uiCamera, out Vector3 position)) panel.position = position;
+            new Vector2(centerX, y + tipHeight * panel.pivot.y), uiCamera, out Vector3 position)) panel.position = position;
     }
 
     void HideTip()

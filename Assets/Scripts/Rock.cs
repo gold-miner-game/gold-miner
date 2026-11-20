@@ -1,10 +1,13 @@
+using System.Collections;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 // Owner: B (Player & Rocks)
 // Solid obstacle. Maze walls set MakeWall() so the hook stops without breaking the rock and the
 // pig cannot shove it. Battle rocks still shatter after they block a shot.
 public class Rock : MonoBehaviour
 {
+    public bool IsFrozen => FrostField2D.IsFrozen(transform);
     public Color blockedColor = Color.white;
     public float flashTime = 0.15f;
     public int pieceCount = 5;
@@ -16,8 +19,30 @@ public class Rock : MonoBehaviour
     [Tooltip("A hook flies through this rock (the world map's green rocks: levels not disclosed yet). The player still can't")]
     public bool hookPasses;
 
+    [Header("Rhino break effect")]
+    public GameObject brokenBlockPrefab;
+    [FormerlySerializedAs("breakDelay")]
+    [Tooltip("Base duration of each stage. Impact speed reduces the total, split equally between stages.")]
+    [Min(0f)] public float breakStageTime = 0.3f;
+
+    // Green barriers also exist in older baked maps without the hookPasses flag.
+    public bool RhinoProof
+    {
+        get
+        {
+            if (hookPasses) return true;
+            SpriteRenderer look = sr != null ? sr : GetComponent<SpriteRenderer>();
+            if (look == null) return false;
+            Color tint = look.color;
+            Color green = MapHub.GreenRock;
+            return Mathf.Abs(tint.r - green.r) < 0.05f && Mathf.Abs(tint.g - green.g) < 0.05f
+                && Mathf.Abs(tint.b - green.b) < 0.05f;
+        }
+    }
+
     private bool shattered;
     private bool indestructible;
+    GameObject chargeDebris;
 
     void Awake()
     {
@@ -40,14 +65,87 @@ public class Rock : MonoBehaviour
     // Called by Hook when this rock blocks it
     public void OnHookBlocked()
     {
+        if (IsFrozen) { FrostField2D.BreakIce(transform); return; }
         if (indestructible || shattered || isWall) return;
         shattered = true;
-
         SpawnPieces();
-
-        Collider2D col = GetComponent<Collider2D>();
-        if (col != null) col.enabled = false;
+        DisableColliders();
         Destroy(gameObject);
+    }
+
+    // Hulk can smash ordinary walls, but never the green barriers hiding locked map areas.
+    public bool Smash(float impactSpeed = 0f, float speedFactor = 0f)
+    {
+        if (shattered || RhinoProof || IsFrozen) return false;
+        shattered = true;
+        GetComponent<MapRockDamage>()?.RememberSmash();
+        float total = BreakTime(impactSpeed, speedFactor);
+        if (total <= 0f)
+        {
+            // Destroy is deferred until the frame ends; clear collision and artwork now.
+            DisableColliders();
+            foreach (SpriteRenderer original in GetComponentsInChildren<SpriteRenderer>()) original.enabled = false;
+            CompleteSmash();
+        }
+        else
+        {
+            // Stay solid during both equal stages until destruction finishes.
+            StartCoroutine(BreakFromCharge(total * 0.5f));
+        }
+        return true;
+    }
+
+    public float BreakTime(float impactSpeed, float speedFactor)
+    {
+        float total = 2f * Mathf.Max(0f, breakStageTime);
+        float reduction = Mathf.Max(0f, speedFactor) * Mathf.Max(0f, impactSpeed);
+        // Avoid a one-frame wait from floating-point rounding at the instant-break threshold.
+        return reduction >= total || Mathf.Approximately(reduction, total) ? 0f : total - reduction;
+    }
+
+    void DisableColliders()
+    {
+        foreach (Collider2D col in GetComponentsInChildren<Collider2D>()) col.enabled = false;
+    }
+
+    IEnumerator BreakFromCharge(float stageDuration)
+    {
+        yield return new WaitForSeconds(stageDuration);
+        GameObject prefab = brokenBlockPrefab != null ? brokenBlockPrefab
+            : Resources.Load<GameObject>("Effects/BrokenBlock");
+        if (prefab != null)
+        {
+            foreach (SpriteRenderer original in GetComponentsInChildren<SpriteRenderer>()) original.enabled = false;
+            GameObject broken = Instantiate(prefab, transform, false);
+            chargeDebris = broken;
+            broken.name = "BrokenBlock";
+            SpriteRenderer brokenBody = broken.GetComponent<SpriteRenderer>();
+            if (sr != null && brokenBody != null)
+            {
+                brokenBody.sprite = sr.sprite;
+                brokenBody.color = sr.color;
+                brokenBody.sharedMaterial = sr.sharedMaterial;
+                foreach (SpriteRenderer part in broken.GetComponentsInChildren<SpriteRenderer>())
+                {
+                    part.sortingLayerID = sr.sortingLayerID;
+                    part.sortingOrder += sr.sortingOrder;
+                }
+            }
+        }
+        yield return new WaitForSeconds(stageDuration);
+        CompleteSmash();
+    }
+
+    void CompleteSmash()
+    {
+        if (GetComponent<MapRockDamage>() != null) gameObject.SetActive(false);
+        else Destroy(gameObject);
+    }
+
+    public void ResetMapSmash()
+    {
+        StopAllCoroutines(); shattered = false;
+        if (chargeDebris != null) { chargeDebris.SetActive(false); Destroy(chargeDebris); chargeDebris = null; }
     }
 
     void SpawnPieces()

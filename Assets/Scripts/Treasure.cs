@@ -17,6 +17,7 @@ public class Treasure : MonoBehaviour
     public int value = 50;
 
     public bool IsTaken { get; private set; }
+    public bool IsFrozen => FrostField2D.IsFrozen(transform);
 
     void Awake()
     {
@@ -52,6 +53,7 @@ public class Treasure : MonoBehaviour
     {
         if (IsTaken) return false;
         if (player == null) return false;
+        if (IsFrozen && !player.CanEatFrozenTreasure) return false;
         if (!player.CanEat)
         {
             player.OnEatWhileDigesting();
@@ -74,9 +76,9 @@ public class Treasure : MonoBehaviour
 
     // The hook reaches the treasure: the sprite rides the hook back. The miner is paid only when
     // it arrives (DeliverToMiner), so a blocking Mr. Hyde can still knock it loose on the way
-    public void GrabByHook(Transform hook)
+    public bool GrabByHook(Transform hook)
     {
-        if (IsTaken) return;
+        if (IsTaken || IsFrozen) return false;
         IsTaken = true;
         Active.Remove(this);
         OnHooks.Add(this);
@@ -84,11 +86,13 @@ public class Treasure : MonoBehaviour
         SetColliderEnabled(false);
         transform.SetParent(hook, true);
         transform.position = hook.position;
+        return true;
     }
 
     // The frog's tongue brought it into the mouth: the player eats it (money and digest)
     public void DeliverToPlayer(PlayerCharacter player)
     {
+        if (IsFrozen && (player == null || !player.CanEatFrozenTreasure)) { DropFromHook(); return; }
         OnHooks.Remove(this);
         if (player != null) player.Digest(value);
         if (GameManager.Instance != null) GameManager.Instance.AddPlayerMoney(value);
@@ -101,6 +105,7 @@ public class Treasure : MonoBehaviour
     // The hook is home: pay the miner and remove the treasure
     public void DeliverToMiner()
     {
+        if (IsFrozen) { DropFromHook(); return; }
         OnHooks.Remove(this);
         if (GameManager.Instance != null) GameManager.Instance.AddMinerMoney(value);
         Destroy(gameObject);

@@ -121,8 +121,8 @@ public class MapHub : MonoBehaviour
         if (focusRoot == null) return;
         float now = Time.unscaledTime;
         // Match dialogue advance: a fresh key press or left click, after its input grace period.
-        bool pressed = (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
-                    || (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
+        bool pressed = (!DeveloperConsole.CapturesInput && Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
+                    || (!DeveloperConsole.CapturesInput && Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame);
         if (pressed && now - focusStartedAt > 0.15f) focusUntil = now;
         float fade = Mathf.Min(Mathf.Clamp01((now - focusStartedAt) / 0.3f),
                                Mathf.Clamp01((focusUntil - now) / 0.6f));
@@ -221,6 +221,7 @@ public class MapHub : MonoBehaviour
 
         if (baked != null) HideRetiredModes(baked);
         if (baked != null) LetHooksThroughGreen(baked);
+        MapRockDamage.Bind(this, baked);
     }
 
     // Green rocks (levels not disclosed yet) are no obstacle to a hook. The bake marks them already;
@@ -278,8 +279,8 @@ public class MapHub : MonoBehaviour
     // --- HP on the map ----------------------------------------------------------------------------
     // A miner's hook costs 1 HP (GameManager.PlayerHit). The map's HP is kept between visits and only
     // refills when a level is won (RefillHp, from GameFlow) or when the player revives here.
-    public const string HpKey = "gm.map.hp";   // core HP left on the map (no Brace pip); none = full
-    int fullLives;                              // full HP this visit, with any Brace pip
+    public const string HpKey = "gm.map.hp";   // core HP left on the map; none = full
+    int fullLives;                              // full core HP this visit
 
     // LevelLoader.Start, after the hub's lives are set up: carry over the HP left from last time
     public void ApplySavedHp(GameManager gm)
@@ -310,10 +311,11 @@ public class MapHub : MonoBehaviour
     // portal with full HP. Without that portal they revive where they are
     public void Revive(GameManager gm)
     {
+        MapRockDamage.ResetDamage();
         RefillHp();
         if (gm != null)
         {
-            gm.SetBonusLives(LevelLoader.PendingBraceBonusLives());
+            gm.SetBonusLives(0);
             gm.SetLives(fullLives > 0 ? fullLives : gm.startingLives);
         }
         HubPortal at = portals.Find(p => p != null && p.nodeId == reviveAt);

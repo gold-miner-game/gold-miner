@@ -86,6 +86,7 @@ public class PlayerLifeBar : MonoBehaviour
             pixel = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
         }
         bar = new GameObject(name + " Lives").transform;   // not a child: the player's flip and scale leave it alone
+        bar.gameObject.AddComponent<FrostIgnore2D>();
         back = Part("Frame", frame, 62);
     }
 

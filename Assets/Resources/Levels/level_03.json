@@ -66,7 +66,7 @@
     "greedy": true,
     "wall_rocks": true,
     "still_time_scale": 1,
-    "cut_rope": false,
+    "cut_rope": true,
     "compete": 1,
     "pig_hunter": 1,
     "hunter_pass_rocks": true,

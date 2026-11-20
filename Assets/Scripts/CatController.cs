@@ -2,13 +2,13 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // The cat (JK. Rolling). Moves, eats and blinks like every character (PlayerCharacter), at the
-// level's speed. Its skill is the roll (from Penny's CatRoll): Space dashes at speedMultiplier
+// level's speed. Its skill is the roll (from Penny's CatRoll): K dashes at speedMultiplier
 // times the speed for dashDuration, while the artwork spins. WASD can steer the dash.
 // Hooks pass through it while it rolls, without hurting it or being stopped. While rolling it eats every
 // treasure it touches with no digest in between; when the roll ends, one digest starts for everything it
 // ate. If it was already digesting when the roll started, it can't eat during the roll.
 // During the cooldown after a roll the cat looks tired (Penny's Player-Tired-08 eyes: thin
-// slits), and Space works again when its eyes open.
+// slits), and K works again when its eyes open.
 public class CatController : PlayerCharacter
 {
     [Header("Roll (K)")]
@@ -37,15 +37,30 @@ public class CatController : PlayerCharacter
     public float RollDuration => Record is CatStatus s ? s.getRollDuration() : dashDuration;
     public float RollCooldown => Record is CatStatus s ? s.getRollCooldown() : cooldown;
 
+    public override bool HasSkill => SkillUnlockSummary.RollUnlocked;
+    public override string SkillName => "roll";
+    public override bool SkillActive => IsRolling;
+    public override float SkillReadyIn => CooldownRemaining;
+    public override float SkillWait => Mathf.Max(.001f, RollDuration) + Mathf.Max(0f, RollCooldown);
+
+    protected override bool SkillCooldown(out float left, out Color tint)
+    {
+        tint = blockTint;
+        left = !IsRolling && RollCooldown > 0f ? Mathf.Clamp01(CooldownRemaining / RollCooldown) : 0f;
+        return left > 0f;
+    }
+
     public bool IsRolling => Time.time < rollUntil;
     // Hooks pass through a rolling cat without hurting it
     public override bool IsInvulnerable => IsRolling;
     public float CooldownRemaining => Mathf.Max(0f, nextRollTime - Time.time);
-    // After a roll, until Space works again
+    // After a roll, until K works again
     public bool IsTired => !IsRolling && CooldownRemaining > 0f;
-    public override bool CanCutRope => Hook.RopeCuts;
 
     private Vector2 lastDirection = Vector2.right;
+    private Vector2 eyeDirection = new Vector2(1f, -1f); // selection portrait's down-right default
+    private readonly List<SpriteRenderer> gazeEyes = new List<SpriteRenderer>();
+    private readonly List<Transform> gazeHighlights = new List<Transform>();
     private float rollUntil = float.NegativeInfinity;
     private float nextRollTime = float.NegativeInfinity;
     private Quaternion restVisualRotation;
@@ -64,6 +79,8 @@ public class CatController : PlayerCharacter
         EnsureVisualRoot();
         if (visualRoot != null) restVisualRotation = visualRoot.localRotation;
         base.Awake();
+        CacheEyeHighlights();
+        UpdateEyeHighlights();
         lastDirection = transform.localScale.x < 0f ? Vector2.left : Vector2.right;
     }
 
@@ -107,7 +124,7 @@ public class CatController : PlayerCharacter
         if (MoveInput.sqrMagnitude > 0f) lastDirection = MoveInput.normalized;
         // A roll into a miner that can be destroyed (HookHealth: attack mode, the hook holes) hits it,
         // once per roll (it blinks meanwhile and ignores more hits)
-        if (IsRolling)
+        if (IsRolling && IsPlaying)
         {
             HookHealth target = HookHealth.InReach(transform.position, rollHitReach);
             if (target != null && target.Damage()) MrHydeController.ShowHit(this, target);
@@ -119,6 +136,8 @@ public class CatController : PlayerCharacter
 
     // While rolling, eating doesn't start a digest: it's saved up for the end of the roll. (A digest that
     // was already running when the roll started still stops all eating, as CanEat stays false.)
+    // Current compatibility note: this applies to callers of Digest(value). Ordinary ground pickups
+    // use DigestTreasure and retain their original immediate digestion; do not change that for the demo.
     public override void Digest(int value)
     {
         if (IsRolling) rollEaten += value;
@@ -143,12 +162,12 @@ public class CatController : PlayerCharacter
 
     protected override void UseSkill()
     {
-        if (Time.time < nextRollTime) return;
+        if (!HasSkill || !IsPlaying || Time.time < nextRollTime) return;
         if (MoveInput.sqrMagnitude > 0f) lastDirection = MoveInput.normalized;
 
-        spinLength = RollDuration;
+        spinLength = Mathf.Max(.001f, RollDuration);
         rollUntil = Time.time + spinLength;
-        nextRollTime = rollUntil + RollCooldown;
+        nextRollTime = rollUntil + Mathf.Max(0f, RollCooldown);
         spinDirection = reverseSpinWhenRollingLeft && lastDirection.x < -.01f ? -1f : 1f;
         spinStart = Time.time;
         spinning = true;
@@ -170,6 +189,49 @@ public class CatController : PlayerCharacter
     }
 
     void LateUpdate()
+    {
+        UpdateRollVisual();
+        // Run after spin and facing changes so the glints still point forward in world space.
+        UpdateEyeHighlights();
+    }
+
+    void CacheEyeHighlights()
+    {
+        gazeEyes.Clear();
+        gazeHighlights.Clear();
+        foreach (SpriteRenderer eye in GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            Transform highlight = eye.transform.Find("Catchlight");
+            if (eye.sprite == null || highlight == null) continue;
+            gazeEyes.Add(eye);
+            gazeHighlights.Add(highlight);
+        }
+    }
+
+    void UpdateEyeHighlights()
+    {
+        if (IsPlaying)
+        {
+            Vector2 travel = IsRolling ? lastDirection : MoveInput;
+            if (travel.sqrMagnitude > .0001f) eyeDirection = travel.normalized;
+        }
+        for (int i = 0; i < gazeEyes.Count; i++)
+        {
+            SpriteRenderer eye = gazeEyes[i];
+            Transform highlight = gazeHighlights[i];
+            if (eye == null || eye.sprite == null || highlight == null) continue;
+            Bounds bounds = eye.sprite.bounds;
+            // Converting through the eye handles left-facing mirrors and the rolling artwork.
+            Vector2 local = eye.transform.InverseTransformVector(eyeDirection).normalized;
+            Vector3 position = highlight.localPosition;
+            float diagonal = Mathf.Sqrt(2f);
+            position.x = bounds.center.x + local.x * bounds.size.x * .18f * diagonal;
+            position.y = bounds.center.y + local.y * bounds.size.y * .20f * diagonal;
+            highlight.localPosition = position;
+        }
+    }
+
+    void UpdateRollVisual()
     {
         if (!spinning || visualRoot == null) return;
         float t = Mathf.Clamp01((Time.time - spinStart) / Mathf.Max(.001f, spinLength));

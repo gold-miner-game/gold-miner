@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 // Owner: Butian (Survival mode)
@@ -40,7 +41,38 @@ public class SurvivalHookAI : MonoBehaviour
     // From the telegraph until the hook is home: the hook's origin must stay put (RedRound waits)
     public bool Aiming { get; private set; }
 
-    void OnDisable() { Aiming = false; }
+    static readonly List<SurvivalHookAI> controllers = new List<SurvivalHookAI>();
+    SpriteRenderer[] frostBody;
+    public bool IsFrozen
+    {
+        get
+        {
+            if (frostBody == null) frostBody = GetComponentsInChildren<SpriteRenderer>(true);
+            foreach (var sprite in frostBody)
+                if (sprite != null && sprite.GetComponentInParent<Hook>() == null
+                    && sprite.GetComponentInParent<TelegraphLine>() == null && FrostField2D.IsFrozen(sprite)) return true;
+            return false;
+        }
+    }
+    void OnTransformChildrenChanged() { frostBody = null; }
+    public static bool ControllerFrozen(Hook controlled)
+    {
+        foreach (var controller in controllers)
+            if (controller != null && controller.hook == controlled && controller.IsFrozen) return true;
+        return false;
+    }
+    void OnEnable() { if (!controllers.Contains(this)) controllers.Add(this); }
+    void OnDisable() { controllers.Remove(this); Aiming = false; }
+
+    IEnumerator Wait(float seconds)
+    {
+        float elapsed = 0f;
+        while (elapsed < seconds)
+        {
+            yield return null;
+            if (!IsFrozen) elapsed += Time.deltaTime;
+        }
+    }
 
     void Start()
     {
@@ -49,12 +81,12 @@ public class SurvivalHookAI : MonoBehaviour
 
     IEnumerator Loop()
     {
-        yield return new WaitForSeconds(startDelay);
+        yield return Wait(startDelay);
 
         while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
             if (target == null) yield break;
-            if (holdFire) { yield return null; continue; }
+            if (holdFire || IsFrozen) { yield return null; continue; }
             Vector2 origin = hookOrigin.position;
             if (range > 0f && Vector2.Distance(origin, target.position) > range) { yield return null; continue; }
 
@@ -74,7 +106,7 @@ public class SurvivalHookAI : MonoBehaviour
             Aiming = true;
             telegraph.Show(origin, origin + dir * length, shotColor);
             TutorialEvents.Fire(AimEvent);
-            yield return new WaitForSeconds(telegraphTime);
+            yield return Wait(telegraphTime);
             telegraph.Hide();
             if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
@@ -86,7 +118,7 @@ public class SurvivalHookAI : MonoBehaviour
             Aiming = false;
             if (GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(DodgedEvent);
 
-            yield return new WaitForSeconds(cooldown);
+            yield return Wait(cooldown);
         }
     }
 }

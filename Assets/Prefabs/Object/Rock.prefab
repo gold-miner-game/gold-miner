@@ -171,3 +171,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Rock
   blockedColor: {r: 1, g: 1, b: 1, a: 1}
   flashTime: 0.15
+  brokenBlockPrefab: {fileID: 2741159981115148644, guid: ed2fe669ce4942fcaf8344d3cefd02a9, type: 3}
+  breakStageTime: 0.3

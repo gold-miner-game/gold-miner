@@ -111,6 +111,13 @@ public class LevelLoader : MonoBehaviour
     // cross-level movement and skills are left untouched. Collected gold is banked when it ends.
     public static bool Tutorial { get; private set; }
 
+    // Survival has its own loader, so it must not inherit the previous hub/tutorial state.
+    public static void BeginStandaloneRound()
+    {
+        Tutorial = false;
+        ScriptedTutorial = false;
+    }
+
     // Analytics eligibility: tutorials are recorded without competitive money statistics.
     // Wallet settlement is handled separately and includes tutorial earnings.
     public static bool CountsMoney(string levelName)
@@ -145,6 +152,7 @@ public class LevelLoader : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
+        Tutorial = false;
         Requested = null;
         ScriptedTutorial = null;
         WaitToAdvance = false;
@@ -183,7 +191,7 @@ public class LevelLoader : MonoBehaviour
         // play (N/P through the level list), where no map node made the call.
         Tutorial = ScriptedTutorial ?? current <= lastTutorial;
         level = LevelData.Parse(list[current].text);
-        Hook.RopeCuts = level.Param("cut_rope", 1f) > 0.5f;
+        Hook.RopeCuts = true; // J cutting is shared by every character in every level.
         if (level.IsMaze) Tutorial = true;   // the hub, even played straight from its scene: the pig, no run record
         if (layout != null) UseLayout();
         int seed = Mathf.RoundToInt(level.Param("random_seed", randomSeed));
@@ -281,7 +289,7 @@ public class LevelLoader : MonoBehaviour
                 // or wrong record (after a domain-reload-off restart) is rebuilt from the save.
                 System.Type want = ChampionSpawner.RecordType(picked);
                 if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
-                    CrossLevelStatus.StartFresh(want);
+                    CrossLevelStatus.Install(want);
             }
             PlayerCharacter spawned = spawner.Spawn(champion);
             if (spawned != null) player = spawned;
@@ -1197,20 +1205,15 @@ public class LevelLoader : MonoBehaviour
         return gm.startingLives;
     }
 
-    // Brace +1 already applied this battle, or armed in the store for the next battle (hub preview).
+    // Bonus lives belong to the active battle; armed goods never change map HP or its HUD.
     public static int PendingBraceBonusLives()
     {
         CrossLevelStatus record = CrossLevelStatus.Active;
-        if (record == null) return 0;
-        int active = record.getBraceBonusLives();
-        if (active > 0) return active;
-        PlayerSkill brace = record.getSkill("brace");
-        return brace != null && brace.armed ? 1 : 0;
+        return CrossLevelStatus.StoreRoundActive && record != null ? record.getBraceBonusLives() : 0;
     }
 
-    // Hub LIFE bar: core lives from the maze save + orange Brace pip when Brace is armed.
-    // Does not consume the item — onLevelStarted still does that when a real battle begins.
-    public void ApplyHubBracePreview()
+    // Restore the hub's core HP without applying any goods waiting for the next battle.
+    public void ApplyHubLives()
     {
         if (level == null || !level.IsMaze) return;
         GameManager gm = GameManager.Instance;
@@ -1221,9 +1224,8 @@ public class LevelLoader : MonoBehaviour
         if (MazeHubState.HasSave && MazeHubState.Lives > 0)
             core = MazeHubState.Lives;
 
-        int pending = PendingBraceBonusLives();
-        gm.SetBonusLives(pending);
-        gm.startingLives = core + pending;
+        gm.SetBonusLives(0);
+        gm.startingLives = core;
         gm.SyncLivesFromStart();
     }
 
@@ -1237,9 +1239,8 @@ public class LevelLoader : MonoBehaviour
         if (level.stages.Count > 0) gm.EndWhenTreasureGone = false;
         if (Tutorial)
         {
-            // World-map hub is Tutorial=true, so Brace never runs onLevelStarted here — still show
-            // an armed Brace as a pending orange life on the LIFE bar / over-head pips.
-            if (level.IsMaze) ApplyHubBracePreview();
+            // Goods stay armed while walking on the world map.
+            if (level.IsMaze) ApplyHubLives();
             else
             {
                 gm.startingLives = BaseLives(gm);
@@ -1269,7 +1270,7 @@ public class LevelLoader : MonoBehaviour
         UpdateAdvance();
         UpdateGuideFade();
 
-        Keyboard keyboard = Keyboard.current;
+        Keyboard keyboard = DeveloperConsole.CapturesInput ? null : Keyboard.current;
         if (keyboard == null) return;
         if (keyboard.nKey.wasPressedThisFrame) Load(current + 1);
         else if (keyboard.pKey.wasPressedThisFrame) Load(current - 1);
@@ -1357,6 +1358,31 @@ public class LevelLoader : MonoBehaviour
 
     bool moneySettled;
 
+    // Developer shortcut: settle before leaving so tutorial scripts and result delays cannot hold it.
+    public void PassCurrentLevel()
+    {
+        GameManager gm = GameManager.Instance;
+        if (level == null || level.IsMaze || gm == null || !gm.IsPlaying) return;
+        var remaining = new System.Collections.Generic.HashSet<Treasure>(Treasure.Active);
+        remaining.UnionWith(Treasure.OnHooks);
+        foreach (Treasure treasure in remaining)
+        {
+            if (treasure == null) continue;
+            gm.AddPlayerMoney(treasure.value);
+            Treasure.Active.Remove(treasure);
+            Treasure.OnHooks.Remove(treasure);
+            treasure.gameObject.SetActive(false);
+            Destroy(treasure.gameObject);
+        }
+        gm.WinRound("Passed from console!");
+        moneySettled = true;
+        SettleWallet(gm);
+        GameFlow flow = FindFirstObjectByType<GameFlow>();
+        if (flow != null && flow.AdvancePassedLevel()) return;
+        if (WinsToStore) { GameFlow.Instance.FinishTutorialRun(); return; }
+        if (!IsLastLevel) Load(current + 1);
+    }
+
     // When the round is won, wait advanceDelay seconds (the end panel shows the result), then load
     // the next level. A loss stays put so R can retry. The last level doesn't wrap around.
     void UpdateAdvance()
@@ -1435,6 +1461,10 @@ public class LevelLoader : MonoBehaviour
     void Start()
     {
         hasHud = FindFirstObjectByType<HUDController>() != null;
+        // GameManager.Awake may run after this loader's Awake and reset its bonus counter.
+        // The total starting HP is already configured; restore Brace's orange-pip count afterward.
+        if (!Tutorial && CrossLevelStatus.Active != null && GameManager.Instance != null)
+            GameManager.Instance.SetBonusLives(CrossLevelStatus.Active.getBraceBonusLives());
         if (level != null && level.Param("block", 0f) > 0.5f && player is MrHydeController hyde)
         {
             hyde.canBlock = true;
@@ -1458,8 +1488,8 @@ public class LevelLoader : MonoBehaviour
                 if (MazeHubState.HasSave) MazeHubState.ApplyToScene(null, player, GameManager.Instance);
                 else MazeHubState.ApplyDisplayMoney(GameManager.Instance);
             }
-            // Restore overwrites Lives; re-apply armed Brace so the map LIFE bar shows the orange +1.
-            ApplyHubBracePreview();
+            // Restore only map HP; armed goods wait for the next battle.
+            ApplyHubLives();
             // Then the HP the map kept from last time (hooks cost HP there; a won level refills it)
             MapHub hub = GetComponent<MapHub>();
             if (hub != null) hub.ApplySavedHp(GameManager.Instance);
@@ -1502,6 +1532,7 @@ public class LevelLoader : MonoBehaviour
 
     void OnGUI()
     {
+        if (DeveloperConsole.CapturesInput) return;
         DrawMovementHint();
         // The level label is only logged when the level builds; N / P / R still work in the editor
         if (!showLevelLabel || string.IsNullOrEmpty(label)) return;

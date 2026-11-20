@@ -120,6 +120,14 @@ public class GameFlow : MonoBehaviour
         FinishTutorialRun();
     }
 
+    // Console pass skips only the current lesson/battle, preserving normal progression.
+    public bool AdvancePassedLevel()
+    {
+        if (tutorialStep >= 0) { MapHub.RefillHp(); NextTutorial(tutorialStep); return true; }
+        if (flow == Flow.Game && CurrentNode != null) { CompleteCurrentNode(); return true; }
+        return false;
+    }
+
     // Completing Level 1 (the tutorial) opens the hub and unlocks Level 2 through its tutorial
     // prerequisite. An optional afterTutorialNode can still redirect the flow.
     public void FinishTutorialRun()
@@ -245,11 +253,12 @@ public class GameFlow : MonoBehaviour
         if (ProgressStore.HasPickedCharacter && int.TryParse(ProgressStore.SelectedCharacter, out int picked))
             index = picked;
 
+        if (!CharacterUnlocks.IsUnlocked(index)) index = ChampionSpawner.MrHyde;
         ChampionSpawner.Chosen = index;
 
         System.Type want = ChampionSpawner.RecordType(index);
         if (CrossLevelStatus.Active == null || CrossLevelStatus.Active.GetType() != want)
-            CrossLevelStatus.StartFresh(want);
+            CrossLevelStatus.Install(want);
     }
 
     void ClearGameHooks()

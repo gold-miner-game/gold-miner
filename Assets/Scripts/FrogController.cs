@@ -4,7 +4,7 @@ using UnityEngine;
 // level's speed. Moves like Penny's FrogMovement: the whole round artwork turns so the mouth (local +Y
 // of visualRoot) faces where it goes. When it starts moving or changes direction it stops and turns
 // for turnOnlyDuration first, then moves. It never flips.
-// Its skill is the tongue (FrogTongue): Space shoots it out of the mouth to grab a treasure. The frog
+// Its skill is the tongue (FrogTongue): K shoots it out of the mouth to grab a treasure. The frog
 // keeps moving and turning meanwhile, and the tongue swings with it.
 public class FrogController : PlayerCharacter
 {
@@ -15,6 +15,12 @@ public class FrogController : PlayerCharacter
     [Min(0f)] public float turnOnlyDuration = .05f;
 
     public bool IsTurning => heading.sqrMagnitude > 0f && Time.time < moveAllowedAt;
+    public override bool HasSkill => tongue != null && tongue.isActiveAndEnabled;
+    public override string SkillName => "tongue";
+    public override bool SkillActive => TongueOut;
+    public override float SkillReadyIn => 0f;
+    public override float SkillWait => 0f;
+
     public bool TongueOut => tongue != null && tongue.IsUsingSkill;
 
     protected override bool FlipsWhenTurning => false;

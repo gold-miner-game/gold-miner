@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$UnityEditor,
-    [string]$CaptureProject
+    [string]$CaptureProject,
+    [switch]$Characters
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
@@ -21,10 +22,11 @@ $taskAnalytics = Join-Path $CaptureProject 'Assets/Scripts/PlayAnalytics.cs'
 $taskText = Get-Content -LiteralPath $taskAnalytics -Raw
 $taskText = $taskText -replace 'const string FormUrl = "[^"]*";', 'const string FormUrl = "";'
 Set-Content -LiteralPath $taskAnalytics -Value $taskText
-$env:STORE_DEMO_OUTPUT = Join-Path $taskRoot 'Temp/StoreDemoCaptures'
+$env:STORE_DEMO_OUTPUT = Join-Path $taskRoot $(if ($Characters) { 'Temp/CharacterDemoCaptures' } else { 'Temp/StoreDemoCaptures' })
+$captureMethod = if ($Characters) { 'StoreDemoCaptureDriver.BeginCharacters' } else { 'StoreDemoCaptureDriver.Begin' }
 $taskLog = Join-Path $CaptureProject 'capture.log'
 $taskArgs = @('-batchmode', '-projectPath', ('"' + $CaptureProject + '"'),
-    '-executeMethod', 'StoreDemoCaptureDriver.Begin', '-logFile', ('"' + $taskLog + '"'))
+    '-executeMethod', $captureMethod, '-logFile', ('"' + $taskLog + '"'))
 $taskProcess = Start-Process -FilePath $UnityEditor -ArgumentList $taskArgs -WindowStyle Hidden -PassThru -Wait
 if ($taskProcess.ExitCode -ne 0) { throw "Capture failed; inspect $taskLog" }
 Write-Output "Recorded clips: $env:STORE_DEMO_OUTPUT"

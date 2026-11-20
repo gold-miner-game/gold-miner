@@ -15,10 +15,10 @@ public class RolePickController : MonoBehaviour
     {
         new Champion { index = 0, name = "Mr. Hyde",    desc = "The pig.",      skill = "What reaches for him comes back lighter." },
         new Champion { index = 1, name = "JK. Rolling", desc = "The cat.",      skill = "She is already through the moment that meant to catch her." },
-        new Champion { index = 2, name = "Scrat",       desc = "The squirrel.", skill = "Nothing near his feet stays where he found it." },
-        new Champion { index = 3, name = "Rero Rero",   desc = "The frog.",     skill = "Some treasures only look far away." },
         new Champion { index = 4, name = "Elsa",     desc = "The penguin.",  skill = "" },
         new Champion { index = 5, name = "Hulk",       desc = "The rhinoceros.", skill = "" },
+        new Champion { index = 2, name = "Scrat",       desc = "The squirrel.", skill = "Nothing near his feet stays where he found it." },
+        new Champion { index = 3, name = "Rero Rero",   desc = "The frog.",     skill = "Some treasures only look far away." },
     };
 
     GUIStyle title;
@@ -28,6 +28,7 @@ public class RolePickController : MonoBehaviour
 
     void OnGUI()
     {
+        if (DeveloperConsole.CapturesInput) return;
         ScreenFrame.BeginGUI();   // lay out in 1280x720, scaled to the 16:9 frame
         EnsureStyles();
         GUI.Label(new Rect(0, 24, ScreenFrame.GuiWidth, 40), "PICK YOUR CHARACTER", title);
@@ -52,20 +53,36 @@ public class RolePickController : MonoBehaviour
             Rect card = new Rect(startX + col * (cardW + gap), startY + row * (cardH + gap), cardW, cardH);
 
             GUILayout.BeginArea(card, GUI.skin.box);
-            GUILayout.Label(c.name, nameStyle);
-            GUILayout.Label(c.desc, descStyle);
+            bool unlocked = CharacterUnlocks.IsUnlocked(c.index);
+            int price = CharacterUnlocks.Price(c.index);
+            GUILayout.Label(unlocked || price > 0 ? c.name : "???", nameStyle);
+            GUILayout.Label(unlocked || price > 0 ? c.desc : "Locked", descStyle);
             GUILayout.Space(4f);
-            GUILayout.Label(c.skill, skillStyle);
+            GUILayout.Label(unlocked || price > 0 ? c.skill : "", skillStyle);
             GUILayout.FlexibleSpace();
             bool chosen = selected == c.index.ToString();
-            if (GUILayout.Button(chosen ? "Selected \u2713" : "Choose", GUILayout.Height(32f)))
+            Color oldBackground = GUI.backgroundColor;
+            Color oldContent = GUI.contentColor;
+            GUI.backgroundColor = unlocked ? new Color(.10f, .65f, .25f)
+                : price > 0 ? new Color(.93f, .72f, .22f) : Color.black;
+            GUI.contentColor = !unlocked && price > 0 ? Color.black : Color.white;
+            GUI.enabled = unlocked || price > 0;
+            if (GUILayout.Button(!unlocked ? price > 0 ? "$" + price.ToString("N0") : "Locked" : chosen ? "Selected \u2713" : "Choose", GUILayout.Height(32f)))
                 Pick(c.index);
+            GUI.enabled = true;
+            GUI.backgroundColor = oldBackground;
+            GUI.contentColor = oldContent;
             GUILayout.EndArea();
         }
     }
 
     void Pick(int index)
     {
+        if (!CharacterUnlocks.IsUnlocked(index))
+        {
+            CharacterUnlocks.TryPurchase(index, out _);
+            return;
+        }
         // #12's machinery: a brand-new record for this champion, and the Game scene swaps it in.
         ChampionSpawner.Chosen = index;
         CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(index));
