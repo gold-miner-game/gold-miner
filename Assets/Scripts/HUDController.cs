@@ -55,11 +55,16 @@ public class HUDController : MonoBehaviour
     public Color skillColor = new Color(0.45f, 0.65f, 1f);     // SKILL "Ready" (Figma color/accent/skill)
     public Color digestColor = new Color(0.65f, 0.9f, 0.55f);  // DIGEST value and bar when there is no character yet; else its digestTint
 
-    [Header("Pause popup")]
-    public Color popupCard = new Color(0.99f, 0.99f, 0.99f);
-    public Color popupTitle = new Color(0.07f, 0.07f, 0.07f);
-    public Color popupMessage = new Color(0.4f, 0.4f, 0.4f);
-    public Color popupButton = new Color(0.953f, 0.953f, 0.953f);
+    // Pause and End popups: Figma Version3 "Pause (U2)" / "End - Win, Lose, Died (U1)" and the
+    // HUD/PopupButton component. Colors come from the Beta theme (HUDTheme), not the scene, so the
+    // saved HUD needs no rebuild
+    enum PopupStyle { Primary, Secondary, Danger }
+    static readonly Color PopupDanger = new Color(1f, 0.45f, 0.45f);
+    static readonly Color PopupButtonFill = new Color(0.20f, 0.27f, 0.38f);   // color/bg/button
+    static readonly Color PopupButtonInk = new Color(0.86f, 0.90f, 0.96f);    // color/text/button
+    const float PopupButtonHeight = 72f;
+    HUDTheme popupTheme;
+    HUDTheme PopupTheme => popupTheme ??= HUDTheme.For(HUDVariant.Beta);
 
     public GameObject endPanel;
     public TMP_Text resultText;
@@ -99,7 +104,14 @@ public class HUDController : MonoBehaviour
     RectTransform characterAvatar;
     RectTransform avatarFigure;
     GameObject avatarSource;
-    private string endDetail;   // the result lines, set once when the round ends   // found, not GameFlow.Instance: that would create one in Dev scenes
+    private float timeScaleBeforePause = 1f;   // Pause restores it (a tutorial step or stand-still may have slowed time)
+    private TMP_Text pauseInfo;       // "LEVEL 2 - 1:30 left", filled when Pause opens
+    private TMP_Text pauseControls;   // the character's keys, filled when Pause opens
+    private GameObject endCard;       // the result card, built once when the round ends
+    private GameObject endActions;    // its buttons, hidden while a story or the skill summary plays
+    private TMP_Text endFooter;       // "Returning to the map in 2..."
+    private float returnAt = -1f;     // when GameFlow's own return timer should run out (unscaled time)
+    private bool leavingToMap;
 
     // Last values seen, to detect changes (not set until the first Update)
     private bool hasLast;
@@ -169,6 +181,7 @@ public class HUDController : MonoBehaviour
         UpdateSidebar();
         UpdatePopups();
         UpdateEndPanel(gm);
+        HandlePopupKeys(gm);
     }
 
     // World-map maze: drop timer / $ vs $ / Pause / title so the grid is readable.
@@ -707,21 +720,32 @@ public class HUDController : MonoBehaviour
 
     public bool IsPaused => pausePopup != null && pausePopup.activeSelf;
 
-    // Pause freezes the round (time scale 0: the clock, hooks and the character all stop) and asks
-    // "Quit Game?". Cancel picks up where it left off; Quit goes back to the map
+    // Pause freezes the round (time scale 0: the clock, hooks and the character all stop). In a level
+    // it offers Resume / Restart / Quit to Map; on the world map, Resume / Quit to Menu. Esc opens and
+    // closes it too (HandlePopupKeys)
     void OpenPause()
     {
         if (IsPaused) return;
         if (pausePopup == null) BuildPausePopup();
+        RefreshPauseText();
         pausePopup.transform.SetAsLastSibling();
         pausePopup.SetActive(true);
+        timeScaleBeforePause = Time.timeScale;
         Time.timeScale = 0f;
     }
 
     void ResumeFromPause()
     {
-        pausePopup.SetActive(false);
+        if (pausePopup != null) pausePopup.SetActive(false);
+        Time.timeScale = timeScaleBeforePause > 0f ? timeScaleBeforePause : 1f;
+    }
+
+    void RestartFromPause()
+    {
+        if (pausePopup != null) pausePopup.SetActive(false);
         Time.timeScale = 1f;
+        GameManager gm = GameManager.Instance;
+        if (gm != null) gm.Restart();
     }
 
     // Leaving mid-round does not clear the node; leaving after a win does, so the clear is not lost
@@ -743,10 +767,33 @@ public class HUDController : MonoBehaviour
         if (IsPaused) Time.timeScale = 1f;
     }
 
+    // Esc: open / close Pause while its button shows and the round is on. After the round: Enter goes
+    // back to the map after a win; R is GameManager's restart, which this frame first keeps a win's clear
+    void HandlePopupKeys(GameManager gm)
+    {
+        if (DeveloperConsole.CapturesInput || DeveloperConsole.IsOpen) return;
+
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (IsPaused) ResumeFromPause();
+            else if (gm.IsPlaying && mapButton != null && mapButton.gameObject.activeInHierarchy) OpenPause();
+            return;
+        }
+
+        if (!gm.PlayerWon || !EndActionsReady(gm)) return;
+        if (CanLeaveToMap && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+            GoToMapAfterWin();
+        else if (Input.GetKeyDown(KeyCode.R))
+            KeepWinCleared();
+    }
+
     // A dimmed screen (it also blocks clicks behind it) with a centered card. Built here rather than
     // by HUDBuilder, so the Game scene's saved HUD needs no rebuild
     void BuildPausePopup()
     {
+        HUDTheme theme = PopupTheme;
+        bool hub = flow != null && flow.InHub;
+
         pausePopup = new GameObject("PausePopup", typeof(RectTransform), typeof(Image));
         RectTransform dim = (RectTransform)pausePopup.transform;
         dim.SetParent(timerText.canvas.transform, false);
@@ -754,14 +801,92 @@ public class HUDController : MonoBehaviour
         dim.anchorMax = Vector2.one;
         dim.offsetMin = Vector2.zero;
         dim.offsetMax = Vector2.zero;
-        pausePopup.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+        pausePopup.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
-        RectTransform card = PopupBox(dim, "Card", popupCard, new Vector2(760f, 300f), Vector2.zero);
-        PopupText(card, "Title", "Quit Game?", 36f, FontStyles.Bold, popupTitle, new Vector2(0f, 95f));
-        PopupText(card, "Message", "Are you sure you want to quit?", 26f, FontStyles.Normal, popupMessage, new Vector2(0f, 35f));
-        PopupButton(card, "Cancel", new Vector2(-182f, -81f), ResumeFromPause);
-        PopupButton(card, "Quit", new Vector2(182f, -81f), QuitToMap);
+        const float width = 600f;
+        const float buttonGap = 14f;
+        int buttons = hub ? 2 : 3;
+        float buttonsHeight = buttons * PopupButtonHeight + (buttons - 1) * buttonGap;
+        // Padding 44 / 40, title 52, sub 30, buttons, then (levels only) a divider and the controls
+        float height = 44f + 52f + 12f + 30f + 24f + buttonsHeight + 40f;
+        if (!hub) height += 24f + 1f + 20f + 22f + 10f + 26f;
+
+        RectTransform card = PopupCard(dim, "Card", new Vector2(width, height));
+        float top = height * 0.5f - 44f;
+
+        TMP_Text title = PopupText(card, "Title", hub ? "QUIT GAME?" : "PAUSED", 44f, FontStyles.Bold, Color.white,
+            new Vector2(0f, top - 26f));
+        title.characterSpacing = 10f;
+        top -= 52f + 12f;
+        pauseInfo = PopupText(card, "Info", hub ? "Back to the main menu?" : "", 22f, FontStyles.Normal, theme.title,
+            new Vector2(0f, top - 15f));
+        top -= 30f + 24f;
+
+        Vector2 size = new Vector2(width - 96f, PopupButtonHeight);
+        float y = top - PopupButtonHeight * 0.5f;
+        PopupButton(card, PopupStyle.Primary, "Resume", "Esc", size, new Vector2(0f, y), ResumeFromPause);
+        if (!hub)
+        {
+            y -= PopupButtonHeight + buttonGap;
+            PopupButton(card, PopupStyle.Secondary, "Restart", "R", size, new Vector2(0f, y), RestartFromPause);
+        }
+        y -= PopupButtonHeight + buttonGap;
+        PopupButton(card, PopupStyle.Danger, hub ? "Quit to Menu" : "Quit to Map", null, size, new Vector2(0f, y), QuitToMap);
+        top -= buttonsHeight;
+
+        if (!hub)
+        {
+            top -= 24f;
+            PopupRect(card, "Divider", theme.divider, new Vector2(width - 96f, 1f), new Vector2(0f, top - 0.5f));
+            top -= 1f + 20f;
+            TMP_Text heading = PopupText(card, "ControlsTitle", "CONTROLS", 16f, FontStyles.Bold, theme.title,
+                new Vector2(0f, top - 11f));
+            heading.characterSpacing = 10f;
+            top -= 22f + 10f;
+            pauseControls = PopupText(card, "Controls", "", 18f, FontStyles.Normal, theme.title, new Vector2(0f, top - 13f));
+            pauseControls.richText = true;
+        }
         pausePopup.SetActive(false);
+    }
+
+    // "LEVEL 2 - 1:30 left" and the keys this character has now ("[K] Block   [J] cut ropes")
+    void RefreshPauseText()
+    {
+        GameManager gm = GameManager.Instance;
+        if (pauseInfo != null && !(flow != null && flow.InHub))
+        {
+            string level = levelText != null && levelText.gameObject.activeInHierarchy ? levelText.text : "";
+            string time = "";
+            if (gm != null && gm.UseRoundTimer)
+            {
+                int seconds = Mathf.CeilToInt(gm.TimeLeft);
+                time = seconds / 60 + ":" + (seconds % 60).ToString("00") + " left";
+            }
+            pauseInfo.text = level != "" && time != "" ? level + "  \u00B7  " + time : level + time;
+        }
+        if (pauseControls != null)
+        {
+            if (player == null) player = FindFirstObjectByType<PlayerCharacter>();
+            string keys = "[WASD] move";
+            if (player != null && player.SkillHint != "") keys += "     " + player.SkillHint.Trim();
+            pauseControls.text = KeyCaps(keys);
+        }
+    }
+
+    // "[K] Block" -> the key in bold white, the rest in the title gray
+    static string KeyCaps(string text)
+    {
+        return text.Replace("[", "<b><color=#FFFFFF>").Replace("]", "</color></b>");
+    }
+
+    // The popup card: color/bg/panel with 16 px corners and a soft drop shadow
+    RectTransform PopupCard(Transform parent, string name, Vector2 size)
+    {
+        RectTransform card = PopupBox(parent, name, PopupTheme.panel, size, Vector2.zero);
+        Shadow shadow = card.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0f, 0f, 0f, 0.45f);
+        shadow.effectDistance = new Vector2(0f, -12f);
+        return card;
     }
 
     RectTransform PopupBox(Transform parent, string name, Color color, Vector2 size, Vector2 position)
@@ -779,7 +904,22 @@ public class HUDController : MonoBehaviour
         return rect;
     }
 
-    void PopupText(RectTransform parent, string name, string text, float size, FontStyles style, Color color, Vector2 position)
+    // A plain rectangle (dividers, bars); never catches clicks
+    RectTransform PopupRect(Transform parent, string name, Color color, Vector2 size, Vector2 position)
+    {
+        var go = new GameObject(name, typeof(RectTransform), typeof(Image));
+        RectTransform rect = (RectTransform)go.transform;
+        rect.SetParent(parent, false);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+        Image image = go.GetComponent<Image>();
+        image.sprite = FlatSprite();
+        image.color = color;
+        image.raycastTarget = false;
+        return rect;
+    }
+
+    TMP_Text PopupText(RectTransform parent, string name, string text, float size, FontStyles style, Color color, Vector2 position)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));
         RectTransform rect = (RectTransform)go.transform;
@@ -795,23 +935,53 @@ public class HUDController : MonoBehaviour
         label.alignment = TextAlignmentOptions.Center;
         label.color = color;
         label.raycastTarget = false;
+        return label;
     }
 
-    // A light gray button with a bold label that darkens a little on hover and press
-    void PopupButton(RectTransform card, string text, Vector2 position, UnityEngine.Events.UnityAction onClick)
+    // Figma HUD/PopupButton: Primary (skill blue, dark ink), Secondary (button gray) or Danger (red ink),
+    // with an optional key badge ("R", "Esc") after the label. Lightens on hover, darkens on press
+    Button PopupButton(RectTransform parent, PopupStyle style, string text, string key, Vector2 size, Vector2 position,
+        UnityEngine.Events.UnityAction onClick)
     {
-        RectTransform rect = PopupBox(card, text + "Button", popupButton, new Vector2(348f, 90f), position);
+        HUDTheme theme = PopupTheme;
+        Color fill = style == PopupStyle.Primary ? theme.skill : PopupButtonFill;
+        Color ink = style == PopupStyle.Primary ? theme.backdrop : style == PopupStyle.Danger ? PopupDanger : PopupButtonInk;
+
+        RectTransform rect = PopupBox(parent, text.Replace(" ", "") + "Button", Color.white, size, position);
+        Image image = rect.GetComponent<Image>();
+        image.pixelsPerUnitMultiplier = 16f / 12f;   // 12 px corners from the 16 px sprite
         Button button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = rect.GetComponent<Image>();
+        button.targetGraphic = image;
         ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(0.95f, 0.95f, 0.95f);
-        colors.pressedColor = new Color(0.88f, 0.88f, 0.88f);
-        colors.selectedColor = Color.white;
+        colors.normalColor = fill;
+        colors.highlightedColor = Color.Lerp(fill, Color.white, 0.15f);
+        colors.pressedColor = Color.Lerp(fill, Color.black, 0.15f);
+        colors.selectedColor = fill;
         colors.fadeDuration = 0.08f;
         button.colors = colors;
         button.onClick.AddListener(onClick);
-        PopupText(rect, "Label", text, 30f, FontStyles.Bold, popupTitle, Vector2.zero);
+
+        TMP_Text label = PopupText(rect, "Label", text, 26f, FontStyles.Bold, ink, Vector2.zero);
+        if (string.IsNullOrEmpty(key)) return button;
+
+        // The badge: the key in a small rounded box, label + 12 px + badge centered together
+        TMP_Text keyText = PopupText(rect, "KeyText", key, 16f, FontStyles.Bold, ink, Vector2.zero);
+        float labelWidth = label.GetPreferredValues(text).x;
+        float badgeWidth = keyText.GetPreferredValues(key).x + 16f;
+        float total = labelWidth + 12f + badgeWidth;
+        label.rectTransform.sizeDelta = new Vector2(labelWidth + 4f, label.rectTransform.sizeDelta.y);
+        label.rectTransform.anchoredPosition = new Vector2(-total * 0.5f + labelWidth * 0.5f, 0f);
+
+        Color badgeColor = style == PopupStyle.Primary ? new Color(0f, 0f, 0f, 0.18f) : new Color(1f, 1f, 1f, 0.12f);
+        RectTransform badge = PopupBox(rect, "Key", badgeColor, new Vector2(badgeWidth, 26f),
+            new Vector2(total * 0.5f - badgeWidth * 0.5f, 0f));
+        Image badgeImage = badge.GetComponent<Image>();
+        badgeImage.pixelsPerUnitMultiplier = 16f / 6f;   // 6 px corners
+        badgeImage.raycastTarget = false;
+        keyText.rectTransform.SetParent(badge, false);
+        keyText.rectTransform.sizeDelta = badge.sizeDelta;
+        keyText.rectTransform.anchoredPosition = Vector2.zero;
+        return button;
     }
 
     static Sprite roundedSprite;
@@ -1187,32 +1357,195 @@ public class HUDController : MonoBehaviour
         if (!endPanel.activeSelf)
         {
             endPanel.SetActive(true);
-            if (resultText != null)
-            {
-                // The failure line is longer, so it steps down just enough to stay on one line.
-                resultText.fontSize = gm.PlayerWon ? 110f : 64f;
-                resultText.text = gm.PlayerWon ? "Achieved target"
-                    : gm.PlayerDied ? "Died" : "Didn't achieve the target";
-            }
-
-            // A bit smaller than the title. A loss has no earnings line.
-            endDetail = gm.PlayerWon
-                ? "<size=86>Earned $" + gm.PlayerMoney.ToString("N0") + "!</size>"
-                : "";
+            BuildEndCard(gm);
         }
 
-        // Every frame: the next-level countdown ticks
-        if (detailText != null)
-            detailText.text = (endDetail.Length > 0 ? endDetail + "\n" : "") + NextStep(gm);
+        // Every frame: the buttons wait for a story or the skill summary after the win (so does
+        // GameFlow's return timer), and the return countdown ticks
+        bool ready = EndActionsReady(gm);
+        if (endActions != null && endActions.activeSelf != ready) endActions.SetActive(ready);
+        if (endFooter != null) endFooter.text = EndFooter(gm, ready);
     }
 
-    // The one place that says what happens next (LevelLoader no longer draws it under the arena)
-    string NextStep(GameManager gm)
+    // The map node this round came from, so its buttons can go back. Not in the first-time tutorial run
+    // (GameFlow moves it on by itself) or editor N/P play
+    bool CanLeaveToMap => flow != null && flow.CurrentNode != null && !flow.InTutorialRun;
+
+    bool EndActionsReady(GameManager gm)
     {
-        if (!gm.PlayerWon) return "Press R to retry";
-        if (flow != null && flow.CurrentNode != null) return "Back to the map...";
-        string hint = levelLoader != null ? levelLoader.NextStepHint : "";
-        return hint != "" ? hint : "Press R to restart";
+        return !gm.IsPlaying && endCard != null && endCard.activeInHierarchy && !leavingToMap
+            && !TutorialDialogue.Playing && !SkillUnlockSummary.Playing;
+    }
+
+    // Under the buttons after a win. GameFlow goes back by itself returnDelay seconds after the win,
+    // so count the same time down; Back to Map / Enter just goes sooner
+    string EndFooter(GameManager gm, bool ready)
+    {
+        if (!gm.PlayerWon || (flow != null && flow.InTutorialRun)) return "";
+        if (CanLeaveToMap)
+        {
+            if (!ready) { returnAt = -1f; return ""; }
+            if (returnAt < 0f) returnAt = Time.unscaledTime + flow.returnDelay;
+            int left = Mathf.Max(1, Mathf.CeilToInt(returnAt - Time.unscaledTime));
+            return "Returning to the map in " + left + "...";
+        }
+        return levelLoader != null ? levelLoader.NextStepHint : "";   // editor N/P play: "Level 3 in 2..."
+    }
+
+    // Back to Map / Enter after a win: the same path as GameFlow's timer (clears the node, refills HP)
+    void GoToMapAfterWin()
+    {
+        if (leavingToMap || flow == null) return;
+        leavingToMap = true;
+        flow.CompleteCurrentNode();
+    }
+
+    void LeaveAfterLoss()
+    {
+        if (leavingToMap || flow == null) return;
+        leavingToMap = true;
+        flow.ReturnToMap();
+    }
+
+    void RetryLevel()
+    {
+        GameManager gm = GameManager.Instance;
+        if (gm == null) return;
+        if (gm.PlayerWon) KeepWinCleared();
+        gm.Restart();
+    }
+
+    // The node is only marked cleared on the way back to the map, so a replay after a win (Play Again
+    // or R) would lose the clear if the replay were lost. Keep it, as CompleteCurrentNode would
+    void KeepWinCleared()
+    {
+        MapNode node = flow != null ? flow.CurrentNode : null;
+        if (node == null || node.type != NodeType.Battle || flow.InTutorialRun) return;
+        MapHub.RefillHp();
+        ProgressStore.MarkCompleted(node.id);
+    }
+
+    // Figma Version3 "End - Win / Lose / Died (U1)": a card over the dimmed arena with the level, the
+    // result, how much was earned or missing, a YOU vs TARGET bar and the buttons. Built once at runtime
+    // like the pause popup; the scene's Result / Detail labels are hidden
+    void BuildEndCard(GameManager gm)
+    {
+        if (endCard != null) return;
+        HUDTheme theme = PopupTheme;
+        if (resultText != null) resultText.gameObject.SetActive(false);
+        if (detailText != null) detailText.gameObject.SetActive(false);
+        Image dim = endPanel.GetComponent<Image>();
+        if (dim != null) dim.color = new Color(0f, 0f, 0f, 0.6f);
+
+        bool won = gm.PlayerWon;
+        bool died = !won && gm.PlayerDied;
+        bool target = gm.UsesMoneyTarget && gm.LevelGoldTotal > 0;
+        bool map = CanLeaveToMap;
+        string level = levelText != null && levelText.gameObject.activeInHierarchy ? levelText.text : "";
+
+        string title = won ? (target ? "Achieved target!" : gm.EndReason)
+            : died ? "Died"
+            : target ? "Didn't achieve the target" : gm.EndReason;
+        string sub = won ? "Earned $" + gm.PlayerMoney.ToString("N0") + "!"
+            : died ? gm.EndReason
+            : target ? "$" + Mathf.Max(0, gm.MoneyTarget - gm.PlayerMoney).ToString("N0") + " short" : "";
+        Color subColor = won ? theme.pig : PopupDanger;
+
+        // Buttons: after a win, Back to Map [Enter] + Play Again [R]; after a loss, Retry [R] + Back to Map
+        var buttons = new List<(PopupStyle style, string text, string key, UnityEngine.Events.UnityAction click)>();
+        void AddButton(PopupStyle style, string text, string key, UnityEngine.Events.UnityAction click)
+            => buttons.Add((style, text, key, click));
+        if (won)
+        {
+            if (map) AddButton(PopupStyle.Primary, "Back to Map", "Enter", GoToMapAfterWin);
+            if (map) AddButton(PopupStyle.Secondary, "Play Again", "R", RetryLevel);
+        }
+        else
+        {
+            AddButton(PopupStyle.Primary, "Retry", "R", RetryLevel);
+            if (map) AddButton(PopupStyle.Secondary, "Back to Map", null, LeaveAfterLoss);
+        }
+
+        // Rows top-down, 20 px apart: (height, builder at the row's center y)
+        var rows = new List<(float height, System.Action<RectTransform, float> make)>();
+        void Row(float rowHeight, System.Action<RectTransform, float> make) => rows.Add((rowHeight, make));
+        if (level != "")
+            Row(24f, (card, y) => PopupText(card, "Level", level, 18f, FontStyles.Bold, theme.title, new Vector2(0f, y)).characterSpacing = 12f);
+        Row(76f, (card, y) => PopupText(card, "Result", title, won || died ? 64f : 52f, FontStyles.Bold, Color.white, new Vector2(0f, y)));
+        if (sub != "")
+            Row(38f, (card, y) => PopupText(card, "Detail", sub, 30f, FontStyles.Bold, subColor, new Vector2(0f, y)));
+        if (target)
+            Row(72f, (card, y) => EndProgress(card, y + 2f, gm, theme));   // 4 px more space above
+        if (gm.MinerMoney > 0)
+            Row(24f, (card, y) => PopupText(card, "Miner", "Miner $" + gm.MinerMoney.ToString("N0"), 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
+        if (buttons.Count > 0)
+            Row(PopupButtonHeight, (card, y) => EndButtons(card, y, buttons));
+        Row(24f, (card, y) => endFooter = PopupText(card, "Footer", "", 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
+
+        const float width = 760f;
+        const float gap = 20f;
+        float height = 44f + 40f + gap * (rows.Count - 1);
+        foreach (var row in rows) height += row.height;
+
+        RectTransform cardRect = PopupCard(endPanel.transform, "EndCard", new Vector2(width, height));
+        endCard = cardRect.gameObject;
+        float top = height * 0.5f - 44f;
+        foreach (var row in rows)
+        {
+            row.make(cardRect, top - row.height * 0.5f);
+            top -= row.height + gap;
+        }
+    }
+
+    // "YOU $180 ... TARGET $300" over a 600 px bar: the player's share of all the level's gold in pig
+    // pink, and a white tick at the target (half the gold)
+    void EndProgress(RectTransform card, float y, GameManager gm, HUDTheme theme)
+    {
+        const float width = 600f;
+        string gray = "#" + ColorUtility.ToHtmlStringRGB(theme.title);
+        string pink = "#" + ColorUtility.ToHtmlStringRGB(theme.pig);
+
+        TMP_Text you = PopupText(card, "You", "<size=16><color=" + gray + "><cspace=2>YOU</cspace></color></size>  <color="
+            + pink + ">$" + gm.PlayerMoney.ToString("N0") + "</color>", 30f, FontStyles.Bold, Color.white, new Vector2(0f, y + 18f));
+        you.rectTransform.sizeDelta = new Vector2(width, you.rectTransform.sizeDelta.y);
+        you.alignment = TextAlignmentOptions.Left;
+        TMP_Text goal = PopupText(card, "Target", "<size=16><color=" + gray + "><cspace=2>TARGET</cspace></color></size>  $"
+            + gm.MoneyTarget.ToString("N0"), 30f, FontStyles.Bold, Color.white, new Vector2(0f, y + 18f));
+        goal.rectTransform.sizeDelta = new Vector2(width, goal.rectTransform.sizeDelta.y);
+        goal.alignment = TextAlignmentOptions.Right;
+
+        float total = Mathf.Max(1, gm.LevelGoldTotal);
+        float share = Mathf.Clamp01(gm.PlayerMoney / total);
+        float mark = Mathf.Clamp01(gm.MoneyTarget / total);
+        float barY = y - 25f;
+        RectTransform track = PopupRect(card, "Track", theme.barBack, new Vector2(width, 14f), new Vector2(0f, barY));
+        RectTransform fill = PopupRect(track, "Fill", theme.pig, Vector2.zero, Vector2.zero);
+        fill.anchorMin = Vector2.zero;
+        fill.anchorMax = new Vector2(share, 1f);
+        fill.offsetMin = Vector2.zero;
+        fill.offsetMax = Vector2.zero;
+        PopupRect(card, "TargetMarker", Color.white, new Vector2(4f, 22f), new Vector2(-width * 0.5f + width * mark, barY));
+    }
+
+    // The card's buttons side by side, 320 x 72, 20 px apart, centered
+    void EndButtons(RectTransform card, float y,
+        List<(PopupStyle style, string text, string key, UnityEngine.Events.UnityAction click)> buttons)
+    {
+        const float width = 320f;
+        const float gap = 20f;
+        var row = new GameObject("Buttons", typeof(RectTransform));
+        RectTransform rect = (RectTransform)row.transform;
+        rect.SetParent(card, false);
+        rect.sizeDelta = new Vector2(buttons.Count * width + (buttons.Count - 1) * gap, PopupButtonHeight);
+        rect.anchoredPosition = new Vector2(0f, y);
+        endActions = row;
+
+        float x = -rect.sizeDelta.x * 0.5f + width * 0.5f;
+        foreach (var b in buttons)
+        {
+            PopupButton(rect, b.style, b.text, b.key, new Vector2(width, PopupButtonHeight), new Vector2(x, 0f), b.click);
+            x += width + gap;
+        }
     }
 
     // "+$600" next to a money label: a copy of the label, so it shares its font and size
