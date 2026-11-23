@@ -18,21 +18,6 @@ public static class ArtLibrary
         return sprite;
     }
 
-    static readonly Dictionary<Sprite, Sprite[]> boil = new Dictionary<Sprite, Sprite[]>();
-
-    // Stop-motion boil frames of a painted object sprite: itself, NAME_b1 and NAME_b2 (see
-    // tools/art/boil_variants.py). Null when the sprite has none (primitives, icons...).
-    public static Sprite[] BoilFrames(Sprite sprite)
-    {
-        if (sprite == null) return null;
-        if (boil.TryGetValue(sprite, out Sprite[] frames)) return frames;
-        Sprite b1 = Get("Objects/" + sprite.name + "_b1"), b2 = Get("Objects/" + sprite.name + "_b2");
-        frames = b1 != null && b2 != null ? new[] { sprite, b1, b2 } : null;
-        boil[sprite] = frames;
-        if (frames != null) { boil[b1] = frames; boil[b2] = frames; }
-        return frames;
-    }
-
     static readonly Dictionary<Material, Material> twine = new Dictionary<Material, Material>();
 
     // Twisted twine texture along a rope line. Its colour (start/end colour, e.g. yellow or red hooks)

@@ -22,6 +22,12 @@ thing on screen.
 5. **Art never changes gameplay.** No changes to rules, skills, timing, hitboxes or balance. If an effect has to
    hook into gameplay code, it only reads state, and it falls back to the old look when the art is missing.
 
+## Scope
+
+Only what the shipped game reaches from the Boot scene: Boot → Menu → tutorial levels / world-map hub
+(`world_map`) → levels, Select ("WHO ARE U"), Store, Survival. The card map (`Map.unity`), `RolePick.unity`
+and the Dev scenes are not reached and are left as they are.
+
 ## Palette
 
 | Role | Colour |
@@ -47,3 +53,13 @@ thing on screen.
 
 The primitive shapes were repainted in place with `tools/art/paperize.py`. Their files, alpha shapes and physics
 outlines are unchanged, so every shape-built character, rock and map tile picks up the paper look automatically.
+
+## Parked for the animation pass
+
+These ideas are worth doing, but they belong in a dedicated animation pass, after researching how stop-motion
+animators actually do them. That means holds, animating on twos, replacement animation, anticipation and
+settle. Random jitter isn't enough.
+
+- **Treasure "boil":** a first try with random sprite jitter was removed because it did not read as stop motion.
+- **Glints on gold and gems.**
+- **Paper-curtain scene reveal:** a torn felt sheet lifted away in stepped frames.

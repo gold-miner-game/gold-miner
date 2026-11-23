@@ -5,7 +5,7 @@
 param(
     [string]$UnityEditor = 'E:\unity\6000.3.22f1\Editor\Unity.exe',
     [string]$Work = (Join-Path $PSScriptRoot '..\..\..\_art_capture'),
-    [string]$Scenes = 'Menu,Map,Select,RolePick,Store,Survival,level_01,level_02,level_04,world_map',
+    [string]$Scenes = 'Menu,world_map,Select,Store,Survival,level_01,level_02,level_04',
     [string]$Out,
     [double]$Wait = 3,
     [switch]$SkipBuild

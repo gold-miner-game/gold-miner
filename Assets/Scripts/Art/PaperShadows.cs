@@ -1,14 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Art: the papercraft "stage" for play pieces.
-//  - Soft cut-paper drop shadows under rocks, walls, treasure, Lives and characters, so flat shapes
-//    read as layered paper on the mine floor.
-//  - Stop-motion boil: treasure and Lives cycle through hand-shifted redraws of their sprite at
-//    ~10 fps (ArtLibrary.BoilFrames), like cutouts re-posed between frames. Only the sprite is
-//    swapped: transforms, colliders and renderer state stay exactly as gameplay set them, so frost
-//    and everything else still see the object. Frozen treasure holds still.
-//  - Gold and gems catch an occasional stepped glint (PaperFx.Glint).
+// Art: soft cut-paper drop shadows under rocks, walls, treasure, Lives and characters, so flat
+// shapes read as layered paper on the mine floor. Also notices pieces vanishing mid-scene (Life
+// picked up, treasure reeled in, rock smashed) for PaperFx.
 // Read-only toward gameplay: shadows live under their own root (never children of gameplay objects,
 // so GetComponentsInChildren, bounds and frost tints never see them).
 [DefaultExecutionOrder(2000)]
@@ -18,17 +13,19 @@ public class PaperShadows : MonoBehaviour
     static readonly Color Shade = new Color(0.03f, 0.015f, 0.005f, 0.55f);
     static readonly Color Blob = new Color(0.03f, 0.015f, 0.005f, 0.4f);
     const float ScanEvery = 0.4f;
-    const float BoilFps = 10f;
 
     class Piece
     {
         public SpriteRenderer caster, look;
         public bool blob;
-        public Treasure treasure;      // boil pauses while it is frozen
-        public Sprite[] frames;        // stop-motion boil frames; null = no boil
-        public int seed;
-        public float nextGlint;
+        public Kind kind;
+        public int id;             // the caster's GameObject (treasure id for the eaten check)
+        public Vector3 lastAt;     // where it was last seen, for the effect when it disappears
+        public float lastSize;
     }
+
+    enum Kind { Rock, Treasure, Life, Character }
+    static int sceneChangeFrame = -10;   // objects vanishing around a scene change are not events
 
     static PaperShadows instance;
     readonly List<Piece> pieces = new List<Piece>();
@@ -42,31 +39,32 @@ public class PaperShadows : MonoBehaviour
         var go = new GameObject("Paper Shadows");
         DontDestroyOnLoad(go);
         instance = go.AddComponent<PaperShadows>();
+        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += s => sceneChangeFrame = Time.frameCount;
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += (s, m) => sceneChangeFrame = Time.frameCount;
     }
 
     void Update()
     {
         if (Time.unscaledTime < nextScan) return;
         nextScan = Time.unscaledTime + ScanEvery;
-        foreach (Treasure t in Treasure.Active) Cut(t.GetComponent<SpriteRenderer>(), t);
-        foreach (Rock r in FindObjectsByType<Rock>(FindObjectsSortMode.None)) Cut(r.GetComponent<SpriteRenderer>(), null);
-        foreach (LifePickup l in FindObjectsByType<LifePickup>(FindObjectsSortMode.None)) Cut(l.GetComponent<SpriteRenderer>(), null);
+        foreach (Treasure t in Treasure.Active) Cut(t.GetComponent<SpriteRenderer>(), t, Kind.Treasure);
+        foreach (Rock r in FindObjectsByType<Rock>(FindObjectsSortMode.None)) Cut(r.GetComponent<SpriteRenderer>(), null, Kind.Rock);
+        foreach (LifePickup l in FindObjectsByType<LifePickup>(FindObjectsSortMode.None)) Cut(l.GetComponent<SpriteRenderer>(), null, Kind.Life);
         foreach (PlayerCharacter p in FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None)) Pool(p);
     }
 
     // A same-shape shadow, offset down-right: rocks, walls, gold, gems, hearts.
-    void Cut(SpriteRenderer caster, Treasure treasure)
+    void Cut(SpriteRenderer caster, Treasure treasure, Kind kind)
     {
         if (caster == null || !known.Add(caster.GetInstanceID())) return;
-        int seed = caster.GetInstanceID() & 0x7fff;
         pieces.Add(new Piece
         {
             caster = caster,
+            kind = kind,
+            id = treasure != null ? treasure.GetInstanceID() : 0,
+            lastAt = caster.transform.position,
+            lastSize = caster.transform.lossyScale.x,
             look = Make(caster, caster.sprite, caster.sortingOrder - 1),
-            treasure = treasure,
-            frames = ArtLibrary.BoilFrames(caster.sprite),
-            seed = seed,
-            nextGlint = Time.time + 1f + (seed % 400) / 100f,
         });
     }
 
@@ -80,7 +78,7 @@ public class PaperShadows : MonoBehaviour
             lowest = Mathf.Min(lowest, part.sortingOrder);
         Sprite disc = ArtLibrary.Get("Fx/SoftShadow");
         if (disc == null) return;
-        pieces.Add(new Piece { caster = body, blob = true, look = Make(body, disc, lowest - 1) });
+        pieces.Add(new Piece { caster = body, blob = true, kind = Kind.Character, look = Make(body, disc, lowest - 1) });
     }
 
     SpriteRenderer Make(SpriteRenderer caster, Sprite sprite, int order)
@@ -97,7 +95,6 @@ public class PaperShadows : MonoBehaviour
 
     void LateUpdate()
     {
-        int step = Mathf.FloorToInt(Time.time * BoilFps);
         for (int i = pieces.Count - 1; i >= 0; i--)
         {
             Piece s = pieces[i];
@@ -105,13 +102,15 @@ public class PaperShadows : MonoBehaviour
             {
                 if (s.look != null) Destroy(s.look.gameObject);
                 pieces.RemoveAt(i);
+                Vanished(s);
                 continue;
             }
             bool visible = s.caster.enabled && s.caster.gameObject.activeInHierarchy;
             if (s.look.enabled != visible) s.look.enabled = visible;
             if (!visible) continue;
             if (s.blob) { PlaceBlob(s); continue; }
-            Boil(s, step);
+            s.lastAt = s.caster.transform.position;
+            s.lastSize = s.caster.transform.lossyScale.x;
             Transform t = s.look.transform, c = s.caster.transform;
             t.SetPositionAndRotation(c.position + Offset, c.rotation);
             t.localScale = c.lossyScale;
@@ -122,23 +121,17 @@ public class PaperShadows : MonoBehaviour
         }
     }
 
-    void Boil(Piece s, int step)
+    // An object was destroyed mid-scene: a Life was picked up, treasure reeled into a hole (eaten
+    // treasure already burst in PaperFx), or a rock smashed.
+    static void Vanished(Piece s)
     {
-        if (s.frames == null) return;
-        Sprite current = s.caster.sprite;
-        if (current != s.frames[0] && current != s.frames[1] && current != s.frames[2]) return;   // code changed it: leave it
-        if (s.treasure != null && s.treasure.IsFrozen) return;                                     // frozen: holds still
-        // Staggered per object, and not a plain 1-2-3 cycle: hand-animated boil skips around
-        int k = step + s.seed;
-        Sprite next = s.frames[(k + (k / 3)) % 3];
-        if (current != next) s.caster.sprite = next;
-
-        if (s.treasure != null && Time.time >= s.nextGlint)
+        if (Time.frameCount - sceneChangeFrame <= 2) return;
+        float size = Mathf.Clamp(s.lastSize, 0.3f, 1.5f);
+        switch (s.kind)
         {
-            s.nextGlint = Time.time + 2.2f + ((s.seed * 7919 + step) % 300) / 100f;
-            Bounds b = s.caster.bounds;
-            Vector3 at = b.center + new Vector3(b.extents.x * Random.Range(-0.5f, 0.3f), b.extents.y * Random.Range(-0.1f, 0.5f), 0f);
-            PaperFx.Glint(at, b.size.y * 0.55f, s.treasure.type == TreasureType.Diamond, s.caster.sortingOrder + 1);
+            case Kind.Life: PaperFx.HeartPop(s.lastAt, size); break;
+            case Kind.Treasure: if (!PaperFx.WasEaten(s.id)) PaperFx.Puff(s.lastAt, size); break;
+            case Kind.Rock: PaperFx.Crumbs(s.lastAt, size); break;
         }
     }
 
