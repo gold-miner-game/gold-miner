@@ -34,6 +34,13 @@ public class MainMenu : MonoBehaviour
     GUIStyle buttonStyle;
     GUIStyle bodyStyle;
     GUIStyle footStyle;
+    GUIStyle paperBox;      // art: paper card (gold "main choice" tab); the rounded box without art
+    Texture2D titleArt;     // art: painted title backdrop; null = the gradient
+    bool crafted;           // art: felt buttons are in use (tints become light, the felt has its own colour)
+    static readonly Color FeltTint    = new Color(0.9f, 0.88f, 0.86f, 1f);
+    static readonly Color FeltHot     = new Color(1f, 1f, 1f, 1f);
+    static readonly Color Cream       = new Color(0.95f, 0.88f, 0.74f, 1f);
+    static readonly Color TitleShadow = new Color(0.12f, 0.06f, 0.02f, 0.75f);
 
     static bool HasProgress => ProgressStore.TutorialDone || ProgressStore.HasPickedCharacter;
 
@@ -54,8 +61,17 @@ public class MainMenu : MonoBehaviour
         EnsureStyles();
         float w = ScreenFrame.GuiWidth;
         float h = ScreenFrame.GuiHeight;
-        GUI.DrawTexture(new Rect(0, 0, w, h), gradient, ScaleMode.StretchToFill);
+        if (titleArt != null) GUI.DrawTexture(new Rect(0, 0, w, h), titleArt, ScaleMode.ScaleAndCrop);
+        else GUI.DrawTexture(new Rect(0, 0, w, h), gradient, ScaleMode.StretchToFill);
 
+        if (crafted)
+        {
+            // cut-paper title: a dark shadow card slightly down-right of the gold letters
+            Color gold = titleStyle.normal.textColor;
+            titleStyle.normal.textColor = TitleShadow;
+            GUI.Label(new Rect(4, 125, w, 90), "Oinky Oinky", titleStyle);
+            titleStyle.normal.textColor = gold;
+        }
         GUI.Label(new Rect(0, 120, w, 90), "Oinky Oinky", titleStyle);
         GUI.Label(new Rect(0, 205, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
 
@@ -115,18 +131,19 @@ public class MainMenu : MonoBehaviour
     {
         bool hot = rect.Contains(Event.current.mousePosition);
         Color before = GUI.backgroundColor;
-        GUI.backgroundColor = tint ?? (hot ? ButtonHot : Button);
+        GUI.backgroundColor = tint ?? (crafted ? (hot ? FeltHot : FeltTint) : (hot ? ButtonHot : Button));
         GUI.Box(rect, GUIContent.none, box);
         GUI.backgroundColor = before;
 
         if (primary && tint == null)
         {
-            // A gold bar on the left marks the main choice
+            // A gold bar on the left marks the main choice (art: a gold paper tab)
             GUI.backgroundColor = Gold;
-            GUI.Box(new Rect(rect.x, rect.y, 6f, rect.height), GUIContent.none, box);
+            if (crafted) GUI.Box(new Rect(rect.x - 10f, rect.y + 6f, 22f, rect.height - 12f), GUIContent.none, paperBox);
+            else GUI.Box(new Rect(rect.x, rect.y, 6f, rect.height), GUIContent.none, box);
             GUI.backgroundColor = before;
         }
-        buttonStyle.normal.textColor = hot ? Gold : TextBright;
+        buttonStyle.normal.textColor = hot ? Gold : (crafted ? Cream : TextBright);
         if (tint != null) buttonStyle.normal.textColor = TextBright;
         return GUI.Button(rect, label, buttonStyle);
     }
@@ -134,7 +151,7 @@ public class MainMenu : MonoBehaviour
     void DrawPanel(Rect rect)
     {
         Color before = GUI.backgroundColor;
-        GUI.backgroundColor = Panel;
+        GUI.backgroundColor = crafted ? FeltHot : Panel;
         GUI.Box(rect, GUIContent.none, box);
         GUI.backgroundColor = before;
     }
@@ -150,6 +167,24 @@ public class MainMenu : MonoBehaviour
         rounded = WorldMapController.MakeRounded(Radius);
         box = new GUIStyle { border = new RectOffset(Radius, Radius, Radius, Radius) };
         box.normal.background = rounded;
+        paperBox = box;
+
+        // Art (papercraft): painted title backdrop, stitched felt buttons, a gold paper tab
+        Sprite backdrop = ArtLibrary.Get("Menu/TitleBackdrop");
+        Sprite felt = ArtLibrary.Get("UI/FeltPanel");
+        Sprite paper = ArtLibrary.Get("UI/PaperCard");
+        if (backdrop != null) titleArt = backdrop.texture;
+        if (felt != null)
+        {
+            box = new GUIStyle { border = new RectOffset(24, 24, 24, 24) };
+            box.normal.background = felt.texture;
+            crafted = true;
+        }
+        if (paper != null)
+        {
+            paperBox = new GUIStyle { border = new RectOffset(20, 20, 20, 20) };
+            paperBox.normal.background = paper.texture;
+        }
 
         titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 72, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         titleStyle.normal.textColor = Gold;
@@ -160,5 +195,6 @@ public class MainMenu : MonoBehaviour
         bodyStyle.normal.textColor = TextBright;
         footStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
         footStyle.normal.textColor = TextDim;
+        if (crafted) { taglineStyle.normal.textColor = Cream; footStyle.normal.textColor = Cream; }
     }
 }

@@ -12,7 +12,8 @@ public class LifePickup : MonoBehaviour
     void Awake()
     {
         SpriteRenderer sr = GetComponent<SpriteRenderer>();
-        if (sr != null) sr.sprite = Heart();
+        // Art: the painted felt heart when available, else the generated heart tinted by the renderer
+        if (sr != null && !ArtLibrary.ApplyPainted(sr, "Objects/Heart")) sr.sprite = Heart();
     }
 
     void OnTriggerEnter2D(Collider2D other)

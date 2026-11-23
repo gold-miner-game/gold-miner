@@ -818,6 +818,7 @@ public class Hook : MonoBehaviour
         {
             outline = CreateLine(parent, name + "Outline", points, material, sortingLayer, sortingOrder);
             fill = CreateLine(parent, name, points, material, sortingLayer, sortingOrder + 1);
+            if (name == "Rope") ArtLibrary.Twine(fill);   // art: twisted twine, still tinted by the hook's colour
         }
 
         static LineRenderer CreateLine(Transform parent, string name, int points, Material material, int sortingLayer, int sortingOrder)

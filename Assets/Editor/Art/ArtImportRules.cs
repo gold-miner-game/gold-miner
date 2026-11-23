@@ -1,0 +1,45 @@
+using UnityEditor;
+using UnityEngine;
+
+// Art: import settings for everything under Assets/Resources/Art, so new painted sprites need no
+// manual setup. 256 px = 1 unit, like the old primitive shapes, so a swapped sprite keeps its size.
+public class ArtImportRules : AssetPostprocessor
+{
+    const string Root = "Assets/Resources/Art/";
+
+    void OnPreprocessTexture()
+    {
+        if (!assetPath.StartsWith(Root)) return;
+        var importer = (TextureImporter)assetImporter;
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.alphaIsTransparency = true;
+        importer.mipmapEnabled = false;
+        importer.filterMode = FilterMode.Bilinear;
+        importer.textureCompression = TextureImporterCompression.CompressedHQ;
+
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        settings.spritePixelsPerUnit = 256;
+        settings.spriteMeshType = SpriteMeshType.Tight;
+        settings.spriteAlignment = (int)SpriteAlignment.Center;
+        settings.wrapMode = TextureWrapMode.Clamp;
+
+        string file = System.IO.Path.GetFileNameWithoutExtension(assetPath);
+        if (file == "MineFloor" || assetPath.Contains("/Tiles/"))
+        {
+            // Tiled backdrop: one 1024 px tile spans 8 units of floor.
+            settings.spritePixelsPerUnit = 128;
+            settings.spriteMeshType = SpriteMeshType.FullRect;
+            settings.wrapMode = TextureWrapMode.Repeat;
+        }
+        else if (assetPath.Contains("/UI/"))
+        {
+            // 9-slice cards for uGUI: 32 px corners (rounded edge + stitching) stay unstretched.
+            settings.spritePixelsPerUnit = 100;
+            settings.spriteMeshType = SpriteMeshType.FullRect;
+            settings.spriteBorder = new Vector4(32, 32, 32, 32);
+        }
+        importer.SetTextureSettings(settings);
+    }
+}
