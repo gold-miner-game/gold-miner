@@ -182,6 +182,7 @@ public class HUDController : MonoBehaviour
         UpdatePopups();
         UpdateEndPanel(gm);
         HandlePopupKeys(gm);
+        UpdateRoundCues(gm);
     }
 
     // World-map maze: drop timer / $ vs $ / Pause / title so the grid is readable.
@@ -332,12 +333,190 @@ public class HUDController : MonoBehaviour
             if (gm.Lives != lastLives)
             {
                 lives.Flash(gm.Lives < lastLives ? lifeLostColor : lifeGainedColor, moneyFlashTime);
+                if (gm.Lives < lastLives) FlashDamage();
             }
+            if (gm.IsPlaying && gm.UsesMoneyTarget && !targetCelebrated
+                && lastPlayerMoney < gm.MoneyTarget && gm.PlayerMoney >= gm.MoneyTarget)
+                CelebrateTarget();
         }
 
         hasLast = true;
         lastPlayerMoney = gm.PlayerMoney;
         lastLives = gm.Lives;
+    }
+
+    // Round cues (U6, U7): a banner that says the goal when the level starts and when it is reached,
+    // the TARGET flag pulsing at that moment, and a red edge flash when a life is lost. Built at runtime
+    // on the HUD canvas, so the saved scene needs no rebuild. They run on unscaled time (the round
+    // slows when the player stands still) and hold while Pause is open
+    const float BannerFade = 0.2f;
+    const float BannerFadeOut = 0.4f;
+    const float DamageFlashTime = 0.45f;
+    const float DamageFlashAlpha = 0.8f;
+    const float TargetPulseTime = 0.6f;
+
+    private CanvasGroup banner;
+    private TMP_Text bannerTitle;
+    private TMP_Text bannerSub;
+    private float bannerTime;
+    private float bannerHold;
+    private bool goalBannerShown;
+    private bool targetCelebrated;
+    private RawImage damageFlash;
+    private float damageLeft;
+    private float targetPulseLeft;
+
+    void UpdateRoundCues(GameManager gm)
+    {
+        float dt = IsPaused ? 0f : Time.unscaledDeltaTime;
+        if (!goalBannerShown && GoalBannerAllowed(gm))
+        {
+            goalBannerShown = true;
+            string pink = "#" + ColorUtility.ToHtmlStringRGB(PopupTheme.pig);
+            ShowBanner("Collect <color=" + pink + ">$" + gm.MoneyTarget.ToString("N0") + "</color> to win",
+                "Half of the level's gold, before time runs out", 2.6f);
+        }
+        AnimateBanner(gm, dt);
+        AnimateDamageFlash(dt);
+        AnimateTargetPulse(dt);
+    }
+
+    // Once per level, a moment after it starts (GameManager totals the level's gold in Start). Not on
+    // the world map, in the tutorial, or while a story is being told
+    bool GoalBannerAllowed(GameManager gm)
+    {
+        if (!gm.IsPlaying || !gm.UsesMoneyTarget || gm.MoneyTarget <= 0 || timerText == null) return false;
+        if (Time.timeSinceLevelLoad < 0.3f || IsPaused) return false;
+        if (flow != null && (flow.InHub || flow.InTutorialRun)) return false;
+        if (LevelLoader.Tutorial || MazeRuntime.Active != null) return false;
+        if (levelLoader != null && levelLoader.IsMazeLevel) return false;
+        return !TutorialDialogue.Playing;
+    }
+
+    // The moment the player's money reaches the target (DetectChanges): the flag pulses and the banner
+    // says the round is won if it ends now
+    void CelebrateTarget()
+    {
+        targetCelebrated = true;
+        targetPulseLeft = TargetPulseTime;
+        ShowBanner("Target reached!", "Keep eating: all the gold you collect goes to your wallet", 1.8f);
+    }
+
+    void ShowBanner(string title, string sub, float hold)
+    {
+        if (banner == null) BuildBanner();
+        if (banner == null) return;
+        bannerTitle.text = title;
+        bannerSub.text = sub;
+        bannerTime = 0f;
+        bannerHold = hold;
+        banner.alpha = 0f;
+        banner.gameObject.SetActive(true);
+        banner.transform.SetAsLastSibling();
+        if (pausePopup != null) pausePopup.transform.SetAsLastSibling();
+    }
+
+    // A rounded color/bg/panel card above the middle of the arena, title over a gray line
+    void BuildBanner()
+    {
+        if (timerText == null || timerText.canvas == null) return;
+        HUDTheme theme = PopupTheme;
+        Color fill = theme.panel;
+        fill.a = 0.92f;
+        RectTransform card = PopupBox(timerText.canvas.transform, "RoundBanner", fill, new Vector2(760f, 120f),
+            new Vector2(0f, 140f));
+        card.GetComponent<Image>().raycastTarget = false;
+        banner = card.gameObject.AddComponent<CanvasGroup>();
+        banner.blocksRaycasts = false;
+        banner.interactable = false;
+        bannerTitle = PopupText(card, "Title", "", 40f, FontStyles.Bold, Color.white, new Vector2(0f, 18f));
+        bannerTitle.richText = true;
+        bannerSub = PopupText(card, "Sub", "", 20f, FontStyles.Normal, theme.title, new Vector2(0f, -30f));
+        banner.gameObject.SetActive(false);
+    }
+
+    // Fade and grow in, hold, fade out. Gone at once when the round ends (the end card takes over)
+    void AnimateBanner(GameManager gm, float dt)
+    {
+        if (banner == null || !banner.gameObject.activeSelf) return;
+        if (!gm.IsPlaying) { banner.gameObject.SetActive(false); return; }
+
+        bannerTime += dt;
+        float alpha;
+        if (bannerTime < BannerFade) alpha = bannerTime / BannerFade;
+        else if (bannerTime < BannerFade + bannerHold) alpha = 1f;
+        else alpha = 1f - (bannerTime - BannerFade - bannerHold) / BannerFadeOut;
+        if (alpha <= 0f) { banner.gameObject.SetActive(false); return; }
+
+        banner.alpha = alpha;
+        float grow = Mathf.Clamp01(bannerTime / BannerFade);
+        banner.transform.localScale = Vector3.one * Mathf.Lerp(0.9f, 1f, grow);
+    }
+
+    // U7: the screen's edges flash red, then fade, whenever a life is lost (DetectChanges)
+    void FlashDamage()
+    {
+        if (damageFlash == null)
+        {
+            if (timerText == null || timerText.canvas == null) return;
+            var go = new GameObject("DamageFlash", typeof(RectTransform), typeof(RawImage));
+            RectTransform rect = (RectTransform)go.transform;
+            rect.SetParent(timerText.canvas.transform, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            damageFlash = go.GetComponent<RawImage>();
+            damageFlash.texture = DamageVignette();
+            damageFlash.raycastTarget = false;
+        }
+        damageLeft = DamageFlashTime;
+        damageFlash.gameObject.SetActive(true);
+        damageFlash.transform.SetAsLastSibling();
+        if (pausePopup != null) pausePopup.transform.SetAsLastSibling();
+        AnimateDamageFlash(0f);
+    }
+
+    void AnimateDamageFlash(float dt)
+    {
+        if (damageFlash == null || !damageFlash.gameObject.activeSelf) return;
+        damageLeft -= dt;
+        if (damageLeft <= 0f) { damageFlash.gameObject.SetActive(false); return; }
+        damageFlash.color = new Color(1f, 0.15f, 0.15f, DamageFlashAlpha * damageLeft / DamageFlashTime);
+    }
+
+    // The TARGET flag on the money bar swells once, then settles
+    void AnimateTargetPulse(float dt)
+    {
+        if (targetMarker == null || targetPulseLeft <= 0f) return;
+        targetPulseLeft = Mathf.Max(0f, targetPulseLeft - dt);
+        float t = 1f - targetPulseLeft / TargetPulseTime;
+        targetMarker.localScale = Vector3.one * (1f + 0.5f * Mathf.Sin(t * Mathf.PI));
+    }
+
+    // Clear in the middle, opaque toward the edges and most in the corners. White: the RawImage
+    // color makes it red
+    static Texture2D damageVignette;
+    static Texture2D DamageVignette()
+    {
+        if (damageVignette != null) return damageVignette;
+        const int size = 64;
+        damageVignette = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        damageVignette.wrapMode = TextureWrapMode.Clamp;
+        damageVignette.filterMode = FilterMode.Bilinear;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float u = (x + 0.5f) / size * 2f - 1f;
+                float v = (y + 0.5f) / size * 2f - 1f;
+                float edge = Mathf.Lerp(Mathf.Sqrt(u * u + v * v) / 1.4142f, Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)), 0.6f);
+                float alpha = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1f, edge));
+                damageVignette.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        damageVignette.Apply();
+        return damageVignette;
     }
 
     private TMP_Text targetLabel;
@@ -1480,7 +1659,7 @@ public class HUDController : MonoBehaviour
             Row(24f, (card, y) => PopupText(card, "Miner", "Miner $" + gm.MinerMoney.ToString("N0"), 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
         if (buttons.Count > 0)
             Row(PopupButtonHeight, (card, y) => EndButtons(card, y, buttons));
-        Row(24f, (card, y) => endFooter = PopupText(card, "Footer", "", 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
+        if (won) Row(24f, (card, y) => endFooter = PopupText(card, "Footer", "", 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
 
         const float width = 760f;
         const float gap = 20f;
