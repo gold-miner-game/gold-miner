@@ -10,6 +10,7 @@ public class RhinoController : PlayerCharacter
     [Min(0f)] public float acceleration = 12f;
     [Min(.01f)] public float maximumChargeSpeed = 20f;
     [Min(0f)] public float skillCooldown = 5f;
+    float ScaledCooldown => skillCooldown * PlayerCharacter.CooldownScale;   // the level can lengthen it (skill_cooldown_scale)
     public Color chargedHornColor = Color.red;
 
     [Header("Charge shake")]
@@ -36,9 +37,9 @@ public class RhinoController : PlayerCharacter
     public override string SkillName => "charge";
     public override bool SkillActive => IsCharging;
     public override float SkillReadyIn => IsCharging
-        ? Mathf.Max(0f, skillDuration - (Time.time - chargeStarted)) + Mathf.Max(0f, skillCooldown)
+        ? Mathf.Max(0f, skillDuration - (Time.time - chargeStarted)) + Mathf.Max(0f, ScaledCooldown)
         : Mathf.Max(0f, readyAt - Time.time);
-    public override float SkillWait => Mathf.Max(.01f, skillDuration) + Mathf.Max(0f, skillCooldown);
+    public override float SkillWait => Mathf.Max(.01f, skillDuration) + Mathf.Max(0f, ScaledCooldown);
     protected override bool FlipsWhenTurning => false;
     protected override bool UsesSharedCooldownTint => false;
 
@@ -251,7 +252,7 @@ public class RhinoController : PlayerCharacter
 
     void EndCharge(bool startCooldown = true)
     {
-        if (charging && startCooldown) readyAt = Time.time + Mathf.Max(0f, skillCooldown);
+        if (charging && startCooldown) readyAt = Time.time + Mathf.Max(0f, ScaledCooldown);
         if (!startCooldown) readyAt = 0f;
         charging = false;
         chargeVelocity = Vector2.zero;
@@ -370,14 +371,14 @@ public class RhinoController : PlayerCharacter
         bool active = IsCharging && !digesting;
         float chargeFraction = IsCharging
             ? ChargeExpansion(Time.time - chargeStarted)
-            : skillCooldown > 0f ? Mathf.Clamp01((readyAt - Time.time) / skillCooldown) : 0f;
+            : ScaledCooldown > 0f ? Mathf.Clamp01((readyAt - Time.time) / ScaledCooldown) : 0f;
         bool overlapping = digesting && chargeFraction > 0f;
         Color tint = digesting ? digestTint : chargedHornColor;
         // Charge spreads out from the horn/head joint. Cooldown clears from top to bottom.
         // Keep both wipes, with digestion green taking priority where they overlap.
         float fraction = digesting ? Mathf.Clamp01(DigestLeft / DigestLength)
             : active ? ChargeExpansion(Time.time - chargeStarted)
-            : skillCooldown > 0f ? Mathf.Clamp01((readyAt - Time.time) / skillCooldown) : 0f;
+            : ScaledCooldown > 0f ? Mathf.Clamp01((readyAt - Time.time) / ScaledCooldown) : 0f;
         bool show = fraction > 0f;
         for (int i = 0; i < detailSources.Count; i++)
         {

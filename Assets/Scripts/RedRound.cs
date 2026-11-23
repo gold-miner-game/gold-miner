@@ -12,6 +12,8 @@ public class RedRound : RedEnemy
     public float shootRange = 7f;
     [Tooltip("With a clear shot it stops walking this close to the player")]
     public float keepDistance = 4f;
+    [Tooltip("Its hook flies through the wall rocks (Hook.passRocks): it shoots over walls, no clear line needed")]
+    public bool throughWalls;
 
     SurvivalHookAI ai;
 
@@ -29,10 +31,11 @@ public class RedRound : RedEnemy
         if (Pushed()) return;
         if (!Ready(out float distance)) { ai.holdFire = true; return; }
 
-        bool canShoot = Hunting && distance <= shootRange && ClearLine(body.position);
+        bool canShoot = Hunting && EnemyPack.CanTarget && distance <= shootRange && (throughWalls || ClearLine(body.position));
         ai.holdFire = !canShoot;
         if (!Hunting || ai.Aiming) return;
         if (canShoot && distance <= keepDistance) return;   // close enough: hold the spot
+        if (canShoot && AtPackSpot(0.75f)) return;           // on the pack's crossfire spot: hold it
         Chase(moveSpeed * Time.fixedDeltaTime);
     }
 

@@ -15,13 +15,14 @@ public static class EnemyPathfinder
     static readonly Dictionary<int, bool[,]> grids = new Dictionary<int, bool[,]>();   // clearance (cm) -> open cells
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { grids.Clear(); sector = default; }
+    static void ResetStatics() { grids.Clear(); rooms.Clear(); sector = default; }
 
     // A new level: its sector, and forget the last level's walls
     public static void SetSector(Rect area)
     {
         sector = area;
         grids.Clear();
+        rooms.Clear();
     }
 
     public static bool HasSector => sector.width > 0f && sector.height > 0f;
@@ -139,6 +140,115 @@ public static class EnemyPathfinder
         if (path.Count > 0) path[path.Count - 1] = goal == CellOf(to) ? to : path[path.Count - 1];
         else path.Add(goal == CellOf(to) ? to : Center(goal.x, goal.y));
         return true;
+    }
+
+    // --- Distance fields (EnemyPack) -----------------------------------------------------------------
+
+    // A walking-distance map from one point: for a walker of radius `clearance`, the length (world
+    // units) of the shortest way round the walls from `from` to every cell; +infinity where it can't go.
+    // Walking is symmetric, so it is also every cell's distance *to* `from`.
+    public class Field
+    {
+        public float[,] dist;
+        public bool[,] open;
+        public int Cols => dist.GetLength(0);
+        public int Rows => dist.GetLength(1);
+        public float At(Vector2Int c) => dist[c.x, c.y];
+        public Vector2Int CellOf(Vector2 p) => EnemyPathfinder.CellOf(p);
+        public Vector2 Center(Vector2Int c) => EnemyPathfinder.Center(c.x, c.y);
+
+        // The distance at `p` (from its nearest open cell when it stands on a shut one)
+        public float At(Vector2 p)
+        {
+            Vector2Int c = CellOf(p);
+            if (open[c.x, c.y]) return dist[c.x, c.y];
+            return NearestOpen(open, c, out Vector2Int found) ? dist[found.x, found.y] : float.PositiveInfinity;
+        }
+
+        // The centre of the open cell nearest `p`, or `p` itself when its own cell is open
+        public Vector2 Snap(Vector2 p)
+        {
+            Vector2Int c = CellOf(p);
+            if (open[c.x, c.y]) return p;
+            return NearestOpen(open, c, out Vector2Int found) ? Center(found) : p;
+        }
+    }
+
+    // The grid for MapAnalysis: open cells for a walker of radius `clearance` (a tiny radius: the cells
+    // an eye can see through), and the way between cells and world positions
+    public static bool[,] Open(float clearance) => Grid(clearance);
+    public static Vector2 CellCenter(Vector2Int c) => Center(c.x, c.y);
+    public static Vector2Int CellAt(Vector2 p) => CellOf(p);
+
+    // How far (world units) each open cell is from the nearest shut one, for a walker of radius
+    // `clearance`: the room around it. Small on a narrow way between walls (a choke point, easy to
+    // hold), large out in the open. The walls never move, so it is made once per level and size
+    static readonly Dictionary<int, float[,]> rooms = new Dictionary<int, float[,]>();
+
+    public static float[,] Room(float clearance)
+    {
+        int key = Mathf.RoundToInt(clearance * 100f);
+        if (rooms.TryGetValue(key, out float[,] room)) return room;
+        bool[,] open = Grid(clearance);
+        int cols = open.GetLength(0), rows = open.GetLength(1);
+        room = new float[cols, rows];
+        var queue = new Queue<Vector2Int>();
+        for (int x = 0; x < cols; x++)
+            for (int y = 0; y < rows; y++)
+            {
+                room[x, y] = open[x, y] ? float.PositiveInfinity : 0f;
+                if (!open[x, y]) queue.Enqueue(new Vector2Int(x, y));
+            }
+        while (queue.Count > 0)
+        {
+            Vector2Int c = queue.Dequeue();
+            foreach (Vector2Int step in Steps)
+            {
+                int nx = c.x + step.x, ny = c.y + step.y;
+                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+                float d = room[c.x, c.y] + Cell;
+                if (d >= room[nx, ny]) continue;
+                room[nx, ny] = d;
+                queue.Enqueue(new Vector2Int(nx, ny));
+            }
+        }
+        rooms[key] = room;
+        return room;
+    }
+
+    public static Field DistanceField(Vector2 from, float clearance)
+    {
+        if (!HasSector) return null;
+        bool[,] open = Grid(clearance);
+        int cols = open.GetLength(0), rows = open.GetLength(1);
+        var dist = new float[cols, rows];
+        for (int x = 0; x < cols; x++)
+            for (int y = 0; y < rows; y++) dist[x, y] = float.PositiveInfinity;
+        var field = new Field { dist = dist, open = open };
+        if (!NearestOpen(open, CellOf(from), out Vector2Int start)) return field;
+
+        var closed = new bool[cols, rows];
+        var heap = new MinHeap();
+        dist[start.x, start.y] = 0f;
+        heap.Push(start.y * cols + start.x, 0f);
+        while (heap.Count > 0)
+        {
+            int current = heap.Pop();
+            int cx = current % cols, cy = current / cols;
+            if (closed[cx, cy]) continue;
+            closed[cx, cy] = true;
+            foreach (Vector2Int step in Steps)
+            {
+                int nx = cx + step.x, ny = cy + step.y;
+                if (nx < 0 || ny < 0 || nx >= cols || ny >= rows || !open[nx, ny] || closed[nx, ny]) continue;
+                if (step.x != 0 && step.y != 0 && (!open[cx + step.x, cy] || !open[cx, cy + step.y])) continue;
+                float cost = dist[cx, cy] + (step.x != 0 && step.y != 0 ? 1.4142f : 1f) * Cell;
+                if (cost >= dist[nx, ny]) continue;
+                dist[nx, ny] = cost;
+                heap.Push(ny * cols + nx, cost);
+            }
+        }
+        return field;
     }
 
     // Octile distance: the true length of an open 8-way grid walk

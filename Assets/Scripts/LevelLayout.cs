@@ -110,7 +110,7 @@ public class LevelLayout : MonoBehaviour
         try
         {
             LevelData data = LevelData.Parse(text);
-            if (data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f)
+            if (data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f || data.Param("roam", 0f) > 0.5f)
                 sector = new Vector2(data.Param("arena_width", 35.56f), data.Param("arena_height", 20f));
         }
         catch (System.Exception) { }
@@ -123,15 +123,24 @@ public class LevelLayout : MonoBehaviour
         Gizmos.color = new Color(1f, 1f, 1f, 0.35f);
         Gizmos.DrawWireCube(Vector3.zero, ArenaSize);
 
-        // Attack mode's enemy markers (LevelLoader.SetUpAttack): a red circle per Red Round, a red
-        // square per Red Square
+        // Attack / roam mode's enemy markers (LevelLoader.SetUpAttack / SetUpRoam): a red circle per
+        // Red Round, a red square per Red Square, a gold circle per Gold Round, each with its name
         Transform enemies = transform.Find("Enemies");
         if (enemies != null)
             foreach (Transform e in enemies)
             {
                 if (!e.gameObject.activeSelf) continue;
-                Gizmos.color = new Color(0.95f, 0.2f, 0.18f);
-                if (e.name.StartsWith("Red Square")) { Gizmos.DrawCube(e.position, Vector3.one * 0.8f); continue; }
+#if UNITY_EDITOR
+                UnityEditor.Handles.color = Color.white;
+                UnityEditor.Handles.Label(e.position + new Vector3(-0.6f, 0.95f), e.name);
+#endif
+                if (e.name.StartsWith("Red Square"))
+                {
+                    Gizmos.color = new Color(0.95f, 0.2f, 0.18f);
+                    Gizmos.DrawCube(e.position, Vector3.one * 0.8f);
+                    continue;
+                }
+                Gizmos.color = e.name.StartsWith("Gold Round") ? new Color(1f, 0.82f, 0.2f) : new Color(0.95f, 0.2f, 0.18f);
                 Gizmos.DrawWireSphere(e.position, 0.55f);
                 Gizmos.DrawWireSphere(e.position, 0.3f);
             }

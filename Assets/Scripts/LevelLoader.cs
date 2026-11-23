@@ -201,13 +201,21 @@ public class LevelLoader : MonoBehaviour
 
     // The level scene's PlayerStart, Hooks and Items replace the file's pig_start, hooks and items.
     // The items are already in the scene, so they are shown instead of spawned
+    // The scene's PlayerStart / Hooks / Items replace the file's. A scene without one of them (the
+    // roam level's bare scene) keeps the file's for that part
     void UseLayout()
     {
-        level.pigStart = layout.PlayerStart;
-        level.hooks.Clear();
-        level.hooks.AddRange(layout.HookOrigins());
-        level.items.Clear();
-        level.items.AddRange(layout.Items());
+        if (layout.playerStart != null) level.pigStart = layout.PlayerStart;
+        if (layout.hooks != null)
+        {
+            level.hooks.Clear();
+            level.hooks.AddRange(layout.HookOrigins());
+        }
+        if (layout.items != null)
+        {
+            level.items.Clear();
+            level.items.AddRange(layout.Items());
+        }
     }
 
     // The character chosen on the role-pick screen, else whatever ChampionSpawner still remembers.
@@ -233,8 +241,9 @@ public class LevelLoader : MonoBehaviour
         for (int i = 0; i < list.Length; i++)
         {
             LevelData data = LevelData.Parse(list[i].text);
-            // Attack and survival levels have a guide too, but they are battles
-            bool battle = data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f || data.Param("compete", 0f) > 0.5f;
+            // Attack, survival and roam levels have a guide too, but they are battles
+            bool battle = data.Param("attack", 0f) > 0.5f || data.Param("survival", 0f) > 0.5f || data.Param("compete", 0f) > 0.5f
+                          || data.Param("roam", 0f) > 0.5f;
             if (!battle && (!string.IsNullOrEmpty(data.guide) || data.stages.Count > 0)) last = i;
         }
         return last;
@@ -304,16 +313,20 @@ public class LevelLoader : MonoBehaviour
             ArenaWalls walls = new GameObject("ArenaWalls").AddComponent<ArenaWalls>();
             if (BigMap) walls.SetBounds(ArenaRect);   // the sector's edges, not the screen's
         }
-        if (layout != null) layout.ShowItems();
-        else SpawnItems();
+        if (layout != null && layout.items != null) layout.ShowItems();
+        else SpawnItems();   // no level scene, or one without Items: the file's
         SetUpPlayer();
         SetUpMiners();
         foreach (MinerAI miner in miners) AddHealth(miner.gameObject, miner.hook != null ? miner.hook.gameObject : null, miner.telegraph != null ? miner.telegraph.gameObject : null);
         SetUpRound();
         if (level.stages.Count > 0) StartStage(0);
         if (level.IsMaze) SetUpHub();
+        EnemyPack.Configure(level);   // the enemies cooperate when the level asks ("pack_ai")
+        HookHealth.ShowBars = level.Param("enemy_hp_bars", 1f) > 0.5f;   // the enemies' HP bars, on unless the level hides them
+        PlayerCharacter.CooldownScale = Mathf.Max(0f, level.Param("skill_cooldown_scale", 1f));   // K skill cooldowns times this
         if (Attack) SetUpAttack();
         if (Survival) SetUpSurvival();
+        if (Roam) SetUpRoam();
         if (Compete) SetUpCompete();
         if (level.Param("wall_rocks", 0f) > 0.5f) SealWallRocks();
 
@@ -445,6 +458,10 @@ public class LevelLoader : MonoBehaviour
         walker.wakeRange = level.Param("enemy_wake", walker.wakeRange);
         walker.shootRange = level.Param("round_range", walker.shootRange);
         walker.keepDistance = level.Param("round_keep", walker.keepDistance);
+        // "round_through_rocks": its hook flies through the wall rocks, so it shoots over walls (no clear line needed)
+        walker.throughWalls = level.Param("round_through_rocks", 0f) > 0.5f;
+        ai.hook.passRocks = walker.throughWalls;
+        if (EnemyPack.Enabled) ai.aimer = ai.gameObject.AddComponent<PackLeadAimer>();   // its hook leads the player
         return true;
     }
 
@@ -482,6 +499,132 @@ public class LevelLoader : MonoBehaviour
 
     public const string SectorClearedEvent = "sector_cleared";
 
+    // --- Roam mode ("roam": 1) ---------------------------------------------------------------------
+    // Gold on a sector bigger than the screen ("arena_width" x "arena_height", default twice the
+    // screen each way, so 4x its area), the camera following the player, with walking enemies among
+    // the gold. The enemies come from the level file's "enemies" list and/or the level scene's
+    // Enemies markers (by name):
+    //   "hook"      / Red Round ...  walks after the player and shoots its red hook (attack mode's)
+    //   "chaser"    / Red Square ... runs at the player and rams: close combat (attack mode's)
+    //   "gold_hook" / Gold Round ... walks to the nearest gold and pulls it home for the miner (GoldRound)
+    // Rock items are cover ("wall_rocks": 1 makes them walls the enemies path round). Otherwise the
+    // round plays like a normal level: the clock, the halfway gold goal, Lives.
+
+    public const string GoldRoundName = "Gold Round";
+
+    public bool Roam => level != null && level.Param("roam", 0f) > 0.5f;
+
+    Sprite goldHole;
+
+    // The level's settings that live in statics go back to normal when it ends, so they don't carry
+    // into a scene that doesn't set them (SurvivalLoader, the world map)
+    void OnDestroy()
+    {
+        PlayerCharacter.CooldownScale = 1f;
+        HookHealth.ShowBars = true;
+        EnemyPack.Enabled = false;
+    }
+
+    void SetUpRoam()
+    {
+        Rect area = ArenaRect;
+        if (player != null) GameplayCamera.Follow(player.transform, area);
+        EnemyPathfinder.SetSector(area);
+        CreateRoamGround(area);
+
+        foreach (LevelData.Enemy e in level.enemies) AddEnemy(e.type, e.position);
+
+        Transform group = layout != null ? layout.transform.Find(EnemiesName) : null;
+        if (group != null)
+            foreach (Transform spot in group)
+            {
+                if (!spot.gameObject.activeSelf) continue;
+                string kind = spot.name.StartsWith(RoundName) ? "hook"
+                            : spot.name.StartsWith(SquareName) ? "chaser"
+                            : spot.name.StartsWith(GoldRoundName) ? "gold_hook" : spot.name;
+                AddEnemy(kind, spot.position);
+                spot.gameObject.SetActive(false);   // only a marker
+            }
+    }
+
+    void AddEnemy(string kind, Vector2 at)
+    {
+        switch (kind)
+        {
+            case "hook": if (AddRound(at)) enemies++; break;
+            case "chaser": if (AddSquare(at)) enemies++; break;
+            case "gold_hook": AddGoldRound(at); break;
+            default:
+                Debug.LogWarning("LevelLoader: unknown enemy '" + kind + "' (use hook, chaser or gold_hook, or name a marker "
+                                 + RoundName + " / " + SquareName + " / " + GoldRoundName + ")");
+                break;
+        }
+    }
+
+    bool AddGoldRound(Vector2 at)
+    {
+        SurvivalHookAI ai = AddHole(at, level.Param("gold_start_delay", 0.5f));
+        if (ai == null) return false;
+        ai.transform.parent.name = GoldRoundName + " " + (holes.Count);
+        if (goldHole == null) goldHole = HookHole.CreateSprite(new Color(0.35f, 0.26f, 0.04f), GoldRound.Gold);
+        SpriteRenderer look = ai.GetComponent<SpriteRenderer>();
+        if (look != null) { look.sprite = goldHole; look.sortingOrder = 2; }
+        ai.transform.localScale = Vector3.one * level.Param("gold_round_size", 1.0f);
+        ai.hook.grabsTreasure = true;
+        ai.hook.defaultColor = GoldRound.Gold;
+        ai.hook.hitsPig = level.Param("gold_hook_hurts", 0f) > 0.5f;
+        // "gold_hook_through_rocks" (default on): its hook flies through the wall rocks, going and coming back
+        bool throughRocks = level.Param("gold_hook_through_rocks", 1f) > 0.5f;
+        ai.hook.passRocks = throughRocks;
+        // Its own hook speeds (the Red Rounds keep hook_extend / hook_retract)
+        ai.hook.extendSpeed = level.Param("gold_hook_extend", ai.hook.extendSpeed / gameSpeed) * gameSpeed;
+        ai.hook.retractSpeed = level.Param("gold_hook_retract", ai.hook.retractSpeed / gameSpeed) * gameSpeed;
+        ai.telegraphMin = level.Param("gold_telegraph_min", 0.6f);
+        ai.telegraphMax = level.Param("gold_telegraph_max", 0.9f);
+        ai.cooldown = level.Param("gold_cooldown", 1.0f);
+        // "gold_round_hp" > 0: the player can knock it out (block / roll); 0: it can't be hurt
+        int hp = Mathf.RoundToInt(level.Param("gold_round_hp", 3f));
+        HookHealth health = ai.GetComponent<HookHealth>();
+        if (hp > 0)
+        {
+            if (health == null) health = ai.gameObject.AddComponent<HookHealth>();
+            health.hp = hp;
+            health.parts = new[] { ai.transform.parent.gameObject };
+        }
+        else if (health != null) Destroy(health);
+        GoldRound walker = ai.gameObject.AddComponent<GoldRound>();
+        walker.moveSpeed = level.Param("gold_speed", 1.6f);
+        walker.reach = level.Param("gold_reach", walker.reach);
+        walker.throughWalls = throughRocks;
+        return true;
+    }
+
+    // A faint grid over the whole sector, so the ground visibly moves as the camera follows
+    void CreateRoamGround(Rect area)
+    {
+        const int size = 32;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+        var pixels = new Color[size * size];
+        Color line = new Color(0f, 0f, 0f, 0.08f);
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+                pixels[y * size + x] = x == 0 || y == 0 ? line : Color.clear;
+        texture.SetPixels(pixels);
+        texture.Apply();
+        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size / SurvivalCell, 0, SpriteMeshType.FullRect);
+
+        var go = new GameObject("Roam Ground");
+        go.transform.position = area.center;
+        SpriteRenderer ground = go.AddComponent<SpriteRenderer>();
+        ground.sprite = sprite;
+        SpriteRenderer look = player != null ? player.body : null;
+        if (look != null) ground.sharedMaterial = look.sharedMaterial;
+        ground.drawMode = SpriteDrawMode.Tiled;
+        ground.sortingOrder = -99;
+        ground.size = area.size;
+        spawned.Add(go);
+    }
+
     // --- Survival levels ("survival": 1, level 2 onward) ---------------------------------------------
     // Survival mode (SurvivalLoader) made finite, on a sector like attack mode's ("arena_width" x
     // "arena_height", the camera following the player, the level scene's wall rocks in the way):
@@ -496,8 +639,8 @@ public class LevelLoader : MonoBehaviour
 
     public bool Survival => level != null && level.Param("survival", 0f) > 0.5f;
 
-    // Attack and survival play on a sector bigger than the screen
-    bool BigMap => Attack || Survival;
+    // Attack, survival and roam play on a sector bigger than the screen
+    bool BigMap => Attack || Survival || Roam;
 
     int MaxHooks => Mathf.Max(1, Mathf.RoundToInt(level.Param("max_hooks", 10f)));
 

@@ -54,7 +54,9 @@ public abstract class PlayerCharacter : MonoBehaviour
     public virtual bool HasSkill => CanBlock;
     public virtual string SkillName => "block";
     public float BlockDuration => Record != null ? Record.getBlockDuration() : blockDuration;
-    public float BlockCooldown => Record != null ? Record.getBlockCooldown() : blockCooldown;
+    public float BlockCooldown => (Record != null ? Record.getBlockCooldown() : blockCooldown) * CooldownScale;
+    // Every character's K skill cooldown is multiplied by this: the level's "skill_cooldown_scale" (LevelLoader)
+    public static float CooldownScale = 1f;
     public float BlockLeft => Mathf.Max(0f, blockUntil - Time.time);
     public float BlockReadyIn => Mathf.Max(0f, blockReadyAt - Time.time);
     public virtual bool IsBlocking => Time.time < blockUntil || (Record != null && Record.isBracing());

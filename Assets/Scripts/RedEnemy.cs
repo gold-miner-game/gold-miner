@@ -51,6 +51,7 @@ public abstract class RedEnemy : MonoBehaviour
         distance = 0f;
         GameManager gm = GameManager.Instance;
         if (target == null || body == null || gm == null || !gm.IsPlaying) return false;
+        if (InPack) EnemyPack.Tick(target);
         distance = Vector2.Distance(body.position, target.position);
         if (!Hunting && distance <= wakeRange) Hunting = true;
         return true;
@@ -69,10 +70,38 @@ public abstract class RedEnemy : MonoBehaviour
         return clearance;
     }
 
-    // `length` along the A* path to the player (straight at them when no sector or path is known)
+    // In the pack (EnemyPack) when cooperation is on: it walks to the spot the pack gives it instead
+    // of straight at the player. The Gold Round, which is after the gold, stays out
+    public virtual bool InPack => true;
+    public Vector2 Position => body != null ? body.position : (Vector2)transform.position;
+    public static IReadOnlyList<RedEnemy> All => all;
+
+    // The pack's spot for it this moment, when it has one
+    protected bool PackOrder(out Vector2 goal, out EnemyPack.Role role)
+    {
+        goal = default; role = EnemyPack.Role.None;
+        return InPack && EnemyPack.TryGetOrder(this, out goal, out role);
+    }
+
+    // Standing (within `within`) on the pack's spot for it
+    protected bool AtPackSpot(float within)
+    {
+        return PackOrder(out Vector2 goal, out _) && (goal - Position).sqrMagnitude <= within * within;
+    }
+
+    // `length` toward the player: along the A* path to the pack's spot for it when cooperating, else
+    // to the player (straight at them when no sector or path is known)
     protected void Chase(float length)
     {
-        Vector2 me = body.position, goal = target.position;
+        Vector2 goal = target.position;
+        if (PackOrder(out Vector2 spot, out _)) goal = spot;
+        MoveTo(goal, length);
+    }
+
+    // `length` along the A* path round the walls to `goal`
+    protected void MoveTo(Vector2 goal, float length)
+    {
+        Vector2 me = body.position;
         if (!EnemyPathfinder.HasSector) { Step((goal - me).normalized, length); return; }
 
         float r = Clearance();
@@ -172,6 +201,10 @@ public abstract class RedEnemy : MonoBehaviour
             Vector2 away = me - other.body.position;
             float d = away.magnitude;
             float range = r + other.Clearance() + 0.35f;
+            // A cooperating pack spreads out: on its way to its slot a member keeps EnemyPack.Spacing
+            // from the others (not once it is inside the circle and going for the player)
+            if (other.InPack && EnemyPack.RoleOf(this) == EnemyPack.Role.Blocker)
+                range = Mathf.Max(range, EnemyPack.Spacing);
             if (d >= range) continue;
             // On top of each other: split by who is who, so they never pick the same side
             Vector2 apart = d > 0.001f ? away / d : (GetInstanceID() < other.GetInstanceID() ? right : -right);
@@ -195,6 +228,17 @@ public abstract class RedEnemy : MonoBehaviour
             return true;
         }
         return false;
+    }
+
+    // Play mode, Scene view: a line to its pack spot, coloured by its role (EnemyPack.RoleColor)
+    void OnDrawGizmos()
+    {
+        if (!Application.isPlaying) return;
+        if (all.Count > 0 && all[0] == this) EnemyPack.DrawState();   // once, not once per enemy
+        if (!PackOrder(out Vector2 goal, out EnemyPack.Role role)) return;
+        Gizmos.color = EnemyPack.RoleColor(role);
+        Gizmos.DrawLine(Position, goal);
+        Gizmos.DrawWireSphere(goal, 0.25f);
     }
 
     // No wall rock between `from` and the player

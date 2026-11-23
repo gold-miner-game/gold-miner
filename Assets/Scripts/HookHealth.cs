@@ -125,6 +125,8 @@ public class HookHealth : MonoBehaviour
 
     [Tooltip("A small HP bar over it")]
     public bool showBar = true;
+    // Off for the whole level: the level's "enemy_hp_bars": 0 (LevelLoader)
+    public static bool ShowBars = true;
     public Color barFill = new Color(0.35f, 0.9f, 0.35f);
     public Color barBack = new Color(0.1f, 0.1f, 0.1f, 0.85f);
 
@@ -140,7 +142,7 @@ public class HookHealth : MonoBehaviour
 
     void LateUpdate()
     {
-        if (!showBar || Box == null) return;
+        if (!showBar || !ShowBars || Box == null) return;
         if (bar == null) MakeBar();
         Bounds b = Box.bounds;
         float width = Mathf.Clamp(b.size.x, 0.6f, 1.4f), height = 0.12f;

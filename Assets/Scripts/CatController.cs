@@ -35,7 +35,7 @@ public class CatController : PlayerCharacter
     // After the tutorial her record decides (the store can change them); before, these Inspector values
     public float RollMultiplier => Record is CatStatus s ? s.getRollSpeedMultiplier() : speedMultiplier;
     public float RollDuration => Record is CatStatus s ? s.getRollDuration() : dashDuration;
-    public float RollCooldown => Record is CatStatus s ? s.getRollCooldown() : cooldown;
+    public float RollCooldown => (Record is CatStatus s ? s.getRollCooldown() : cooldown) * CooldownScale;
 
     public override bool HasSkill => SkillUnlockSummary.RollUnlocked;
     public override string SkillName => "roll";

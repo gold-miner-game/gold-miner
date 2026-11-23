@@ -38,6 +38,10 @@ public class SurvivalHookAI : MonoBehaviour
     [Tooltip("Hold every shot while on (attack mode's Red Round shoots only with a clear shot)")]
     public bool holdFire;
 
+    [Tooltip("A gold hook (roam mode's Gold Round): the target is a piece of treasure, not the player. " +
+             "The shot is yellow, aims straight at it, and fires none of the player-shot events")]
+    public bool goldOnly;
+
     // From the telegraph until the hook is home: the hook's origin must stay put (RedRound waits)
     public bool Aiming { get; private set; }
 
@@ -85,7 +89,8 @@ public class SurvivalHookAI : MonoBehaviour
 
         while (GameManager.Instance != null && GameManager.Instance.IsPlaying)
         {
-            if (target == null) yield break;
+            // A gold hook waits for its walker to pick the next piece; a player hook has nothing left to do
+            if (target == null) { if (goldOnly) { yield return null; continue; } yield break; }
             if (holdFire || IsFrozen) { yield return null; continue; }
             Vector2 origin = hookOrigin.position;
             if (range > 0f && Vector2.Distance(origin, target.position) > range) { yield return null; continue; }
@@ -94,7 +99,7 @@ public class SurvivalHookAI : MonoBehaviour
             float telegraphTime = Random.Range(telegraphMin, telegraphMax);
             // No meaningful guess from the aimer: shoot straight at where the player is
             Vector2 aimAt;
-            if (aimer == null || !aimer.TryAim(origin, target, telegraphTime, hook.extendSpeed, out aimAt))
+            if (goldOnly || aimer == null || !aimer.TryAim(origin, target, telegraphTime, hook.extendSpeed, out aimAt))
                 aimAt = target.position;
 
             // Lock the trajectory now, so the player can react to it
@@ -105,18 +110,18 @@ public class SurvivalHookAI : MonoBehaviour
 
             Aiming = true;
             telegraph.Show(origin, origin + dir * length, shotColor);
-            TutorialEvents.Fire(AimEvent);
+            if (!goldOnly) TutorialEvents.Fire(AimEvent);
             yield return Wait(telegraphTime);
             telegraph.Hide();
             if (!GameManager.Instance.IsPlaying) { Aiming = false; yield break; }
 
-            hook.AimedAtPlayer = true;
+            hook.AimedAtPlayer = !goldOnly;
             hook.Fire(origin, dir, length, shotColor);
-            TutorialEvents.Fire(FireEvent);
+            if (!goldOnly) TutorialEvents.Fire(FireEvent);
             TutorialEvents.Fire(ShotEvent);
             while (hook.IsBusy && GameManager.Instance.IsPlaying) yield return null;
             Aiming = false;
-            if (GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(DodgedEvent);
+            if (!goldOnly && GameManager.Instance.IsPlaying && !hook.HitPlayer) TutorialEvents.Fire(DodgedEvent);
 
             yield return Wait(cooldown);
         }

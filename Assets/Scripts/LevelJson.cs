@@ -27,6 +27,8 @@ using UnityEngine;
 // "honeycomb": true shifts every odd row half a tile to the right, so the hexagon rocks pack like a
 // honeycomb and slanted edges (the evil cat's ears, eyes and teeth) come out straight. A grid level
 // has no hooks unless it lists some ("hooks" in world units, or "miners": [{"x": col, "y": row}]).
+// "enemies" (big-map levels: attack and roam) places walking enemies, like a level scene's Enemies
+// markers: [{"type": "hook" | "chaser" | "gold_hook", "x": 4, "y": 2}] (LevelLoader.AddEnemy).
 // Positions are Unity world units. JsonUtility can't read the nested arrays, hence the small parser.
 public class LevelData
 {
@@ -36,6 +38,13 @@ public class LevelData
         public Vector2 position;
         public float scale;   // 0 = leave the prefab's scale (grid rocks use tile_size)
     }
+
+    public struct Enemy
+    {
+        public string type;   // "hook" (Red Round), "chaser" (Red Square), "gold_hook" (Gold Round)
+        public Vector2 position;
+    }
+    public readonly List<Enemy> enemies = new List<Enemy>();
 
     public class Stage
     {
@@ -124,6 +133,12 @@ public class LevelData
             foreach (object h in (List<object>)hooks) level.hooks.Add(ToVector(h));
         else level.hooks.Add(new Vector2(0f, 3.4f));
         if (root.TryGetValue("items", out object items)) ReadItems(items, level.items);
+        if (root.TryGetValue("enemies", out object enemies) && enemies is List<object> enemyList)
+            foreach (object o in enemyList)
+            {
+                var e = (Dictionary<string, object>)o;
+                level.enemies.Add(new Enemy { type = (string)e["type"], position = new Vector2(ToFloat(e["x"]), ToFloat(e["y"])) });
+            }
         if (root.TryGetValue("grid", out object grid) && grid is List<object> rows)
         {
             if (!root.ContainsKey("hooks")) level.hooks.Clear();   // the hub has no miner, unless its "miners" place some
