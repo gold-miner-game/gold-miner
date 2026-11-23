@@ -1650,6 +1650,7 @@ public class LevelLoader : MonoBehaviour
             };
             guideStyle.normal.background = back;
             guideStyle.normal.textColor = Color.white;
+            ArtLibrary.FeltBox(guideStyle);   // art: stitched felt card
         }
         // Centered over the arena (HUDLayout), just under the top bar, at most guideMaxWidth of the
         // arena's width. In ScreenFrame's 1280x720 space, so it is the same share of every screen

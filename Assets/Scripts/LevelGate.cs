@@ -63,6 +63,8 @@ public class LevelGate : MonoBehaviour
     static Sprite StarSprite()
     {
         if (starSprite != null) return starSprite;
+        starSprite = ArtLibrary.Get("Fx/PaperStar");   // art: cut-paper star, same shape and size
+        if (starSprite != null) return starSprite;
         const int size = 64;
         var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.filterMode = FilterMode.Bilinear;

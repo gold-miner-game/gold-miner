@@ -3,7 +3,8 @@ using UnityEngine;
 
 // Art: soft cut-paper drop shadows under rocks, walls, treasure, Lives and characters, so flat
 // shapes read as layered paper on the mine floor. Also notices pieces vanishing mid-scene (Life
-// picked up, treasure reeled in, rock smashed) for PaperFx.
+// picked up, treasure reeled in, rock smashed) for PaperFx, and runs the treasure boil: registered
+// surface frames (ArtLibrary.BoilFrames) swapped on threes, never moving the cut-out; frozen holds.
 // Read-only toward gameplay: shadows live under their own root (never children of gameplay objects,
 // so GetComponentsInChildren, bounds and frost tints never see them).
 [DefaultExecutionOrder(2000)]
@@ -22,6 +23,9 @@ public class PaperShadows : MonoBehaviour
         public int id;             // the caster's GameObject (treasure id for the eaten check)
         public Vector3 lastAt;     // where it was last seen, for the effect when it disappears
         public float lastSize;
+        public Treasure treasure;   // boil holds still while it is frozen
+        public Sprite[] boil;       // registered boil frames; null = none
+        public int seed;
     }
 
     enum Kind { Rock, Treasure, Life, Character }
@@ -65,6 +69,9 @@ public class PaperShadows : MonoBehaviour
             lastAt = caster.transform.position,
             lastSize = caster.transform.lossyScale.x,
             look = Make(caster, caster.sprite, caster.sortingOrder - 1),
+            treasure = treasure,
+            boil = ArtLibrary.BoilFrames(caster.sprite),
+            seed = caster.GetInstanceID() & 0xff,
         });
     }
 
@@ -109,6 +116,7 @@ public class PaperShadows : MonoBehaviour
             if (s.look.enabled != visible) s.look.enabled = visible;
             if (!visible) continue;
             if (s.blob) { PlaceBlob(s); continue; }
+            Boil(s);
             s.lastAt = s.caster.transform.position;
             s.lastSize = s.caster.transform.lossyScale.x;
             Transform t = s.look.transform, c = s.caster.transform;
@@ -119,6 +127,18 @@ public class PaperShadows : MonoBehaviour
             s.look.flipY = s.caster.flipY;
             s.look.color = new Color(Shade.r, Shade.g, Shade.b, Shade.a * s.caster.color.a);
         }
+    }
+
+    // On threes; a 0-2-1 cycle per piece, staggered, so the pile never pulses in unison. Only the
+    // sprite is swapped (same outline): transforms, colliders and colours stay as gameplay set them.
+    static void Boil(Piece s)
+    {
+        if (s.boil == null) return;
+        Sprite current = s.caster.sprite;
+        if (current != s.boil[0] && current != s.boil[1] && current != s.boil[2]) return;   // code changed it
+        if (s.treasure != null && s.treasure.IsFrozen) return;
+        Sprite next = s.boil[(StopMotion.BoilFrame * 2 + s.seed) % 3];
+        if (current != next) s.caster.sprite = next;
     }
 
     // An object was destroyed mid-scene: a Life was picked up, treasure reeled into a hole (eaten

@@ -586,6 +586,7 @@ public class SurvivalLoader : MonoBehaviour
         };
         boxStyle.normal.background = back;
         boxStyle.normal.textColor = Color.white;
+        ArtLibrary.FeltBox(boxStyle);   // art: stitched felt card
 
         titleStyle = new GUIStyle(GUI.skin.label)
         {

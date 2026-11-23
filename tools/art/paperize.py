@@ -45,7 +45,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("src")
     p.add_argument("dst")
-    p.add_argument("--style", choices=["paper", "stone"], default="paper")
+    p.add_argument("--style", choices=["paper", "stone", "felt"], default="paper")
+    p.add_argument("--stitches", type=int, default=26, help="felt: dashes around the seam")
     p.add_argument("--seed", type=int, default=1)
     a = p.parse_args()
 
@@ -75,6 +76,18 @@ def main():
         base = 0.93 + 0.07 * grain - 0.05 * fib
         rim = 0.10 * np.exp(-dist / (7 * scale))
         value = base - rim
+        if a.style == "felt":
+            # Stitched seam: a dashed thread just inside the edge, like sewn felt. Dashes follow the
+            # angle around the shape's centre; the thread is darker (it multiplies the part's tint).
+            ys, xs = np.nonzero(inside)
+            cy, cx = ys.mean(), xs.mean()
+            yy, xx = np.mgrid[0:h, 0:w]
+            arc = np.arctan2(yy - cy, xx - cx)
+            inset, width = 13 * scale, 2.6 * scale
+            band = np.exp(-((dist - inset) ** 2) / (2 * width ** 2))
+            dash = np.clip(np.sin(arc * a.stitches) * 3.0 + 0.6, 0, 1)
+            hole = np.exp(-((dist - inset) ** 2) / (2 * (width * 0.8) ** 2)) * (1 - dash) * 0.25   # needle holes between
+            value = value * (1 - 0.36 * band * dash) - 0.06 * hole
     value = np.clip(value, 0, 1) * 255
 
     out = np.dstack([value, value, value, alpha]).astype(np.uint8)

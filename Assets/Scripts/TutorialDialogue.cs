@@ -1047,6 +1047,9 @@ public class TutorialDialogue : MonoBehaviour
                                      100f, 0, SpriteMeshType.FullRect, new Vector4(16f, 16f, 16f, 16f));
         image.type = Image.Type.Sliced;
         image.color = Panel;
+        // Art (papercraft): a stitched felt card; the speaker's colour stays as the outline thread
+        Sprite felt = ArtLibrary.Get("UI/FeltPanel");
+        if (felt != null) { image.sprite = felt; image.color = new Color(1f, 1f, 1f, 0.97f); }
         image.raycastTarget = false;
         border = panel.gameObject.AddComponent<Outline>();   // the speaker's side colour (Next)
         border.effectDistance = new Vector2(4f, -4f);

@@ -121,6 +121,7 @@ public class StoreView : MonoBehaviour
         if (FindFirstObjectByType<EventSystem>() == null) MakeEventSystem(transform);
         MakeSprites();
         if (canvas == null) Build();
+        else CraftBaked();   // art: the store baked into the scene gets the same papercraft look
         if (leaveButton != null) leaveButton.onClick.AddListener(() =>
         {
             PlayAnalytics.StoreLeave();
@@ -233,7 +234,10 @@ public class StoreView : MonoBehaviour
         lip.rectTransform.offsetMin = Vector2.zero;
         lip.rectTransform.offsetMax = Vector2.zero;
 
+        Craft(bg, bar, counterImage, lip);
+
         tip = Panel(canvasGo.transform, "Tip", new Color(0.97f, 0.95f, 0.88f)).rectTransform;
+        CraftTip();
         tip.sizeDelta = new Vector2(280f, 72f);
         tip.pivot = new Vector2(0.5f, 0f);
         tip.gameObject.SetActive(false);
@@ -241,6 +245,68 @@ public class StoreView : MonoBehaviour
         Stretch(tipText.rectTransform, 16f, 12f, 16f, 12f);
         tipText.horizontalOverflow = HorizontalWrapMode.Wrap;
         tipText.verticalOverflow = VerticalWrapMode.Overflow;
+    }
+
+    // Art (papercraft): the Evil Meowmeow's shop as a painted cabinet. Its upper plank lines up with
+    // where items stand (icons 208 px up a 576 px counter), the floor is felt, the bar a stitched
+    // felt strip with a gold paper Leave button. Layout rects are untouched; without art nothing changes.
+    static bool crafted;
+    static readonly Color Cream = new Color(0.97f, 0.9f, 0.74f);
+
+    void CraftBaked()
+    {
+        Transform background = canvas.transform.Find("Background");
+        Transform bar = background != null ? background.Find("TopBar") : null;
+        Transform lip = counter != null ? counter.Find("Lip") : null;
+        if (bar == null || lip == null || counter.Find("CabinetArt") != null) return;
+        Craft(background.GetComponent<Image>(), bar.GetComponent<Image>(), counter.GetComponent<Image>(), lip.GetComponent<Image>());
+        CraftTip();
+    }
+
+    void CraftTip()
+    {
+        Sprite paper = ArtLibrary.Get("UI/PaperCard");
+        Image image = tip != null ? tip.GetComponent<Image>() : null;
+        if (paper == null || image == null) return;
+        image.sprite = paper;
+        image.type = Image.Type.Sliced;
+    }
+
+    void Craft(Image bg, Image bar, Image counterImage, Image lip)
+    {
+        if (bg == null || bar == null || counterImage == null || lip == null) return;
+        Sprite cabinet = ArtLibrary.Get("Store/Cabinet");
+        Sprite floor = ArtLibrary.Get("MineFloor"), felt = ArtLibrary.Get("UI/FeltPanel"), paper = ArtLibrary.Get("UI/PaperCard");
+        crafted = cabinet != null && floor != null && felt != null && paper != null;
+        if (!crafted) return;
+
+        bg.sprite = floor;
+        bg.type = Image.Type.Tiled;
+        bg.pixelsPerUnitMultiplier = 0.6f;
+        bg.color = new Color(0.78f, 0.74f, 0.7f);
+
+        bar.sprite = felt;
+        bar.type = Image.Type.Sliced;
+        bar.color = Color.white;
+        walletText.color = Cream;
+        itemsText.color = new Color(Cream.r, Cream.g, Cream.b, 0.75f);
+        Image leave = leaveButton.GetComponent<Image>();
+        if (leave != null) { leave.sprite = paper; leave.type = Image.Type.Sliced; leave.color = new Color(0.98f, 0.8f, 0.33f); }
+
+        counterImage.color = Color.clear;
+        lip.color = Color.clear;
+        var art = new GameObject("CabinetArt", typeof(RectTransform), typeof(Image));
+        var rect = (RectTransform)art.transform;
+        rect.SetParent(counterImage.transform, false);
+        rect.SetAsFirstSibling();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = new Vector2(0f, -10f);
+        rect.offsetMax = new Vector2(0f, -10f);
+        Image look = art.GetComponent<Image>();
+        look.sprite = cabinet;
+        look.preserveAspect = true;
+        look.raycastTarget = false;
     }
 
     void FillShelf()
@@ -529,6 +595,21 @@ public class StoreView : MonoBehaviour
 
     void DrawIcon(RectTransform parent, string icon, Color color)
     {
+        Sprite painted = ArtLibrary.Get("Icons/" + icon);   // art: painted felt/paper item
+        if (painted != null)
+        {
+            var go = new GameObject("Art", typeof(RectTransform), typeof(Image));
+            var rect = (RectTransform)go.transform;
+            rect.SetParent(parent, false);
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+            Image image = go.GetComponent<Image>();
+            image.sprite = painted;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            return;
+        }
         if (icon == "bottle") Bottle(parent);
         else if (icon == "ration") Ration(parent);
         else if (icon == "shield") Shield(parent);
@@ -593,12 +674,26 @@ public class StoreView : MonoBehaviour
         priceText.rectTransform.sizeDelta = new Vector2(170f, 36f);
         priceText.rectTransform.anchoredPosition = new Vector2(0f, 8f);
         priceText.text = "$" + price;
+        if (crafted)   // art: cream lettering with a dark cut edge, readable on the plum wallpaper
+        {
+            priceText.color = Cream;
+            priceText.fontStyle = FontStyle.Bold;
+            Outline edge = priceText.gameObject.AddComponent<Outline>();
+            edge.effectColor = new Color(0.12f, 0.05f, 0.02f, 0.9f);
+            edge.effectDistance = new Vector2(2f, -2f);
+        }
 
         Text ownedText = Label(root.transform, "Owned", font, 18, TextAnchor.MiddleCenter, new Color(0.25f, 0.14f, 0.06f));
         ownedText.rectTransform.anchorMin = ownedText.rectTransform.anchorMax = new Vector2(0.5f, 0f);
         ownedText.rectTransform.sizeDelta = new Vector2(170f, 28f);
         ownedText.rectTransform.anchoredPosition = new Vector2(0f, 44f);
         ownedText.gameObject.AddComponent<OwnedLabel>().Bind(id);
+        if (crafted)
+        {
+            ownedText.color = Cream;
+            Outline edge = ownedText.gameObject.AddComponent<Outline>();
+            edge.effectColor = new Color(0.12f, 0.05f, 0.02f, 0.8f);
+        }
         return root;
     }
 

@@ -143,6 +143,7 @@ public class Level1Tutorial : MonoBehaviour
                 alignment = TextAnchor.MiddleCenter,
             };
             wasdKeyStyle.normal.textColor = new Color(0.16f, 0.13f, 0.1f, 1f);
+            ArtLibrary.PaperBox(wasdKeyStyle);   // art: paper key caps
         }
 
         // Prefer the gameplay camera's corner; fall back to the 16:9 frame.
@@ -1084,6 +1085,7 @@ public class Level1Tutorial : MonoBehaviour
         Image cap = bar.GetComponent<Image>();
         cap.sprite = KeyCap();
         cap.color = Color.white;
+        ArtLibrary.PaperCap(cap);   // art: paper key cap
         cap.raycastTarget = false;
         Caption(barRect, "J", Vector2.zero, new Vector2(156f, 40f), new Vector2(0.5f, 0.5f), 22f,
             new Color(0.16f, 0.13f, 0.1f));

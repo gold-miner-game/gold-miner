@@ -36,6 +36,7 @@ public class MainMenu : MonoBehaviour
     GUIStyle footStyle;
     GUIStyle paperBox;      // art: paper card (gold "main choice" tab); the rounded box without art
     Texture2D titleArt;     // art: painted title backdrop; null = the gradient
+    Texture2D logo;         // art: felt and gold-leaf "Oinky Oinky" logo; null = the text title
     bool crafted;           // art: felt buttons are in use (tints become light, the felt has its own colour)
     static readonly Color FeltTint    = new Color(0.9f, 0.88f, 0.86f, 1f);
     static readonly Color FeltHot     = new Color(1f, 1f, 1f, 1f);
@@ -48,10 +49,59 @@ public class MainMenu : MonoBehaviour
 
     void Update()
     {
+        if (peelStart >= 0f && StopMotion.UnscaledSnap(peelStart) >= PeelTime)
+        {
+            peelStart = -1f;
+            peeled = true;   // the sticker is gone: don't redraw it while the next scene loads
+            Play();
+            return;
+        }
         Keyboard keyboard = DeveloperConsole.CapturesInput ? null : Keyboard.current;
         if (keyboard == null) return;
         if (keyboard.escapeKey.wasPressedThisFrame && page != Page.Main) page = Page.Main;
-        else if (keyboard.enterKey.wasPressedThisFrame && page == Page.Main) Play();
+        else if (keyboard.enterKey.wasPressedThisFrame && page == Page.Main) StartGame();
+    }
+
+    // Art: the main button is a felt sticker. Pressing it peels the sticker off, right to left, in
+    // stop-motion poses (docs/art-style.md), then the game starts. Without art it starts at once.
+    const float PeelTime = 0.42f;
+    float peelStart = -1f;
+    bool peeled;
+
+    void StartGame()
+    {
+        if (!crafted) { Play(); return; }
+        if (peelStart < 0f) peelStart = Time.unscaledTime;
+    }
+
+    void DrawPeel(Rect rect, string label)
+    {
+        float t = Mathf.Clamp01(StopMotion.UnscaledSnap(peelStart) / PeelTime);
+        // a held first pose with the corner just lifting, then the peel accelerates (a hand pulling)
+        float p = t < 0.2f ? 0.05f : Mathf.Lerp(0.05f, 1f, Mathf.Pow((t - 0.2f) / 0.8f, 1.6f));
+        float edge = rect.x + rect.width * (1f - p);
+        float curl = Mathf.Min(rect.width * p * 0.5f, 46f);
+
+        // the sticker's shadow on the backdrop where it has already lifted
+        Color before = GUI.backgroundColor;
+        GUI.backgroundColor = new Color(0f, 0f, 0f, 0.35f);
+        GUI.Box(new Rect(edge, rect.y + 4f, rect.xMax - edge, rect.height), GUIContent.none, paperBox);
+
+        // the part still stuck down
+        GUI.BeginGroup(new Rect(rect.x, rect.y, Mathf.Max(0f, edge - rect.x), rect.height));
+        GUI.backgroundColor = FeltHot;
+        GUI.Box(new Rect(0f, 0f, rect.width, rect.height), GUIContent.none, box);
+        buttonStyle.normal.textColor = Gold;
+        GUI.Label(new Rect(0f, 0f, rect.width, rect.height), label, buttonStyle);
+        GUI.EndGroup();
+
+        // the peeled flap: the sticker's paper back, folded over the edge
+        if (curl > 1f)
+        {
+            GUI.backgroundColor = new Color(0.95f, 0.9f, 0.8f);
+            GUI.Box(new Rect(edge - curl, rect.y - 2f, curl, rect.height + 4f), GUIContent.none, paperBox);
+        }
+        GUI.backgroundColor = before;
     }
 
     void OnGUI()
@@ -64,16 +114,25 @@ public class MainMenu : MonoBehaviour
         if (titleArt != null) GUI.DrawTexture(new Rect(0, 0, w, h), titleArt, ScaleMode.ScaleAndCrop);
         else GUI.DrawTexture(new Rect(0, 0, w, h), gradient, ScaleMode.StretchToFill);
 
-        if (crafted)
+        if (logo != null)
         {
-            // cut-paper title: a dark shadow card slightly down-right of the gold letters
-            Color gold = titleStyle.normal.textColor;
-            titleStyle.normal.textColor = TitleShadow;
-            GUI.Label(new Rect(4, 125, w, 90), "Oinky Oinky", titleStyle);
-            titleStyle.normal.textColor = gold;
+            // art: the felt and gold-leaf logo (the same words), centred where the title was
+            float lh = 175f, lw = lh * logo.width / logo.height;
+            GUI.DrawTexture(new Rect((w - lw) * 0.5f, 52f, lw, lh), logo, ScaleMode.ScaleToFit);
         }
-        GUI.Label(new Rect(0, 120, w, 90), "Oinky Oinky", titleStyle);
-        GUI.Label(new Rect(0, 205, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
+        else
+        {
+            if (crafted)
+            {
+                // cut-paper title: a dark shadow card slightly down-right of the gold letters
+                Color gold = titleStyle.normal.textColor;
+                titleStyle.normal.textColor = TitleShadow;
+                GUI.Label(new Rect(4, 125, w, 90), "Oinky Oinky", titleStyle);
+                titleStyle.normal.textColor = gold;
+            }
+            GUI.Label(new Rect(0, 120, w, 90), "Oinky Oinky", titleStyle);
+        }
+        GUI.Label(new Rect(0, logo != null ? 228f : 205f, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
 
         switch (page)
         {
@@ -93,7 +152,11 @@ public class MainMenu : MonoBehaviour
     {
         float x = (w - ButtonWidth) * 0.5f;
         float y = 290f;
-        if (DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), HasProgress ? "Continue" : "Start", true)) Play();
+        Rect main = new Rect(x, y, ButtonWidth, ButtonHeight);
+        string mainLabel = HasProgress ? "Continue" : "Start";
+        if (peeled) { }
+        else if (peelStart >= 0f) DrawPeel(main, mainLabel);
+        else if (DrawButton(main, mainLabel, true)) StartGame();
         y += ButtonHeight + ButtonGap;
         if (HasProgress)
         {
@@ -174,6 +237,8 @@ public class MainMenu : MonoBehaviour
         Sprite felt = ArtLibrary.Get("UI/FeltPanel");
         Sprite paper = ArtLibrary.Get("UI/PaperCard");
         if (backdrop != null) titleArt = backdrop.texture;
+        Sprite logoArt = ArtLibrary.Get("Menu/Logo");
+        if (logoArt != null) logo = logoArt.texture;
         if (felt != null)
         {
             box = new GUIStyle { border = new RectOffset(24, 24, 24, 24) };
@@ -196,5 +261,6 @@ public class MainMenu : MonoBehaviour
         footStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
         footStyle.normal.textColor = TextDim;
         if (crafted) { taglineStyle.normal.textColor = Cream; footStyle.normal.textColor = Cream; }
+        if (PaperType.Display != null) titleStyle.font = PaperType.Display;   // art: hand-cut title letters
     }
 }

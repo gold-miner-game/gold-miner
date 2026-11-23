@@ -49,6 +49,7 @@ public class PaperUI : MonoBehaviour
         if (image.color.a < 0.3f) return false;   // invisible hit areas, faint highlights
         Sprite s = image.sprite;
         if (s == null) return true;
+        if (s.name == "FeltPanel" || s.name == "PaperCard") return false;   // already papercraft (art code set it)
         string n = s.name;
         return n == "UISprite" || n == "Background" || n == "InputFieldBackground" || n.Contains("Rounded") || n.Contains("Panel");
     }

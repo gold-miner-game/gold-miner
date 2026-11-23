@@ -8,6 +8,8 @@ param(
     [string]$Scenes = 'Menu,world_map,Select,Store,Survival,level_01,level_02,level_04',
     [string]$Out,
     [double]$Wait = 3,
+    [int]$Frames = 0,          # also save this many 12 fps frames per scene (motion check)
+    [switch]$Peel,             # press the menu's main button before the Menu frames
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -48,7 +50,10 @@ if (!$SkipBuild) {
 
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $playerLog = Join-Path $Out 'player.log'
-$p = Start-Process -FilePath $exe -ArgumentList @('-screen-fullscreen', '0', '-screen-width', '1600', '-screen-height', '900',
-    '-artcapture', ('"' + $Out + '"'), '-artscenes', $Scenes, '-artwait', $Wait, '-logFile', ('"' + $playerLog + '"')) -PassThru
+$playerArgs = @('-screen-fullscreen', '0', '-screen-width', '1600', '-screen-height', '900',
+    '-artcapture', ('"' + $Out + '"'), '-artscenes', $Scenes, '-artwait', $Wait, '-artframes', $Frames,
+    '-logFile', ('"' + $playerLog + '"'))
+if ($Peel) { $playerArgs += '-artpeel' }
+$p = Start-Process -FilePath $exe -ArgumentList $playerArgs -PassThru
 if (!$p.WaitForExit(600000)) { $p.Kill(); throw "Player timed out; see $playerLog" }
 Write-Output "Shots: $Out (exit $($p.ExitCode))"

@@ -22,6 +22,25 @@ thing on screen.
 5. **Art never changes gameplay.** No changes to rules, skills, timing, hitboxes or balance. If an effect has to
    hook into gameplay code, it only reads state, and it falls back to the old look when the art is missing.
 
+## Characters
+
+![character art bible](images/art-characters.jpg)
+
+The heroes and the Evil Meowmeow are stitched felt. In the game they are still built from the circle, triangle,
+capsule and square shapes, which are felt with a sewn seam, so every existing animation and skill works unchanged.
+Pure-black enemy felt became charcoal (`#2B2426`) so it reads on the dark floor. The concept sheet above was made
+with Meshy's Agent as the reference for future character art.
+
+## Type
+
+| Use | Font | Licence |
+|---|---|---|
+| HUD, buttons, dialogue, body text | Fredoka SemiBold | SIL Open Font License |
+| Big titles | Luckiest Guy | Apache 2.0 |
+
+Both fonts and their licences are in `Assets/Resources/Art/Fonts`. `PaperType` switches only texts still on the stock
+fonts, so a font someone chose on purpose stays.
+
 ## Scope
 
 Only what the shipped game reaches from the Boot scene: Boot → Menu → tutorial levels / world-map hub
@@ -54,12 +73,58 @@ and the Dev scenes are not reached and are left as they are.
 The primitive shapes were repainted in place with `tools/art/paperize.py`. Their files, alpha shapes and physics
 outlines are unchanged, so every shape-built character, rock and map tile picks up the paper look automatically.
 
-## Parked for the animation pass
+## Animation: the stop-motion rules
 
-These ideas are worth doing, but they belong in a dedicated animation pass, after researching how stop-motion
-animators actually do them. That means holds, animating on twos, replacement animation, anticipation and
-settle. Random jitter isn't enough.
+Research notes:
 
-- **Treasure "boil":** a first try with random sprite jitter was removed because it did not read as stop motion.
-- **Glints on gold and gems.**
-- **Paper-curtain scene reveal:** a torn felt sheet lifted away in stepped frames.
+- Hand animation is shot **on twos**: each pose is held for 2 frames, so 12 poses per second at 24 fps. Ones are
+  kept for fast, detailed action, and animators mix the two within a shot.
+- Stepped motion only reads as crafted when the poses themselves ease, ramping into a move and settling out of it.
+- A **boil** is 2–3 redrawings of the *same* registered pose. The silhouette stays put and only the surface and
+  edges shimmer.
+- In papercraft games (Tearaway, Blender Studio's papercraft devlog), the world animates "at a lower frame-rate
+  akin to stop motion". Characters use swappable sticker parts (replacement animation) instead of rigs.
+
+The rules that follow:
+
+1. **Gameplay never steps.** Movement, hooks, collisions and timers stay smooth at full frame rate, because
+   input feel is gameplay. Only art-owned motion is stepped: effects, UI transitions, idle life.
+2. **One shared clock on twos.** Art motion samples `StopMotion.Time`, game time snapped to 12 fps, so every
+   cut-out moves on the same beat, the way frames are shot on a stage.
+3. **Poses, not jitter.** Every art move is anticipation, action, settle. Each has a held first and last pose.
+4. **Boil keeps registration.** Boil frames may change surface and edge pixels only, never position, rotation
+   or scale. They run on threes (8 fps), so the surface feels handled, not shaken.
+5. **Pause means still.** Art motion uses the game's (scaled) time, so a paused game is a still photo of the set.
+
+The first attempt at a treasure "boil" (random sprite jitter, removed) broke rules 3 and 4. It moved the whole
+cut-out, so it read as shaking.
+
+### Performances
+
+The original game showed most states with a colour change. These performances were added on top. All are
+art-only and posed on twos.
+
+| Moment | Performance | Where |
+|---|---|---|
+| Idle | blinks every 2–5 s, an occasional ear flick | `PaperPuppet` |
+| Moving | eyes look where it goes; ears trail the motion and overshoot when it stops | `PaperPuppet` |
+| Eat | gulp (eyes pop wide), content squint, gold-leaf burst and ring | `PaperPuppet`, `PaperFx` |
+| Digesting | chewing: ears wiggle alternately on threes, eyes half closed | `PaperPuppet` |
+| Block (Mr. Hyde) | one-pose wind-up, then ears pinned back and eyes squeezed; dust ring | `PaperPuppet` |
+| Roll (JK. Rolling) | dust kicked up behind the roll | `PaperPuppet` |
+| Charge (Hulk) | ears flat back, felt steam puffs left behind | `PaperPuppet` |
+| Swift | paper speed strips trail the runner | `PaperPuppet`, `PaperFx` |
+| Shield | the bubble breathes on threes | `PaperPuppet` |
+| Hit | flinch (eyes clench, ears flatten), felt heart scraps fly | `PaperPuppet` |
+| Evil Meowmeow | eyes narrow in a glare, teeth chatter | `PaperPuppet` |
+| Hook shot | dirt puff at the burrow | `PaperPuppet` |
+| Treasure | registered boil on threes; one light-catch star at a time | `PaperShadows`, `PaperFx` |
+| Life / reel-in / smash | felt-heart burst / dust puff / paper crumbs | `PaperFx` |
+| HUD numbers | the label stamps: big, smaller, settled | `PaperHud` |
+| Scene change | felt curtain holds, dips, is pulled away | `PaperCurtain` |
+| Start / Continue | the felt sticker peels off right to left (suggested by the team) | `MainMenu` |
+
+`PaperPuppet` works as an additive pose layer. Before any script's `FixedUpdate` or `Update`, every part it posed
+is put back exactly as it was. After every `LateUpdate`, it re-poses them for the picture. Gameplay and the
+existing skill animations always read and write the true values. Only child art parts move, never a root or
+anything with a collider.

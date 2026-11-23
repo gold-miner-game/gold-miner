@@ -63,6 +63,8 @@ public static class QuitChrome
         image.type = Image.Type.Sliced;
         image.pixelsPerUnitMultiplier = 3.2f;   // 32 px sprite corner draws as 10 px, same as the level button
         image.color = Color.white;
+        Sprite paper = ArtLibrary.Get("UI/PaperCard");   // art: a cream paper tag (same 32 px corners)
+        if (paper != null) { image.sprite = paper; image.color = new Color(0.96f, 0.9f, 0.76f); }
 
         var button = go.GetComponent<Button>();
         button.targetGraphic = image;

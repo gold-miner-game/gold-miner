@@ -225,6 +225,23 @@ public class StoreDemoCaptureDriver : MonoBehaviour
         captureCamera.transform.position = new Vector3(0f, 0f, -10f);
         captureCamera.backgroundColor = new Color(0.19215687f, 0.3019608f, 0.4745098f);
         captureCamera.clearFlags = CameraClearFlags.SolidColor;
+        // Art: record on the papercraft felt floor with the game's camera grade, as the game looks
+        Sprite floor = ArtLibrary.Get("MineFloor");
+        if (floor != null)
+        {
+            captureCamera.backgroundColor = new Color(0.23f, 0.16f, 0.12f);
+            var floorObject = new GameObject("Mine Floor");
+            floorObject.transform.SetParent(stage.transform);
+            floorObject.transform.position = new Vector3(0f, 0f, 5f);
+            SpriteRenderer floorLook = floorObject.AddComponent<SpriteRenderer>();
+            floorLook.sprite = floor;
+            floorLook.drawMode = SpriteDrawMode.Tiled;
+            floorLook.size = new Vector2(16f, 16f);
+            floorLook.sortingOrder = short.MinValue;
+            floorLook.color = new Color(0.92f, 0.9f, 0.88f);
+        }
+        var cameraData = UnityEngine.Rendering.Universal.CameraExtensions.GetUniversalAdditionalCameraData(captureCamera);
+        if (cameraData != null) cameraData.renderPostProcessing = true;
         target = new RenderTexture(Size, Size, 24);
         captureCamera.targetTexture = target;
         frame = new Texture2D(Size, Size, TextureFormat.RGB24, false);

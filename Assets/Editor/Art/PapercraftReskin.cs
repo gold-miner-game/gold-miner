@@ -29,8 +29,59 @@ public static class PapercraftReskin
     {
         AssetDatabase.ImportAsset("Assets/Resources/Art", ImportAssetOptions.ImportRecursive | ImportAssetOptions.ForceUpdate);
         foreach (Swap swap in Objects) SwapRoot(swap);
+        RemapPackagePrimitives();
         AssetDatabase.SaveAssets();
         Debug.Log("PAPERCRAFT_RESKIN_PASS");
+    }
+
+    // Some parts still used the 2D package's default shapes (Circle, Triangle, Capsule, Square), which
+    // can't be repainted. They point at the project's felt/paper copies instead: same size, pivot and
+    // pixels per unit, same outlines. Pure-black enemy felt becomes charcoal so grain, stitches and the
+    // red features read on the dark mine floor.
+    static readonly string[] PrimitiveUsers =
+    {
+        "Assets/Prefabs/Enemy/EvilMeowmeow.prefab", "Assets/Prefabs/Enemy/GreedyMeowmeow.prefab",
+        "Assets/Prefabs/Object/Exit.prefab", "Assets/Prefabs/Reference/CatTired.prefab",
+        "Assets/Prefabs/Teams/Cat.prefab", "Assets/Prefabs/Teams/Frog.prefab", "Assets/Prefabs/Teams/Squirrel.prefab",
+    };
+    static readonly Color Charcoal = new Color(0.17f, 0.14f, 0.15f, 1f);
+
+    static void RemapPackagePrimitives()
+    {
+        foreach (string path in PrimitiveUsers)
+        {
+            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                bool enemy = path.Contains("/Enemy/");
+                int changed = 0;
+                foreach (SpriteRenderer r in root.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    Sprite paper = PaperCopy(r.sprite);
+                    if (paper != null) { r.sprite = paper; changed++; }
+                    if (enemy && r.color.r < 0.05f && r.color.g < 0.05f && r.color.b < 0.05f)
+                    {
+                        r.color = new Color(Charcoal.r, Charcoal.g, Charcoal.b, r.color.a);
+                        changed++;
+                    }
+                }
+                if (changed > 0) PrefabUtility.SaveAsPrefabAsset(root, path);
+                Debug.Log("Paper primitives " + path + ": " + changed);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
+
+        // Scenes (Select.unity) are remapped by tools/art/remap_primitive_guids.py: saving a scene
+        // through Unity would reorder the whole file.
+    }
+
+    static Sprite PaperCopy(Sprite sprite)
+    {
+        if (sprite == null) return null;
+        string from = AssetDatabase.GetAssetPath(sprite);
+        if (!from.StartsWith("Packages/com.unity.2d.sprite/")) return null;
+        Sprite paper = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/Sprites/" + sprite.name + ".png");
+        return paper;
     }
 
     public static void ApplyBatch()

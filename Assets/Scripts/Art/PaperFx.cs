@@ -6,25 +6,48 @@ using UnityEngine;
 //     the bloom picks up.
 //   - Life picked up: felt-heart scraps; treasure reeled in: dust puff; rock smashed: paper crumbs
 //     (PaperShadows notices those objects disappearing mid-scene).
-// Flakes are plain sprites moved here; nothing is spawned under gameplay objects.
+//   - Light catch: every few seconds one visible treasure catches the light: a paper star pops
+//     small, full, held, half, gone.
+// Stop-motion rules (docs/art-style.md): the bits simulate smoothly but are only re-posed on twos
+// (StopMotion.Frame), so they move like cut-outs shot frame by frame. Scaled time: pause = still.
+// Flakes are plain sprites under this object; nothing is spawned under gameplay objects.
 public class PaperFx : MonoBehaviour
 {
     static readonly Color[] GoldLeaf = { new Color(1f, 0.86f, 0.3f), new Color(0.95f, 0.7f, 0.15f), new Color(1f, 0.95f, 0.65f) };
     static readonly Color[] GemLeaf = { new Color(0.6f, 0.88f, 1f), new Color(0.85f, 0.97f, 1f), new Color(0.45f, 0.7f, 0.95f) };
+    static readonly Color[] HeartFelt = { new Color(0.95f, 0.25f, 0.3f), new Color(1f, 0.55f, 0.65f), new Color(1f, 0.92f, 0.9f) };
+    static readonly Color[] Dust = { new Color(0.55f, 0.42f, 0.32f), new Color(0.42f, 0.32f, 0.24f), new Color(0.68f, 0.58f, 0.48f) };
+    static readonly Color[] StoneCrumbs = { new Color(0.62f, 0.6f, 0.58f), new Color(0.45f, 0.43f, 0.42f), new Color(0.78f, 0.76f, 0.72f) };
+    static readonly float[] CatchPoses = { 0.35f, 1f, 1f, 0.55f };   // one scale per pose on twos
+
+    enum Kind { Flake, Ring, Catch, Strip }
+
+    // A running character leaves thin cream paper strips along its path (Swift).
+    public static void Strip(Vector3 at, Vector2 velocity)
+    {
+        if (instance == null || instance.flake == null) return;
+        Bit b = instance.Spawn(Kind.Strip, instance.flake, at, Vector3.zero, 0f, 0.3f, 2.2f, 0f, new Color(0.97f, 0.9f, 0.74f, 0.8f), 3);
+        b.angle = Mathf.Atan2(velocity.y, velocity.x) * Mathf.Rad2Deg;
+        instance.Pose(b);
+    }
 
     class Bit
     {
         public SpriteRenderer look;
-        public Vector3 velocity;
-        public float spin, age, life, grow;
+        public Kind kind;
+        public Vector3 at, velocity;
+        public float angle, spin, age, life, size, grow;
         public Color color;
-        public bool ring;
+        public int bornFrame;
     }
 
     static PaperFx instance;
     readonly List<Bit> live = new List<Bit>();
     readonly Stack<SpriteRenderer> pool = new Stack<SpriteRenderer>();
-    Sprite flake, disc, ring;
+    readonly HashSet<int> eaten = new HashSet<int>();   // treasure the player ate (not reeled in)
+    Sprite flake, disc, ring, sparkle;
+    int shownFrame = -1;
+    float nextCatch;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
@@ -43,12 +66,9 @@ public class PaperFx : MonoBehaviour
         flake = ArtLibrary.Get("Fx/Flake");
         disc = ArtLibrary.Get("Fx/SoftShadow");
         ring = ArtLibrary.Get("Fx/Ring");
+        sparkle = ArtLibrary.Get("Fx/Sparkle");
+        nextCatch = Time.time + 2f;
     }
-
-    static readonly Color[] HeartFelt = { new Color(0.95f, 0.25f, 0.3f), new Color(1f, 0.55f, 0.65f), new Color(1f, 0.92f, 0.9f) };
-    static readonly Color[] Dust = { new Color(0.55f, 0.42f, 0.32f), new Color(0.42f, 0.32f, 0.24f), new Color(0.68f, 0.58f, 0.48f) };
-    static readonly Color[] StoneCrumbs = { new Color(0.62f, 0.6f, 0.58f), new Color(0.45f, 0.43f, 0.42f), new Color(0.78f, 0.76f, 0.72f) };
-    public readonly HashSet<int> eaten = new HashSet<int>();   // treasure the player ate (not reeled in)
 
     void OnEaten(Treasure treasure)
     {
@@ -58,6 +78,8 @@ public class PaperFx : MonoBehaviour
         Burst(treasure.transform.position, size, treasure.type == TreasureType.Diamond ? GemLeaf : GoldLeaf,
             new Color(1f, 0.93f, 0.7f, 0.9f), new Color(1f, 0.85f, 0.4f, 0.55f));
     }
+
+    public static bool WasEaten(int treasureId) => instance != null && instance.eaten.Remove(treasureId);
 
     // A Life was picked up: felt-heart scraps and a pink pop.
     public static void HeartPop(Vector3 at, float size)
@@ -83,69 +105,118 @@ public class PaperFx : MonoBehaviour
         int count = Mathf.RoundToInt(Mathf.Lerp(8, 18, Mathf.InverseLerp(0.3f, 1.2f, size)) * amount);
         for (int i = 0; i < count; i++)
         {
-            float angle = Random.value * Mathf.PI * 2f;
+            float a = Random.value * Mathf.PI * 2f;
             float speed = Random.Range(1.6f, 3.4f) * (0.6f + size * 0.5f);
-            Spawn(flake, at, new Vector3(Mathf.Cos(angle), Mathf.Sin(angle)) * speed, Random.Range(-720f, 720f),
-                Random.Range(0.35f, 0.6f), Random.Range(0.09f, 0.16f) * (0.7f + size * 0.4f), 0f,
-                palette[Random.Range(0, palette.Length)], false);
+            Spawn(Kind.Flake, flake, at, new Vector3(Mathf.Cos(a), Mathf.Sin(a)) * speed, Random.Range(-720f, 720f),
+                Random.Range(0.4f, 0.65f), Random.Range(0.09f, 0.16f) * (0.7f + size * 0.4f), 0f,
+                palette[Random.Range(0, palette.Length)], 400);
         }
-        if (ring != null) Spawn(ring, at, Vector3.zero, 0f, 0.3f, size * 0.8f, size * 3.2f, ringColor, true);
-        if (disc != null && glow.HasValue) Spawn(disc, at, Vector3.zero, 0f, 0.22f, size * 1.6f, size * 1.5f, glow.Value, true);
+        if (ring != null) Spawn(Kind.Ring, ring, at, Vector3.zero, 0f, 0.33f, size * 0.8f, size * 3.2f, ringColor, 400);
+        if (disc != null && glow.HasValue) Spawn(Kind.Ring, disc, at, Vector3.zero, 0f, 0.25f, size * 1.6f, size * 1.5f, glow.Value, 400);
     }
 
-    public static bool WasEaten(int treasureId) => instance != null && instance.eaten.Remove(treasureId);
-
-    void Spawn(Sprite sprite, Vector3 at, Vector3 velocity, float spin, float life, float scale, float grow, Color color, bool isRing)
+    Bit Spawn(Kind kind, Sprite sprite, Vector3 at, Vector3 velocity, float spin, float life, float size, float grow, Color color, int order)
     {
         SpriteRenderer look = pool.Count > 0 ? pool.Pop() : NewLook();
         look.gameObject.SetActive(true);
         look.sprite = sprite;
-        look.transform.SetPositionAndRotation(at, Quaternion.Euler(0f, 0f, Random.value * 360f));
-        look.transform.localScale = Vector3.one * scale;
-        look.color = color;
-        look.sortingOrder = 400;
-        live.Add(new Bit { look = look, velocity = velocity, spin = spin, life = life, grow = grow, color = color, ring = isRing });
+        look.sortingOrder = order;
+        var b = new Bit
+        {
+            look = look, kind = kind, at = at, velocity = velocity, spin = spin, life = life, size = size,
+            grow = grow, color = color, angle = Random.value * 360f, bornFrame = StopMotion.Frame,
+        };
+        live.Add(b);
+        Pose(b);   // the first pose shows at once
+        return b;
     }
 
     SpriteRenderer NewLook()
     {
         var go = new GameObject("Fx");
         go.transform.SetParent(transform, false);
-        var look = go.AddComponent<SpriteRenderer>();
-        look.sortingOrder = 400;
-        return look;
+        return go.AddComponent<SpriteRenderer>();
     }
 
     void Update()
     {
+        CatchLight();
         float dt = Time.deltaTime;
         for (int i = live.Count - 1; i >= 0; i--)
         {
             Bit b = live[i];
             b.age += dt;
-            float t = b.age / b.life;
-            if (t >= 1f || b.look == null)
+            if (b.age >= b.life || b.look == null)
             {
                 if (b.look != null) { b.look.gameObject.SetActive(false); pool.Push(b.look); }
                 live.RemoveAt(i);
                 continue;
             }
-            Transform tr = b.look.transform;
-            if (b.ring)
-            {
-                tr.localScale += Vector3.one * b.grow * dt;
-                b.look.color = new Color(b.color.r, b.color.g, b.color.b, b.color.a * (1f - t) * (1f - t));
-            }
-            else
+            if (b.kind == Kind.Flake)
             {
                 b.velocity *= Mathf.Exp(-5f * dt);
-                tr.position += b.velocity * dt;
-                tr.Rotate(0f, 0f, b.spin * dt);
-                // paper flakes flutter: they flip edge-on and back as they spin
-                float flutter = Mathf.Abs(Mathf.Cos(b.age * 14f + b.spin));
-                tr.localScale = new Vector3(tr.localScale.y * Mathf.Max(0.25f, flutter), tr.localScale.y, 1f);
-                b.look.color = new Color(b.color.r, b.color.g, b.color.b, 1f - t * t);
+                b.at += b.velocity * dt;
+                b.angle += b.spin * dt;
             }
+        }
+        if (StopMotion.Frame == shownFrame) return;   // hold the pose until the next twos
+        shownFrame = StopMotion.Frame;
+        foreach (Bit b in live) Pose(b);
+    }
+
+    void Pose(Bit b)
+    {
+        if (b.look == null) return;
+        Transform t = b.look.transform;
+        float k = Mathf.Clamp01(b.age / b.life);
+        switch (b.kind)
+        {
+            case Kind.Flake:
+                // paper flakes flutter: edge-on and back as they spin
+                float flutter = Mathf.Max(0.25f, Mathf.Abs(Mathf.Cos(b.age * 14f + b.spin)));
+                t.SetPositionAndRotation(b.at, Quaternion.Euler(0f, 0f, b.angle));
+                t.localScale = new Vector3(b.size * flutter, b.size, 1f);
+                b.look.color = new Color(b.color.r, b.color.g, b.color.b, 1f - k * k);
+                break;
+            case Kind.Ring:
+                t.SetPositionAndRotation(b.at, Quaternion.identity);
+                t.localScale = Vector3.one * (b.size + b.grow * b.age);
+                b.look.color = new Color(b.color.r, b.color.g, b.color.b, b.color.a * (1f - k) * (1f - k));
+                break;
+            case Kind.Strip:
+                t.SetPositionAndRotation(b.at, Quaternion.Euler(0f, 0f, b.angle));
+                t.localScale = new Vector3(b.size * (1f - 0.5f * k), 0.16f, 1f);   // flake art is 0.25 units: a long thin strip
+                b.look.color = new Color(b.color.r, b.color.g, b.color.b, b.color.a * (1f - k));
+                break;
+            case Kind.Catch:
+                int pose = Mathf.Clamp(StopMotion.Frame - b.bornFrame, 0, CatchPoses.Length - 1);
+                t.SetPositionAndRotation(b.at, Quaternion.Euler(0f, 0f, b.angle));
+                t.localScale = Vector3.one * b.size * CatchPoses[pose];
+                b.look.color = b.color;
+                break;
+        }
+    }
+
+    // One treasure at a time catches the light, every 2.5-4.5 s: a deliberate accent, not sparkle noise.
+    void CatchLight()
+    {
+        if (sparkle == null || Time.time < nextCatch || Treasure.Active.Count == 0) return;
+        nextCatch = Time.time + Random.Range(2.5f, 4.5f);
+        Camera cam = Camera.main;
+        for (int tries = 0; tries < 6; tries++)
+        {
+            Treasure t = Treasure.Active[Random.Range(0, Treasure.Active.Count)];
+            if (t == null || t.IsFrozen) continue;
+            SpriteRenderer look = t.GetComponent<SpriteRenderer>();
+            if (look == null || !look.isVisible) continue;
+            if (cam != null && !cam.pixelRect.Contains(cam.WorldToScreenPoint(look.bounds.center))) continue;
+            Bounds b = look.bounds;
+            Vector3 at = b.center + new Vector3(b.extents.x * Random.Range(-0.45f, 0.2f), b.extents.y * Random.Range(0.1f, 0.5f), 0f);
+            Color tint = t.type == TreasureType.Diamond ? new Color(0.88f, 0.97f, 1f) : new Color(1f, 0.97f, 0.82f);
+            Bit c = Spawn(Kind.Catch, sparkle, at, Vector3.zero, 0f, CatchPoses.Length / StopMotion.Twos, b.size.y * 0.6f, 0f, tint, look.sortingOrder + 1);
+            c.angle = Random.Range(0, 2) * 45f;
+            Pose(c);
+            return;
         }
     }
 }
