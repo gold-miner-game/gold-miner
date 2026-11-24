@@ -40,6 +40,15 @@ public class ArtImportRules : AssetPostprocessor
             settings.spriteMeshType = SpriteMeshType.FullRect;
             settings.spriteBorder = new Vector4(32, 32, 32, 32);
         }
+        else if (assetPath.Contains("/Objects/") && (file.StartsWith("Gold") || file.StartsWith("Diamond")))
+        {
+            // Treasure: the sprite's bounds are read by gameplay (Hook.HoldInClaw places a carried
+            // treasure by them), so they must equal the old look's exactly: full rect, canvas = the old
+            // footprint. Gold: the 1-unit circle (256 px). Diamond: the old 1.0667 x 0.9333 gem
+            // (256 x 224 px at 240 px per unit).
+            settings.spriteMeshType = SpriteMeshType.FullRect;
+            if (file.StartsWith("Diamond")) settings.spritePixelsPerUnit = 240;
+        }
         else if (assetPath.Contains("/Slices/"))
         {
             // 9-slice strips for small world-space pieces (SpriteRenderer drawMode Sliced): 1024 px = 1

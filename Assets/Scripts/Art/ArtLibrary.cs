@@ -7,6 +7,13 @@ public static class ArtLibrary
 {
     static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
+    // Art's own random numbers. Effects never draw from UnityEngine.Random, the stream gameplay uses
+    // (spawns, AI), so adding or removing an effect can't change what the game rolls next.
+    static readonly System.Random rng = new System.Random();
+    public static float Value => (float)rng.NextDouble();
+    public static float Range(float min, float max) => min + (max - min) * (float)rng.NextDouble();
+    public static int Range(int min, int max) => max <= min ? min : rng.Next(min, max);   // max exclusive, like Random.Range
+
     // "Objects/Heart" -> Resources/Art/Objects/Heart; null when that art does not exist.
     public static Sprite Get(string name)
     {

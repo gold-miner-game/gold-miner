@@ -144,7 +144,7 @@ public class PaperPuppet : MonoBehaviour
         foreach (PlayerCharacter p in FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None))
         {
             if (!known.Add(p.GetInstanceID())) continue;
-            var a = new Actor { player = p, lastAt = p.transform.position, nextBlink = Time.time + Random.Range(1f, 3f), nextFlick = Time.time + Random.Range(4f, 8f) };
+            var a = new Actor { player = p, lastAt = p.transform.position, nextBlink = Time.time + ArtLibrary.Range(1f, 3f), nextFlick = Time.time + ArtLibrary.Range(4f, 8f) };
             foreach (Transform t in p.GetComponentsInChildren<Transform>(true))
             {
                 if (t == p.transform || t.GetComponent<Collider2D>() != null) continue;
@@ -159,7 +159,7 @@ public class PaperPuppet : MonoBehaviour
         foreach (Transform root in FindObjectsByType<Transform>(FindObjectsSortMode.None))
         {
             if (!root.name.Contains("Meowmeow") || !known.Add(root.GetInstanceID())) continue;
-            var e = new Enemy { root = root, nextGlare = Time.time + Random.Range(1f, 3f) };
+            var e = new Enemy { root = root, nextGlare = Time.time + ArtLibrary.Range(1f, 3f) };
             var reds = new List<Transform>();
             foreach (SpriteRenderer r in root.GetComponentsInChildren<SpriteRenderer>(true))
                 if (r.color.r > 0.5f && r.color.g < 0.2f && r.transform != root && r.GetComponent<Collider2D>() == null) reds.Add(r.transform);
@@ -214,8 +214,8 @@ public class PaperPuppet : MonoBehaviour
         bool charging = p is RhinoController rhino && rhino.IsCharging;
         bool rolling = p is CatController cat && cat.IsRolling;
 
-        if (Time.time >= a.nextBlink) { a.blinkAt = Time.time; a.nextBlink = Time.time + Random.Range(2.2f, 5f); }
-        if (Time.time >= a.nextFlick) { a.flickAt = Time.time; a.nextFlick = Time.time + Random.Range(5f, 9f); }
+        if (Time.time >= a.nextBlink) { a.blinkAt = Time.time; a.nextBlink = Time.time + ArtLibrary.Range(2.2f, 5f); }
+        if (Time.time >= a.nextFlick) { a.flickAt = Time.time; a.nextFlick = Time.time + ArtLibrary.Range(5f, 9f); }
 
         int pose = StopMotion.Frame;
         float sinceBrace = now - StopMotion.Snap(a.braceAt, StopMotion.Twos);
@@ -287,7 +287,7 @@ public class PaperPuppet : MonoBehaviour
     void Glare(Enemy e, float now)
     {
         if (!e.root.gameObject.activeInHierarchy) return;
-        if (Time.time >= e.nextGlare) { e.glareAt = Time.time; e.nextGlare = Time.time + Random.Range(1.8f, 3.6f); }
+        if (Time.time >= e.nextGlare) { e.glareAt = Time.time; e.nextGlare = Time.time + ArtLibrary.Range(1.8f, 3.6f); }
         float since = now - StopMotion.Snap(e.glareAt, StopMotion.Twos);
         float narrow = since < 4f / StopMotion.Twos ? (since < 1f / StopMotion.Twos ? 0.8f : 0.55f) : 1f;
         foreach (Transform t in e.eyes)

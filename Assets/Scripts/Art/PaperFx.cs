@@ -105,11 +105,11 @@ public class PaperFx : MonoBehaviour
         int count = Mathf.RoundToInt(Mathf.Lerp(8, 18, Mathf.InverseLerp(0.3f, 1.2f, size)) * amount);
         for (int i = 0; i < count; i++)
         {
-            float a = Random.value * Mathf.PI * 2f;
-            float speed = Random.Range(1.6f, 3.4f) * (0.6f + size * 0.5f);
-            Spawn(Kind.Flake, flake, at, new Vector3(Mathf.Cos(a), Mathf.Sin(a)) * speed, Random.Range(-720f, 720f),
-                Random.Range(0.4f, 0.65f), Random.Range(0.09f, 0.16f) * (0.7f + size * 0.4f), 0f,
-                palette[Random.Range(0, palette.Length)], 400);
+            float a = ArtLibrary.Value * Mathf.PI * 2f;
+            float speed = ArtLibrary.Range(1.6f, 3.4f) * (0.6f + size * 0.5f);
+            Spawn(Kind.Flake, flake, at, new Vector3(Mathf.Cos(a), Mathf.Sin(a)) * speed, ArtLibrary.Range(-720f, 720f),
+                ArtLibrary.Range(0.4f, 0.65f), ArtLibrary.Range(0.09f, 0.16f) * (0.7f + size * 0.4f), 0f,
+                palette[ArtLibrary.Range(0, palette.Length)], 400);
         }
         if (ring != null) Spawn(Kind.Ring, ring, at, Vector3.zero, 0f, 0.33f, size * 0.8f, size * 3.2f, ringColor, 400);
         if (disc != null && glow.HasValue) Spawn(Kind.Ring, disc, at, Vector3.zero, 0f, 0.25f, size * 1.6f, size * 1.5f, glow.Value, 400);
@@ -124,7 +124,7 @@ public class PaperFx : MonoBehaviour
         var b = new Bit
         {
             look = look, kind = kind, at = at, velocity = velocity, spin = spin, life = life, size = size,
-            grow = grow, color = color, angle = Random.value * 360f, bornFrame = StopMotion.Frame,
+            grow = grow, color = color, angle = ArtLibrary.Value * 360f, bornFrame = StopMotion.Frame,
         };
         live.Add(b);
         Pose(b);   // the first pose shows at once
@@ -201,20 +201,20 @@ public class PaperFx : MonoBehaviour
     void CatchLight()
     {
         if (sparkle == null || Time.time < nextCatch || Treasure.Active.Count == 0) return;
-        nextCatch = Time.time + Random.Range(2.5f, 4.5f);
+        nextCatch = Time.time + ArtLibrary.Range(2.5f, 4.5f);
         Camera cam = Camera.main;
         for (int tries = 0; tries < 6; tries++)
         {
-            Treasure t = Treasure.Active[Random.Range(0, Treasure.Active.Count)];
+            Treasure t = Treasure.Active[ArtLibrary.Range(0, Treasure.Active.Count)];
             if (t == null || t.IsFrozen) continue;
             SpriteRenderer look = t.GetComponent<SpriteRenderer>();
             if (look == null || !look.isVisible) continue;
             if (cam != null && !cam.pixelRect.Contains(cam.WorldToScreenPoint(look.bounds.center))) continue;
             Bounds b = look.bounds;
-            Vector3 at = b.center + new Vector3(b.extents.x * Random.Range(-0.45f, 0.2f), b.extents.y * Random.Range(0.1f, 0.5f), 0f);
+            Vector3 at = b.center + new Vector3(b.extents.x * ArtLibrary.Range(-0.45f, 0.2f), b.extents.y * ArtLibrary.Range(0.1f, 0.5f), 0f);
             Color tint = t.type == TreasureType.Diamond ? new Color(0.88f, 0.97f, 1f) : new Color(1f, 0.97f, 0.82f);
             Bit c = Spawn(Kind.Catch, sparkle, at, Vector3.zero, 0f, CatchPoses.Length / StopMotion.Twos, b.size.y * 0.6f, 0f, tint, look.sortingOrder + 1);
-            c.angle = Random.Range(0, 2) * 45f;
+            c.angle = ArtLibrary.Range(0, 2) * 45f;
             Pose(c);
             return;
         }

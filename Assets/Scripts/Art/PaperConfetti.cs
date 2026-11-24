@@ -80,12 +80,12 @@ public class PaperConfetti : MonoBehaviour
             var p = new Piece
             {
                 look = look,
-                at = new Vector2(Random.Range(0f, w), h + Random.Range(0.02f, 0.4f) * h),
-                velocity = new Vector2(Random.Range(-0.12f, 0.12f) * h, Random.Range(-0.4f, -0.05f) * h),
-                spin = Random.Range(-540f, 540f), angle = Random.value * 360f,
-                life = Random.Range(2.6f, 3.6f), size = Random.Range(0.022f, 0.036f) * h, sway = Random.value * 6f,
+                at = new Vector2(ArtLibrary.Range(0f, w), h + ArtLibrary.Range(0.02f, 0.4f) * h),
+                velocity = new Vector2(ArtLibrary.Range(-0.12f, 0.12f) * h, ArtLibrary.Range(-0.4f, -0.05f) * h),
+                spin = ArtLibrary.Range(-540f, 540f), angle = ArtLibrary.Value * 360f,
+                life = ArtLibrary.Range(2.6f, 3.6f), size = ArtLibrary.Range(0.022f, 0.036f) * h, sway = ArtLibrary.Value * 6f,
             };
-            look.color = Paper[Random.Range(0, Paper.Length)];
+            look.color = Paper[ArtLibrary.Range(0, Paper.Length)];
             live.Add(p);
             Pose(p);
         }

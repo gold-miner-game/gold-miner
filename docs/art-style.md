@@ -27,9 +27,13 @@ Before and after:
 
    Anything whose colour code reads (`Rock`, `MapHub`) keeps its tint. Its art is light greyscale paper so the
    tint still colours it. Only art whose tint means nothing is shown in its own colours (`ArtLibrary.ApplyPainted`).
-4. **Same footprint.** A new sprite covers exactly the area of the shape it replaces: 256 px = 1 unit, centred,
-   edge to edge. Colliders, scales and gameplay components are never changed for looks.
-5. **Art never changes gameplay.** No changes to rules, skills, timing, hitboxes or balance. If an effect has to
+4. **Same footprint.** A new sprite covers exactly the box of the shape it replaces: 256 px = 1 unit, centred,
+   edge to edge. Where gameplay reads a sprite's bounds (a carried treasure sits by them), the art is a full-rect
+   sprite whose canvas is the old box (`ArtImportRules`). Colliders, scales and gameplay components are never
+   changed for looks.
+5. **Art has its own dice.** Effects draw from `ArtLibrary.Range/Value`, never `UnityEngine.Random`, so
+   they can't shift what spawns or AI roll next.
+6. **Art never changes gameplay.** No changes to rules, skills, timing, hitboxes or balance. If an effect has to
    hook into gameplay code, it only reads state, and it falls back to the old look when the art is missing.
 
 ## Characters
@@ -161,7 +165,7 @@ art-only and posed on twos.
 | Skill cooldown / Hulk charge | the tint fills the felt body up to a torn-paper edge; the charge spreads as a hand-cut disc | `PlayerCharacter`, `RhinoController` |
 | Hook aim (telegraph) | a running stitch of twisted thread, whole line shown at once; stitches march toward the target on twos | `TelegraphLine` |
 | Scene change | felt curtain holds, dips, is pulled away | `PaperCurtain` |
-| Start / Continue | the felt sticker peels off right to left (suggested by the team) | `MainMenu` |
+| Start / Continue | the felt sticker peels off right to left (suggested by the team); the scene load waits for the 0.5 s peel | `MainMenu` |
 
 `PaperPuppet` works as an additive pose layer. Before any script's `FixedUpdate` or `Update`, every part it posed
 is put back exactly as it was. After every `LateUpdate`, it re-poses them for the picture. Gameplay and the
