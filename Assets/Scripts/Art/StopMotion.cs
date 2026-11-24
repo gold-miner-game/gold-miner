@@ -59,6 +59,10 @@ public static class StopMotion
 
     // The shared rock: -1, -1, 0, +1, +1, 0 on the pose clock (0.75 s a rock). Treasure leans with it,
     // characters and cats against it, so the set rocks in counterpoint like a handled stage.
+    // How far a rock tips: 3 degrees each way, the gentle nudge of a hand-set cut-out between frames (idle
+    // sway in hand-made motion sits around 1.5-4 degrees; 6 read as a wobble). Treasure's pre-drawn
+    // Objects/NAME_r1/_r2 poses are drawn at exactly this angle (+ and -).
+    public const float RockDegrees = 3f;
     static readonly int[] RockCycle = { -1, -1, 0, 1, 1, 0 };
     public static int Rock => RockCycle[((Frame % RockCycle.Length) + RockCycle.Length) % RockCycle.Length];
 

@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 // moved is put back exactly as it was (PaperPuppetRestore, earliest order); after every LateUpdate
 // it is re-posed for the picture (here, latest order). So gameplay, skills, Elsa's mouth, the cat's
 // tired eyes and every other script always read and write the real values. Only child art parts
-// (ears, eyes, shield bubble, enemy features) move: never a root, never anything with a collider.
+// (ears, eyes, the shield's box, enemy features) move: never a root, never anything with a collider.
 //
 // Performances (poses on twos, StopMotion; docs/art-style.md):
 //   idle      blinks every few seconds; an ear flick now and then
@@ -17,7 +17,7 @@ using UnityEngine.SceneManagement;
 //   digest    chewing: ears wiggle alternately on threes, eyes half closed
 //   block     brace: a tiny wind-up, then ears pinned back and eyes squeezed shut; a dust ring
 //   charge    ears flat back, felt steam puffs left behind (Hulk)
-//   shield    the bubble breathes on threes
+//   shield    the paper box sits still on the head and rocks with the face (same tip, same beat)
 //   hit       flinch: eyes clench, ears flatten, felt heart scraps fly off
 //   enemies   Evil Meowmeow's eyes narrow in a glare, teeth chatter
 //   hooks     a dirt puff at the burrow when a hook shoots
@@ -42,7 +42,6 @@ public class PaperPuppet : MonoBehaviour
     {
         public PlayerCharacter player;
         public readonly List<Part> ears = new List<Part>(), eyes = new List<Part>();
-        public Transform bubble;
         public readonly List<Transform> features = new List<Transform>();   // the face's top-level cut-outs, rocked together
         public Vector3 lastAt;
         public Vector2 velocity;
@@ -284,10 +283,10 @@ public class PaperPuppet : MonoBehaviour
                 float side = Mathf.Sign(p.transform.InverseTransformPoint(t.position).x + 0.0001f);
                 if (n.Contains("Ear") || n == "Scarf End" || n.StartsWith("Leg ")) a.ears.Add(new Part { t = t, side = side });   // the flappy bits: ears, the penguin's scarf end, the frog's legs
                 else if (n.StartsWith("Eye") && !n.Contains("Catchlight")) a.eyes.Add(new Part { t = t, side = side });
-                else if (n == "ShieldBubble") a.bubble = t;
                 // top-level cut-outs, or containers of them (Artwork, Frog Visuals, a squirrel's Ear L), never a
                 // piece that carries or holds a collider (hitboxes, tongue tip)
-                if (t.parent == p.transform && n != "ShieldBubble" && t.GetComponentInChildren<SpriteRenderer>(true) != null
+                // (the shield's box too: it never changes size, it just rocks with the head)
+                if (t.parent == p.transform && t.GetComponentInChildren<SpriteRenderer>(true) != null
                     && t.GetComponentInChildren<Collider2D>(true) == null
                     && t.GetComponentInChildren<Rigidbody2D>(true) == null) a.features.Add(t);
             }
@@ -315,7 +314,7 @@ public class PaperPuppet : MonoBehaviour
         // Reserve during discovery, so posing/reapplying never grows a list on a render frame.
         eyePictures.RemoveAll(e => e.t == null);
         int capacity = eyePictures.Count;
-        foreach (Actor a in actors) capacity += a.ears.Count + a.eyes.Count + a.features.Count + (a.bubble != null ? 1 : 0);
+        foreach (Actor a in actors) capacity += a.ears.Count + a.eyes.Count + a.features.Count;
         foreach (Enemy e in enemies) capacity += e.eyes.Count + e.teeth.Count + e.features.Count;
         if (saved.Capacity < capacity) saved.Capacity = capacity;
         if (held.Capacity < capacity) held.Capacity = capacity;
@@ -448,14 +447,6 @@ public class PaperPuppet : MonoBehaviour
             e.t.localPosition += local;
         }
 
-        // ---- shield bubble breathes on threes
-        if (a.bubble != null && a.bubble.gameObject.activeInHierarchy)
-        {
-            Remember(a.bubble);
-            float breath = (StopMotion.BoilFrame % 3) == 0 ? 1.05f : (StopMotion.BoilFrame % 3) == 1 ? 1f : 0.97f;
-            a.bubble.localScale *= breath;
-        }
-
         // ---- charge steam: keep its cadence here; PaperSkillFx owns roll dust (Swift has no effect),
         // so emitting dust here as well would duplicate the skill performance.
         if (charging && Time.time >= a.nextPuff && a.velocity.sqrMagnitude > 0.5f)
@@ -470,14 +461,12 @@ public class PaperPuppet : MonoBehaviour
     // leaning against the treasure (StopMotion.Rock, opposite sign), as if the animator nudged the puppet
     // between frames. The round body sprite is the gameplay root and stays put: it is a circle, so the tip
     // reads as the whole puppet rocking. Characters' mode only (StopMotion.Enabled).
-    const float RockDegrees = 6f;
-
     void RockFeatures(List<Transform> parts, Transform pivot, float sign, float tilt, Vector3 sway)
     {
         if (!StopMotion.Enabled) return;
         int rock = StopMotion.Rock;
         // Remember the rest drawing too: controller-driven face/roll pivots can move between ticks.
-        Quaternion turn = Quaternion.Euler(0f, 0f, sign * rock * RockDegrees + tilt);
+        Quaternion turn = Quaternion.Euler(0f, 0f, sign * rock * StopMotion.RockDegrees + tilt);
         Vector3 centre = pivot.position;
         foreach (Transform t in parts)
         {

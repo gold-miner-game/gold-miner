@@ -228,7 +228,7 @@ public class PaperMiners : MonoBehaviour
         }
         float catScale = catSize / Mathf.Max(0.01f, m.look.sprite.bounds.size.x);
         bool pawsOn = m.paws != null && m.paws.enabled;
-        Quaternion tip = Quaternion.Euler(0f, 0f, pawsOn && StopMotion.Enabled && !m.frozen ? -StopMotion.Rock * 6f : 0f);
+        Quaternion tip = Quaternion.Euler(0f, 0f, pawsOn && StopMotion.Enabled && !m.frozen ? -StopMotion.Rock * StopMotion.RockDegrees : 0f);
         // Elsa's frost: the miner's real body is the hidden square (or the burrow), so its ice overlay cannot
         // show; the felt cat itself turns ice-blue while the miner is frozen, like the claw and twine do
         Color felt = m.frozen ? Ice : Color.white;

@@ -16,6 +16,8 @@ public class PaperFx : MonoBehaviour
     static readonly Color[] GoldLeaf = { new Color(1f, 0.86f, 0.3f), new Color(0.95f, 0.7f, 0.15f), new Color(1f, 0.95f, 0.65f) };
     static readonly Color[] GemLeaf = { new Color(0.6f, 0.88f, 1f), new Color(0.85f, 0.97f, 1f), new Color(0.45f, 0.7f, 0.95f) };
     static readonly Color[] HeartFelt = { new Color(0.95f, 0.25f, 0.3f), new Color(1f, 0.55f, 0.65f), new Color(1f, 0.92f, 0.9f) };
+    // pale sandy felt: reads against the dark mine floor (the darker Dust vanishes on it)
+    static readonly Color[] KickDust = { new Color(0.9f, 0.8f, 0.64f), new Color(0.78f, 0.66f, 0.5f), new Color(0.96f, 0.9f, 0.78f) };
     static readonly Color[] Dust = { new Color(0.55f, 0.42f, 0.32f), new Color(0.42f, 0.32f, 0.24f), new Color(0.68f, 0.58f, 0.48f) };
     static readonly Color[] StoneCrumbs = { new Color(0.62f, 0.6f, 0.58f), new Color(0.45f, 0.43f, 0.42f), new Color(0.78f, 0.76f, 0.72f) };
     static readonly float[] CatchPoses = { 0.35f, 1f, 1f, 0.55f };   // one scale per pose on twos
@@ -91,6 +93,27 @@ public class PaperFx : MonoBehaviour
     public static void Puff(Vector3 at, float size)
     {
         if (instance != null) instance.Burst(at, size * 0.7f, Dust, new Color(0.6f, 0.48f, 0.36f, 0.6f), null, 0.6f);
+    }
+
+    // Dust kicked up behind something that just turned (the cat's roll): two soft pale dust clouds that
+    // swell and fade, and felt crumbs thrown back in a fan away from where it is going. No ring.
+    public static void Kick(Vector3 at, Vector2 back, float size)
+    {
+        if (instance == null || instance.flake == null) return;
+        float aim = Mathf.Atan2(back.y, back.x);
+        if (instance.disc != null)
+            for (int i = 0; i < 2; i++)
+                instance.Spawn(Kind.Ring, instance.disc, at + (Vector3)(back * size * 0.18f * i), Vector3.zero, 0f, 0.45f,
+                    size * (0.38f - 0.08f * i), size * 0.9f, new Color(0.88f, 0.78f, 0.62f, 0.45f), 399);
+        int count = Mathf.RoundToInt(Mathf.Lerp(6, 10, Mathf.InverseLerp(0.3f, 1.2f, size)));
+        for (int i = 0; i < count; i++)
+        {
+            float a = aim + ArtLibrary.Range(-0.85f, 0.85f);
+            float speed = ArtLibrary.Range(1.2f, 2.6f) * (0.6f + size * 0.4f);
+            instance.Spawn(Kind.Flake, instance.flake, at, new Vector3(Mathf.Cos(a), Mathf.Sin(a)) * speed, ArtLibrary.Range(-540f, 540f),
+                ArtLibrary.Range(0.35f, 0.55f), ArtLibrary.Range(0.5f, 0.9f) * (0.7f + size * 0.4f), 0f,   // flake art is 0.25 units
+                KickDust[ArtLibrary.Range(0, KickDust.Length)], 400);
+        }
     }
 
     // A rock smashed: grey paper crumbs and dust on top of the rock's own pieces.

@@ -6,8 +6,8 @@ using UnityEngine.SceneManagement;
 //   - Swift: no effect on purpose; the speed itself is the feedback.
 //   - Block (Mr. Hyde, and Brace): no effect here; the body turning blue (BlockFlash) says it (playtest: the
 //     paper guard ring read as clutter).
-//   - Roll (JK. Rolling): a felt dust puff kicked out behind the roll on every other pose.
-//   - Shield: the paper-bag helmet worn over the head (PlayerCharacter's ShieldBubble, covering everything
+//   - Roll (JK. Rolling): each beat the rolling cat turns, felt dust kicks up behind her (no ring).
+//   - Shield: the flat kraft box worn on the head (PlayerCharacter's ShieldBubble, covering just the part
 //     above the eyes); when the shield runs out it tears into three pieces that burst out and fall away over
 //     five held poses, with a felt puff.
 //   - Time machine (Slowness): the floor layer (felt floor, strata, props, lamplight) bleaches toward white
@@ -23,13 +23,13 @@ public class PaperSkillFx : MonoBehaviour
     static PaperSkillFx instance;
 
     SpriteRenderer wash;
-    // the bag's tear: pieces A (upper left), B (upper right), C (the cuff); where each flies (in bag sizes)
+    // the box's tear: pieces A (front left half), B (front right half), C (the lid); where each flies (in box sizes)
     Sprite[] bagPieces;
     SpriteRenderer[] tear;
-    static readonly Vector2[] TearFrom = { new Vector2(-0.24f, 0.12f), new Vector2(0.24f, 0.12f), new Vector2(0f, -0.3f) };
-    static readonly Vector2[] TearTo = { new Vector2(-0.8f, 0.45f), new Vector2(0.85f, 0.4f), new Vector2(0.05f, -0.75f) };
-    static readonly float[] TearSpin = { 40f, -48f, 12f };
-    static readonly float[] TearWidth = { 0.52f, 0.53f, 1f };   // piece width as a share of the helmet's
+    static readonly Vector2[] TearFrom = { new Vector2(-0.25f, -0.12f), new Vector2(0.25f, -0.12f), new Vector2(0f, 0.36f) };
+    static readonly Vector2[] TearTo = { new Vector2(-0.85f, 0.1f), new Vector2(0.9f, 0.05f), new Vector2(0.08f, 1.4f) };
+    static readonly float[] TearSpin = { 40f, -48f, 10f };
+    static readonly float[] TearWidth = { 0.53f, 0.53f, 1f };   // piece width as a share of the box's
     static readonly float[] TearPose = { 0f, 0.35f, 0.62f, 0.82f, 1f };   // held poses: a burst, then drifting
     SpriteRenderer bag;      // the player's bag (ShieldBubble), watched for the moment it goes away
     bool bagWasOn;
@@ -115,8 +115,12 @@ public class PaperSkillFx : MonoBehaviour
             Rigidbody2D rb = player.GetComponent<Rigidbody2D>();
             float speed = rb != null ? rb.linearVelocity.magnitude : 0f;
             // Swift shows nothing: the extra speed is the feedback (the user's call; afterimages read as noise)
-            if (cat != null && cat.IsRolling && frame % 2 == 0 && speed > 0.5f)
-                PaperFx.Puff(at - (Vector3)(rb.linearVelocity.normalized * bodySize * 0.45f), Mathf.Clamp(bodySize, 0.4f, 1.2f));
+            // Roll: the cat turns a quarter on every beat, and each turn kicks dust out behind her
+            if (cat != null && cat.IsRolling && speed > 0.5f)
+            {
+                Vector2 back = -rb.linearVelocity.normalized;
+                PaperFx.Kick(at + (Vector3)(back * bodySize * 0.45f), back, Mathf.Clamp(bodySize, 0.4f, 1.2f));
+            }
         }
         Tear(frame, newPose);
         Clock(at, bodySize, frame, newPose);

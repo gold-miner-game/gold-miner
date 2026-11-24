@@ -212,7 +212,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         mask.transform.localPosition = new Vector3(bodyBounds.center.x, bodyBounds.min.y, 0f);
     }
 
-    // Drawn over everything while the record's shield is up (art: a paper-bag helmet on the head)
+    // Drawn over everything while the record's shield is up (art: a flat kraft box worn on the head)
     void CreateShieldBubble()
     {
         int top = body.sortingOrder;
@@ -227,9 +227,9 @@ public abstract class PlayerCharacter : MonoBehaviour
         shieldBubble.sortingLayerID = body.sortingLayerID;
         shieldBubble.sortingOrder = top + 1;
         shieldBubble.color = new Color(0.45f, 0.85f, 1f, 0.4f);
-        // Art: a kraft paper bag pulled down over the head like a helmet (Resources/Art/Fx/PaperHelmet, Meshy):
-        // it covers everything above the eyes (ears and horns too, so it reads as worn) and its folded rim rests
-        // just above them. Eyes, the face below and the digest/cooldown hints stay in view; PaperSkillFx tears it
+        // Art: a flat kraft box worn on the head (Resources/Art/Fx/PaperHelmet, cut from the Meshy bag's cuff):
+        // it covers just the part above the eyes (ears and horns too, so it reads as worn), its front edge resting
+        // just above them, and adds almost nothing to the character's outline. Eyes, the face below and the digest/cooldown hints stay in view; PaperSkillFx tears it
         // when the shield runs out. Sized from the whole cut-out (every part's box in the body's space), so it
         // fits any character. Look only: no collider, same enable rule.
         Sprite helmet = ArtLibrary.Get("Fx/PaperHelmet");
@@ -252,8 +252,8 @@ public abstract class PlayerCharacter : MonoBehaviour
             if (float.IsNegativeInfinity(eyeTop)) eyeTop = box.center.y + box.extents.y * 0.2f;   // no eye parts: the upper face
             Vector2 art = helmet.bounds.size;
             float rim = eyeTop + box.size.y * 0.03f;                // the rim just clears the eyes
-            float wide = box.size.x * 1.12f / art.x;                // a little wider than the whole cut-out
-            float tall = Mathf.Max((box.max.y - rim) * 1.06f / art.y, wide * 0.75f);   // over the ears and horns, near its own shape (the life pips lift above it)
+            float wide = box.size.x * 1.03f / art.x;                // the cut-out's own width, barely wider
+            float tall = (box.max.y - rim) * 1.04f / art.y;          // flat: just over the ears and horns (the life pips lift above it)
             shieldBubble.sprite = helmet;
             shieldBubble.color = Color.white;
             bubble.transform.localScale = new Vector3(wide, tall, 1f);

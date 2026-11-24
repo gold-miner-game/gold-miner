@@ -28,7 +28,7 @@ public class PaperShadows : MonoBehaviour
         public int seed;
         public Sprite[] hang;       // treasure hang poses (NAME_h1, NAME_h2) while a claw holds it
         public bool hangLooked;
-        public Sprite[] rock;       // treasure rock poses (NAME_r1 +6, NAME_r2 -6 degrees about the centre)
+        public Sprite[] rock;       // treasure rock poses (NAME_r1 +, NAME_r2 - StopMotion.RockDegrees about the centre)
     }
 
     enum Kind { Rock, Treasure, Life, Character }
@@ -177,7 +177,7 @@ public class PaperShadows : MonoBehaviour
         return false;
     }
 
-    // Stop-motion rock (characters' mode): a treasure lying on the floor tips +6 / rest / -6 on the shared
+    // Stop-motion rock (characters' mode): a treasure lying on the floor tips + / rest / - StopMotion.RockDegrees on the shared
     // StopMotion.Rock beat, against the characters' lean. Pre-drawn on the same full-rect canvas, so its sprite
     // bounds (frost, Hook.HoldInClaw) never change; held still while frozen.
     static bool RockTreasure(Piece s, ref Sprite current)
