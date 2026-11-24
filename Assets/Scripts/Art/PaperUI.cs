@@ -51,6 +51,7 @@ public class PaperUI : MonoBehaviour
         if (s == null) return true;
         if (s.name == "FeltPanel" || s.name == "PaperCard") return false;   // already papercraft (art code set it)
         string n = s.name;
+        if (n == "" && image.type == Image.Type.Sliced) return true;   // a code-made rounded box (HUD pop-ups)
         return n == "UISprite" || n == "Background" || n == "InputFieldBackground" || n.Contains("Rounded") || n.Contains("Panel");
     }
 

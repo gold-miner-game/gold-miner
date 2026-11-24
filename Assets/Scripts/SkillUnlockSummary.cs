@@ -397,6 +397,9 @@ public class SkillUnlockSummary : MonoBehaviour
         line.useWorldSpace = true;
         line.numCapVertices = 2;
         line.sortingOrder = order;
+        // Art: the reward demo's hook matches the real one: twine rope, tin-wire claw (same colours)
+        if (name == "Rope") ArtLibrary.Twine(line);
+        else if (name == "Claw") ArtLibrary.Wire(line);
         return line;
     }
 

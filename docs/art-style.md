@@ -79,6 +79,12 @@ Small pieces drawn by code use the same materials:
 | SKILL / DIGEST pills | the fill is a paper strip in the same colour, inside the rounded mask |
 | Survival grid | quilting seams sewn into the felt (`Tiles/QuiltSeam`), same cell size and tint |
 | Hook HP bar | the same sliced felt strip as the Lives, same green / yellow / red |
+| Hook claw | a riveted tin hub at the pivot of the line-drawn arms (`PaperClaws`); nothing drawn past the arms, icy while frozen |
+| Red Square | a red felt block with a stitched seam and an angry ink face (`Objects/RedSquare`), same one-unit bounds and red tint |
+| Money target | felt pennant flag (`Fx/Pennant`); "past the target" stripes stay the miner's lavender and white, as felt and paper (`Tiles/PaperStripes`) |
+| Map | paper star on portals, paper chevron on one-way doors, place names on felt tags (`PaperTags`) |
+| IMGUI defaults | default-skin buttons are paper cards, default boxes are stitched felt (`PaperType`) |
+| Titles | display font, gold leaf (if white), umber outline, paper drop shadow (`PaperType`) |
 | "Digesting…" cue | a paper tag behind the label, same pulse |
 
 Elsa's frost is left as it is: it is a purpose-built shader effect (`FrostBody2D`) whose coverage is also the

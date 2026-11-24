@@ -150,6 +150,16 @@ public class PaperType : MonoBehaviour
                 b.hover.textColor = b.onHover.textColor = HoverInk;
                 b.active.textColor = b.onActive.textColor = Color.black;
             }
+            // Default-skin boxes (hint boxes like the world map's) become stitched felt with cream text.
+            // Styles copied from the skin before this, or given their own background, keep theirs.
+            Sprite felt = ArtLibrary.Get("UI/FeltPanel");
+            if (felt != null)
+            {
+                GUIStyle box = GUI.skin.box;
+                box.normal.background = felt.texture;
+                box.border = new RectOffset(22, 22, 22, 22);
+                box.normal.textColor = ArtLibrary.Cream;
+            }
         }
     }
 
