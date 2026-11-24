@@ -44,8 +44,8 @@ public class ArtImportRules : AssetPostprocessor
         {
             // Treasure: the sprite's bounds are read by gameplay (Hook.HoldInClaw places a carried
             // treasure by them), so they must equal the old look's exactly: full rect, canvas = the old
-            // footprint. Gold: the 1-unit circle (256 px). Diamond: the old 1.0667 x 0.9333 gem
-            // (256 x 224 px at 240 px per unit).
+            // footprint. Gold: the 1-unit circle (256 px). Diamond: the old gem as drawn, 0.9333 x 0.8 units
+            // (its tight mesh hugged the 112 x 96 px gem at 120 px per unit; here 224 x 192 px at 240).
             settings.spriteMeshType = SpriteMeshType.FullRect;
             if (file.StartsWith("Diamond")) settings.spritePixelsPerUnit = 240;
         }
