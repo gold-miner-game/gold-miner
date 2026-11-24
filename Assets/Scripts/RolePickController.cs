@@ -83,9 +83,9 @@ public class RolePickController : MonoBehaviour
             CharacterUnlocks.TryPurchase(index, out _);
             return;
         }
-        // #12's machinery: a brand-new record for this champion, and the Game scene swaps it in.
+        // Reset the champion's defaults while keeping purchases reserved for the next level.
         ChampionSpawner.Chosen = index;
-        CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(index));
+        CrossLevelStatus.StartFreshKeepingGoods(ChampionSpawner.RecordType(index));
         ProgressStore.SelectedCharacter = index.ToString();
         PlayAnalytics.CharacterPicked(index);
         GameFlow.Instance.CompleteCurrentNode();

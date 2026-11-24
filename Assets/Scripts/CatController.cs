@@ -61,6 +61,8 @@ public class CatController : PlayerCharacter
     private Vector2 eyeDirection = new Vector2(1f, -1f); // selection portrait's down-right default
     private readonly List<SpriteRenderer> gazeEyes = new List<SpriteRenderer>();
     private readonly List<Transform> gazeHighlights = new List<Transform>();
+    private readonly List<Vector3> trueHighlightPositions = new List<Vector3>();
+    private PaperStepSkills steppedSpin;
     private float rollUntil = float.NegativeInfinity;
     private float nextRollTime = float.NegativeInfinity;
     private Quaternion restVisualRotation;
@@ -81,6 +83,8 @@ public class CatController : PlayerCharacter
         base.Awake();
         CacheEyeHighlights();
         UpdateEyeHighlights();
+        steppedSpin = gameObject.AddComponent<PaperStepSkills>();
+        steppedSpin.Initialize(this, visualRoot);
         lastDirection = transform.localScale.x < 0f ? Vector2.left : Vector2.right;
     }
 
@@ -199,12 +203,14 @@ public class CatController : PlayerCharacter
     {
         gazeEyes.Clear();
         gazeHighlights.Clear();
+        trueHighlightPositions.Clear();
         foreach (SpriteRenderer eye in GetComponentsInChildren<SpriteRenderer>(true))
         {
             Transform highlight = eye.transform.Find("Catchlight");
             if (eye.sprite == null || highlight == null) continue;
             gazeEyes.Add(eye);
             gazeHighlights.Add(highlight);
+            trueHighlightPositions.Add(highlight.localPosition);
         }
     }
 
@@ -240,11 +246,34 @@ public class CatController : PlayerCharacter
         float mirrorSign = parentScale.x * parentScale.y < 0f ? -1f : 1f;
         visualRoot.localRotation = restVisualRotation * Quaternion.Euler(0f, 0f,
             360f * Mathf.Max(1, rotationsPerRoll) * t * spinDirection * mirrorSign);
+        if (steppedSpin != null)
+        {
+            // Sample the shared art clock without replacing the true spin seen by frost/gameplay.
+            float poseT = Mathf.Clamp01((StopMotion.Time - spinStart) / Mathf.Max(.001f, spinLength));
+            steppedSpin.SetPose(restVisualRotation * Quaternion.Euler(0f, 0f,
+                360f * Mathf.Max(1, rotationsPerRoll) * poseT * spinDirection * mirrorSign));
+        }
         if (t >= 1f) FinishSpin();
+    }
+
+    // Look-only: glints must use the DISPLAYED angle, which can differ by over 100 degrees.
+    // Storage is populated once with the eye cache; no render-frame lists/arrays are allocated.
+    internal void ApplyHeldSpinCatchlights()
+    {
+        for (int i = 0; i < gazeHighlights.Count; i++)
+            if (gazeHighlights[i] != null) trueHighlightPositions[i] = gazeHighlights[i].localPosition;
+        UpdateEyeHighlights();
+    }
+
+    internal void RestoreSpinCatchlights()
+    {
+        for (int i = 0; i < gazeHighlights.Count; i++)
+            if (gazeHighlights[i] != null) gazeHighlights[i].localPosition = trueHighlightPositions[i];
     }
 
     void FinishSpin()
     {
+        if (steppedSpin != null) steppedSpin.CancelPose();
         if (visualRoot != null) visualRoot.localRotation = restVisualRotation;
         spinning = false;
     }

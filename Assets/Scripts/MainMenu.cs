@@ -49,7 +49,7 @@ public class MainMenu : MonoBehaviour
 
     void Update()
     {
-        if (peelStart >= 0f && StopMotion.UnscaledSnap(peelStart) >= PeelTime)
+        if (peelStart >= 0f && Time.unscaledTime - peelStart >= PeelTime)
         {
             peelStart = -1f;
             peeled = true;   // the sticker is gone: don't redraw it while the next scene loads
@@ -64,7 +64,10 @@ public class MainMenu : MonoBehaviour
 
     // Art: the main button is a felt sticker. Pressing it peels the sticker off, right to left, in
     // stop-motion poses (docs/art-style.md), then the game starts. Without art it starts at once.
-    const float PeelTime = 0.42f;
+    // Shot on threes (8 poses a second), every pose held 0.125 s so each reads as a separate exposure:
+    // corner lifts and holds (anticipation), a third, two thirds, all of it curled, then it flips off.
+    static readonly float[] PeelPoses = { 0.06f, 0.06f, 0.34f, 0.68f, 1f, 1f };
+    static float PeelTime => PeelPoses.Length / StopMotion.Threes;
     float peelStart = -1f;
     bool peeled;
 
@@ -76,30 +79,33 @@ public class MainMenu : MonoBehaviour
 
     void DrawPeel(Rect rect, string label)
     {
-        float t = Mathf.Clamp01(StopMotion.UnscaledSnap(peelStart) / PeelTime);
-        // a held first pose with the corner just lifting, then the peel accelerates (a hand pulling)
-        float p = t < 0.2f ? 0.05f : Mathf.Lerp(0.05f, 1f, Mathf.Pow((t - 0.2f) / 0.8f, 1.6f));
-        float edge = rect.x + rect.width * (1f - p);
+        int pose = Mathf.Clamp(Mathf.FloorToInt((Time.unscaledTime - peelStart) * StopMotion.Threes), 0, PeelPoses.Length - 1);
+        float p = PeelPoses[pose];
+        bool flipping = pose == PeelPoses.Length - 1;   // last pose: the sticker leaves the backdrop
+        // Pulled by its gold tab on the left: the sticker peels left to right.
+        float edge = rect.x + rect.width * p;
         float curl = Mathf.Min(rect.width * p * 0.5f, 46f);
 
         // the sticker's shadow on the backdrop where it has already lifted
         Color before = GUI.backgroundColor;
         GUI.backgroundColor = new Color(0f, 0f, 0f, 0.35f);
-        GUI.Box(new Rect(edge, rect.y + 4f, rect.xMax - edge, rect.height), GUIContent.none, paperBox);
+        GUI.Box(new Rect(rect.x, rect.y + 4f, edge - rect.x, rect.height), GUIContent.none, paperBox);
 
-        // the part still stuck down
-        GUI.BeginGroup(new Rect(rect.x, rect.y, Mathf.Max(0f, edge - rect.x), rect.height));
+        // the part still stuck down (the right of the sticker)
+        GUI.BeginGroup(new Rect(edge, rect.y, Mathf.Max(0f, rect.xMax - edge), rect.height));
         GUI.backgroundColor = FeltHot;
-        GUI.Box(new Rect(0f, 0f, rect.width, rect.height), GUIContent.none, box);
+        GUI.Box(new Rect(rect.x - edge, 0f, rect.width, rect.height), GUIContent.none, box);
         buttonStyle.normal.textColor = Gold;
-        GUI.Label(new Rect(0f, 0f, rect.width, rect.height), label, buttonStyle);
+        GUI.Label(new Rect(rect.x - edge, 0f, rect.width, rect.height), label, buttonStyle);
         GUI.EndGroup();
 
         // the peeled flap: the sticker's paper back, folded over the edge
         if (curl > 1f)
         {
             GUI.backgroundColor = new Color(0.95f, 0.9f, 0.8f);
-            GUI.Box(new Rect(edge - curl, rect.y - 2f, curl, rect.height + 4f), GUIContent.none, paperBox);
+            // on the last pose the curled sticker is lifted clear, up and to the right, as it is pulled off
+            float lift = flipping ? rect.height * 0.9f : 0f;
+            GUI.Box(new Rect(edge + lift * 0.4f, rect.y - 2f - lift, curl, rect.height + 4f), GUIContent.none, paperBox);
         }
         GUI.backgroundColor = before;
     }

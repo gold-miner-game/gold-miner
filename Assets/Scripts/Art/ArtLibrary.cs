@@ -7,6 +7,18 @@ public static class ArtLibrary
 {
     static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
+    // The project enters Play mode without a domain reload, so statics outlive a Play session while the
+    // sprites and materials made at runtime (Sprite.Create, new Material) are destroyed when it ends.
+    // Start every session with empty caches, or a cached dead sprite draws nothing (walls vanished).
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics()
+    {
+        cache.Clear();
+        boil.Clear();
+        scaledBoil.Clear();
+        lineArt.Clear();
+    }
+
     // Art's own random numbers. Effects never draw from UnityEngine.Random, the stream gameplay uses
     // (spawns, AI), so adding or removing an effect can't change what the game rolls next.
     static readonly System.Random rng = new System.Random();
@@ -48,9 +60,11 @@ public static class ArtLibrary
         Sprite[] frames = BoilFrames(baseSprite);
         if (frames != null) baseSprite = frames[0];
         // Round down to keep the gap; 0.35 is the first 0.05 step strictly above 0.3.
-        int step = Mathf.Clamp(Mathf.FloorToInt(Mathf.Clamp(factor, 0.35f, 1f) * 20f), 7, 20);
+        // 0.35-1.5 in 0.05 steps: rounded down to keep gaps; above 1 for pieces drawn bigger than their
+        // own scale (hidden portals matching the rock cells around them)
+        int step = Mathf.Clamp(Mathf.FloorToInt(Mathf.Clamp(factor, 0.35f, 1.5f) * 20f), 7, 30);
         if (step == 20) return baseSprite;
-        if (scaledBoil.TryGetValue((baseSprite, step), out Sprite cached)) return cached;
+        if (scaledBoil.TryGetValue((baseSprite, step), out Sprite cached) && cached != null) return cached;   // != null: not destroyed
         factor = step / 20f;
         Sprite[] scaled = new Sprite[frames != null ? frames.Length : 1];
         for (int i = 0; i < scaled.Length; i++)

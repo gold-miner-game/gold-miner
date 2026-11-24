@@ -8,6 +8,22 @@ public static class StopMotion
     public const float Twos = 12f;
     public const float Threes = 8f;
 
+    static bool enabled = true;
+    public static bool Enabled
+    {
+        get => enabled;
+        set
+        {
+            if (enabled == value) return;
+            enabled = value;
+            // A console toggle can happen while paused, before another art tick is possible.
+            PaperPuppet.ResetHeldPose();
+        }
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { enabled = true; }
+
     // Game time snapped to the last 12 fps pose (scaled time: a paused game is a still photo).
     public static float Time => Snap(UnityEngine.Time.time, Twos);
 

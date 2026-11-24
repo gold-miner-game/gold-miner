@@ -107,6 +107,20 @@ public class PaperPortalStones : MonoBehaviour
         return scale > 0f && nearest <= 1.2f * scale ? Mathf.Min(1f, 0.96f * nearest / scale) : 1f;
     }
 
+    // The same drawn size as the wall rocks beside it. Read-only physics query, once per portal.
+    static float MatchRocks(Transform portal)
+    {
+        // rock positions, not a physics query: the hub's walls may not have synced their colliders yet
+        float scale = Mathf.Abs(portal.lossyScale.x);
+        Vector2 at = portal.position;
+        float best = float.PositiveInfinity;
+        foreach (Rock other in FindObjectsByType<Rock>(FindObjectsSortMode.None))
+            best = Mathf.Min(best, Vector2.Distance(at, other.transform.position));
+        // fit to the spacing like the rocks around it (0.96 x the nearest rock's distance), so a disguised portal
+        // is exactly the size of its neighbours
+        return scale > 0f && best <= 1.05f ? 0.96f * best / scale : FitFactor(portal);
+    }
+
     void LateUpdate()
     {
         if (Time.unscaledTime >= nextScan)
@@ -133,14 +147,14 @@ public class PaperPortalStones : MonoBehaviour
                 // Absolute magnitude also handles int.MinValue without a negative array index.
                 uint hash = (uint)(signedHash < 0 ? -(long)signedHash : signedHash);
                 if (look.stone == null)
-                    look.stone = ArtLibrary.ScaledBoil(stones[(int)(hash % (uint)stones.Length)], FitFactor(look.portal.transform));
+                    look.stone = ArtLibrary.ScaledBoil(stones[0], MatchRocks(look.portal.transform));   // Stone1, like the green rocks
                 // PaperShadows boils this renderer like a rock (on threes): leave any of the stone's boil
                 // frames in place, only put the stone back when something else is showing.
                 Sprite[] frames = ArtLibrary.BoilFrames(look.stone);
                 Sprite now = look.hex.sprite;
                 bool showing = now == look.stone || (frames != null && (now == frames[0] || now == frames[1] || now == frames[2]));
                 if (!showing) look.hex.sprite = look.stone;
-                look.hex.flipX = (hash / 7 & 1) == 1;
+                look.hex.flipX = false;   // same unflipped shape as the green rocks
                 look.replaced = true;
             }
             else if (look.replaced)

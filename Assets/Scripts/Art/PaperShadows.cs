@@ -26,6 +26,8 @@ public class PaperShadows : MonoBehaviour
         public Treasure treasure;   // boil holds still while it is frozen
         public Sprite[] boil;       // registered boil frames; null = none
         public int seed;
+        public Sprite[] hang;       // treasure hang poses (NAME_h1, NAME_h2) while a claw holds it
+        public bool hangLooked;
     }
 
     enum Kind { Rock, Treasure, Life, Character }
@@ -133,9 +135,38 @@ public class PaperShadows : MonoBehaviour
 
     // On threes; a 0-2-1 cycle per piece, staggered, so the pile never pulses in unison. Only the
     // sprite is swapped (same outline): transforms, colliders and colours stay as gameplay set them.
+    // A treasure in a claw hangs and swings from the grip in held poses on twos (+4, +4, +4, rest, -3, -3,
+    // -3, rest: about 1.5 swings a second), the handled-prop wobble of stop-motion. The poses are pre-drawn
+    // on the same full-rect canvas, so the sprite bounds Hook.HoldInClaw reads never change.
+    static readonly int[] HangCycle = { 1, 1, 1, 0, 2, 2, 2, 0 };
+
+    static bool Hang(Piece s, ref Sprite current)
+    {
+        if (s.treasure == null || s.boil == null) return false;
+        if (!s.hangLooked)
+        {
+            s.hangLooked = true;
+            Sprite h1 = ArtLibrary.Get("Objects/" + s.boil[0].name + "_h1"), h2 = ArtLibrary.Get("Objects/" + s.boil[0].name + "_h2");
+            if (h1 != null && h2 != null) s.hang = new[] { h1, h2 };
+        }
+        if (s.hang == null) return false;
+        bool held = Treasure.OnHooks.Contains(s.treasure) && !s.treasure.IsFrozen;
+        if (held)
+        {
+            int pose = HangCycle[(StopMotion.Frame + s.seed) % HangCycle.Length];
+            Sprite next = pose == 0 ? s.boil[0] : s.hang[pose - 1];
+            if (current != next) s.caster.sprite = next;
+            return true;
+        }
+        // let go (eaten, dropped, reeled home): back to the resting cut-out before the boil continues
+        if (current == s.hang[0] || current == s.hang[1]) { s.caster.sprite = s.boil[0]; current = s.boil[0]; }
+        return false;
+    }
+
     static void Boil(Piece s)
     {
         Sprite current = s.caster.sprite;
+        if (Hang(s, ref current)) return;
         if (s.boil == null || (current != s.boil[0] && current != s.boil[1] && current != s.boil[2]))
         {
             // A new sprite: boil it only if it is painted art with registered frames (e.g. PaperRocks'

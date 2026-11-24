@@ -23,9 +23,10 @@ public class DeveloperConsole : MonoBehaviour
     float scaleBeforeCheckPause;
     float previousTimeScale;
     string command = "";
-    const string Commands = "Available commands: checkmode <True|False>, money <amount>, pass, good <item_name>, unlock. Tab completes a unique name.";
+    const string Commands = "Available commands: checkmode <True|False>, stopmotion <on|off>, money <amount>, pass, good <item_name>, unlock. Tab completes a unique name.";
     string feedback = Commands;
     string CheckModeStatus => "checkmode: " + (checkMode ? "TRUE" : "FALSE");
+    string StopMotionStatus => StopMotion.Enabled ? "stopmotion: ON (12 poses/s)" : "stopmotion: OFF (smooth, gait off)";
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { instance = null; consumedFrame = -1; }
@@ -149,6 +150,18 @@ public class DeveloperConsole : MonoBehaviour
         int separator = entered.IndexOfAny(new[] { ' ', '\t' });
         string verb = separator < 0 ? entered : entered.Substring(0, separator);
         string argument = separator < 0 ? "" : entered.Substring(separator).Trim();
+        if (string.Equals(verb, "stopmotion", StringComparison.OrdinalIgnoreCase))
+        {
+            bool turnOn = string.Equals(argument, "on", StringComparison.OrdinalIgnoreCase);
+            if (!turnOn && !string.Equals(argument, "off", StringComparison.OrdinalIgnoreCase))
+            {
+                feedback = "Usage: stopmotion on or stopmotion off. " + StopMotionStatus;
+                return;
+            }
+            StopMotion.Enabled = turnOn;
+            feedback = StopMotionStatus + ".";
+            return;
+        }
         if (string.Equals(verb, "checkmode", StringComparison.OrdinalIgnoreCase))
         {
             if (!bool.TryParse(argument, out bool enabled))
@@ -217,7 +230,7 @@ public class DeveloperConsole : MonoBehaviour
     void CompleteCommand()
     {
         string entered = command.TrimStart();
-        var candidates = new List<string> { "checkmode True", "checkmode False", "money ", "pass" };
+        var candidates = new List<string> { "checkmode True", "checkmode False", "stopmotion on", "stopmotion off", "money ", "pass" };
         foreach (string name in StoreView.ConsoleItemNames()) candidates.Add("good " + name);
         candidates.Add("unlock");
         var matches = candidates.FindAll(candidate => candidate.StartsWith(entered, StringComparison.OrdinalIgnoreCase));
@@ -253,15 +266,17 @@ public class DeveloperConsole : MonoBehaviour
         GUI.Label(new Rect(28, 45, 1224, 80), feedback, style);
         GUI.Box(new Rect(24, 136, 1232, 48), GUIContent.none);
         GUI.Label(new Rect(36, 142, 1200, 40), "> " + command + "_", style);
-        GUI.Label(new Rect(28, 205, 1200, 175),
+        GUI.Label(new Rect(28, 205, 1200, 210),
             "checkmode <True|False> — enable/disable Space pause/continue (default: FALSE).\n" +
+            "stopmotion <on|off> — held art poses and walk gait (default: on); off runs smooth.\n" +
             "money <amount> — add to the wallet (e.g. money 1000).\n" +
             "pass — win this level/tutorial and bank all remaining treasure.\n" +
             "good <item_name> — grant a free effect (e.g. good Time Machine). Tab completes a unique name.\n" +
             "unlock — unlock available content and open the map; hidden characters stay locked (saved).", style);
         var statusStyle = new GUIStyle(style);
         statusStyle.normal.textColor = new Color(0.25f, 0.6f, 1f);
-        GUI.Label(new Rect(28, 395, 1200, 40), CheckModeStatus, statusStyle);
+        GUI.Label(new Rect(28, 430, 300, 40), CheckModeStatus, statusStyle);
+        GUI.Label(new Rect(340, 430, 880, 40), StopMotionStatus, statusStyle);
     }
 
     void OnDestroy()

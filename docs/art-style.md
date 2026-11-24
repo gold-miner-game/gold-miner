@@ -96,10 +96,16 @@ Small pieces drawn by code use the same materials:
 | Hook HP bar | the same sliced felt strip as the Lives, same green / yellow / red |
 | Hook claw | a riveted tin hub at the pivot of the line-drawn arms (`PaperClaws`); nothing drawn past the arms, icy while frozen |
 | Rocks and walls | flat 2D cut-paper stones, two or three torn layers seen from above (`Objects/Stone1..9`, `PaperRocks`); the hexagon was only a level-design placeholder. Each stone boils on threes, keeps its tint (green = rhino-proof, map colours), and shrinks its drawing to 0.96 x the distance to its nearest rock so stones never overlap; colliders untouched |
+| Hub rocks | the Evil Meowmeow's built trap: every rock drawn the same size (0.96 of its cell), shapes from the chunky set; green tiles (unrevealed levels) share one shape and size |
 | Hidden portals | drawn as the same stones while disguised (`PaperPortalStones`), with the rocks' shadow, boil and fit, so the secret holds; the hexagon returns as the reveal starts |
-| Lamplight | warm pools on the floor only, never over a game piece: the miner's lamp around the player, a soft mine lamp from the top left (the cover's light) and each lantern prop; flicker on threes (`PaperLamps`) |
+| Lamplight | warm pools on the floor only, never over a game piece: the miner's lamp around the player, a soft mine lamp from the top left (the cover's light) and each lantern prop; flicker on threes, and each lamp breathes brighter and dimmer on its own period, never in step (`PaperLamps`) |
 | Set props | flat cut-paper and felt (crate, lantern, moss, mushrooms, pebbles, plank, rail, rope), replacing the earlier photo-like props |
 | Elsa's frost | the rim's noise is torn paper and fibre (`Tiles/PaperFrostNoise`, same mean and contrast) and its drift steps on twos; colour timeline, coverage and every freeze rule untouched. The breath flipbook is kept: its measured front is used by the freeze logic |
+| Hook claw (keyframe) | brass cut-out: riveted hinge plate and two curved prongs rooted at the real pivot, reaching the real tips; the drawn opening steps through held angles on twos (closing 40/28/16/10/12, opening 12/26/43/40); brass tinted toward the hook colour (`PaperClaws`) |
+| Miners | after the classic gold-mining arcade miners who work a winch: every burrow is a mine shaft (cut-paper timber frame) with a twine reel that turns a held pose at a time, paying out and cranking back; a felt Meowmeow sits on the rim and acts out its hook (idle, leaning in as it fires, straining as it reels, red glare on a shot at you), facing its hook (`PaperMiners`) |
+| Strata | the keyframe's torn-paper sandstone layers (rust, ochre, sand, umber; painted with Meshy from the keyframe) frame the bottom and top of the view in battle levels only (the hub keeps its dark dungeon floor; Survival its felt mat), on the floor layer (`PaperStrata`, `Tiles/Strata`) |
+| Hook cable | the keyframe's thick two-ply twisted cable drawn over each rope along its exact points (the rope's own width is read by the frost, so it stays), in the hook's colour, icy while frozen (`PaperClaws`, `Tiles/Cable`) |
+| Shield | a dome of frosted tracing paper (vellum) with radiating creases, a stitched felt rim and a felt shield badge; the paper's own brightness sets how see-through it is (`Fx/ShieldBubble`, Meshy) |
 | Red Square | a red felt block with a stitched seam and an angry ink face (`Objects/RedSquare`), same one-unit bounds and red tint |
 | Money target | felt pennant flag (`Fx/Pennant`); "past the target" stripes stay the miner's lavender and white, as felt and paper (`Tiles/PaperStripes`) |
 | Map | paper star on portals, paper chevron on one-way doors, place names on felt tags (`PaperTags`) |
@@ -162,6 +168,11 @@ art-only and posed on twos.
 | Life / reel-in / smash | felt-heart burst / dust puff / paper crumbs | `PaperFx` |
 | HUD numbers | the label stamps: big, smaller, settled | `PaperHud` |
 | Titles appear (results, WHO ARE U) | stamped in: big, smaller, small overshoot, settled (unscaled time, so paused result screens still play it) | `PaperType` |
+| Swift | cut-paper afterimages left behind every other pose, fading over three (multiple exposure) | `PaperSkillFx` |
+| Block / Brace | a guard ring of eight stitched paper plates pops up round the body and is nudged on threes while it lasts | `PaperSkillFx` |
+| Roll (JK. Rolling) | felt dust kicked out behind the roll every other pose | `PaperSkillFx` |
+| Time machine | a cut-paper clock face on the floor under the player, fading in with the slowness; its hands tick a pose at a time | `PaperSkillFx` |
+| Treasure in a claw | hangs and swings from the grip in held poses (+4, rest, -3, rest), pre-drawn on the same canvas so the grip is unchanged | `PaperShadows` |
 | Round won | cut-paper confetti falls over the whole screen (result screen included) and sways; unscaled twos | `PaperConfetti` |
 | Life lost / gained | the felt pip over the head pops (big, smaller, settled) as it empties or fills | `PlayerLifeBar` |
 | Block lands | a pop-up card shield (three nested paper half discs) pops open, overshoots, holds, folds flat | `BlockFlash` |
@@ -169,7 +180,7 @@ art-only and posed on twos.
 | Skill cooldown / Hulk charge | the tint fills the felt body up to a torn-paper edge; the charge spreads as a hand-cut disc | `PlayerCharacter`, `RhinoController` |
 | Hook aim (telegraph) | a running stitch of twisted thread, whole line shown at once; stitches march toward the target on twos | `TelegraphLine` |
 | Scene change | felt curtain holds, dips, is pulled away | `PaperCurtain` |
-| Start / Continue | the felt sticker peels off right to left (suggested by the team); the scene load waits for the 0.5 s peel | `MainMenu` |
+| Start / Continue | the felt sticker is pulled by its gold tab and peels left to right (suggested by the team); poses held on threes (corner lifts and holds, a third, two thirds, curled, flips off); the scene load waits for the 0.75 s peel | `MainMenu` |
 
 `PaperPuppet` works as an additive pose layer. Before any script's `FixedUpdate` or `Update`, every part it posed
 is put back exactly as it was. After every `LateUpdate`, it re-poses them for the picture. Gameplay and the

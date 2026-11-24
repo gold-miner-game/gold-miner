@@ -70,7 +70,7 @@ public class PaperSet : MonoBehaviour
             var look = prop.AddComponent<SpriteRenderer>();
             look.sprite = art;
             look.color = Dim;
-            look.sortingOrder = short.MinValue + 1;   // just above the floor, under everything else
+            look.sortingOrder = short.MinValue + 2;   // above the floor and the strata (PaperStrata), under every game piece
             if (art.name == "Lantern") PaperLamps.Lantern(prop.transform);   // it casts a warm pool on the floor
             placed++;
         }

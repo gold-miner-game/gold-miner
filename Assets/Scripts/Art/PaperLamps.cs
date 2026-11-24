@@ -13,7 +13,7 @@ using UnityEngine.SceneManagement;
 public class PaperLamps : MonoBehaviour
 {
     static readonly Color Warm = new Color(1f, 0.74f, 0.38f);
-    const int Order = short.MinValue + 2;   // floor is MinValue, set props MinValue + 1
+    const int Order = short.MinValue + 3;   // floor MinValue, strata +1, set props +2: light falls on all of them
     static PaperLamps instance;
 
     class Lamp { public SpriteRenderer look; public Transform follow; public Vector3 offset; public float size, alpha; public int seed; }
@@ -96,7 +96,14 @@ public class PaperLamps : MonoBehaviour
             }
             // a flame's held poses: three brightness / size steps, each lamp on its own phase
             int pose = Mathf.Abs(frame + l.seed) % 3;
-            float flicker = pose == 0 ? 1f : pose == 1 ? 0.9f : 1.06f;
+            float flame = pose == 0 ? 1f : pose == 1 ? 0.94f : 1.04f;
+            // Each lamp also breathes, glowing and dimming on its own period (1.6-3.6 s) and phase, so
+            // lamps never pulse in step. Sampled on threes like the flame: held poses, not a smooth fade.
+            uint hash = unchecked((uint)(l.seed * 2654435 + 977));   // unsigned: no Abs(int.MinValue) overflow
+            float period = 1.6f + (hash % 1000) / 500f;
+            float phase = (hash / 1000 % 628) / 100f;
+            float breath = 0.8f + 0.2f * Mathf.Sin(frame / StopMotion.Threes * 2f * Mathf.PI / period + phase);
+            float flicker = flame * breath;
             Vector3 at = l.follow.position + l.offset;
             float size = l.size;
             if (l == mineLamp && cam != null)

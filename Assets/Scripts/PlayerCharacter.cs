@@ -227,6 +227,16 @@ public abstract class PlayerCharacter : MonoBehaviour
         shieldBubble.sortingLayerID = body.sortingLayerID;
         shieldBubble.sortingOrder = top + 1;
         shieldBubble.color = new Color(0.45f, 0.85f, 1f, 0.4f);
+        // Art: a cellophane bubble with a stitched rim and the store's felt shield badge
+        // (Resources/Art/Fx/ShieldBubble, 1 unit), sized to wrap the body like the old 1.45x copy did.
+        Sprite cellophane = ArtLibrary.Get("Fx/ShieldBubble");
+        if (cellophane != null && body.sprite != null)
+        {
+            Vector2 size = body.sprite.bounds.size;
+            shieldBubble.sprite = cellophane;
+            shieldBubble.color = Color.white;   // the art carries its own see-through colours
+            bubble.transform.localScale = Vector3.one * 1.45f * Mathf.Max(size.x, size.y) / cellophane.bounds.size.x;
+        }
         shieldBubble.enabled = false;
     }
 
