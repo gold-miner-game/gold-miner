@@ -47,27 +47,30 @@ public static class ArtLibrary
 
     // Twisted twine texture along a rope line. Its colour (start/end colour, e.g. yellow or red hooks)
     // still comes from the line, so state colours keep their meaning. No art: the line stays plain.
-    public static void Twine(LineRenderer line, float twistsPerUnit = 9f)
+    // inPlace: put the texture on the line's own material (one made just for that line) instead of a
+    // cached copy, so a short-lived line leaves nothing behind.
+    public static void Twine(LineRenderer line, float twistsPerUnit = 9f, bool inPlace = false)
     {
-        if (!LineTexture(line, "Tiles/Twine")) return;
+        if (!LineTexture(line, "Tiles/Twine", inPlace)) return;
         line.textureMode = LineTextureMode.Tile;
         line.textureScale = new Vector2(twistsPerUnit, 1f);
     }
 
     // Rolled tin wire along a short line (the hook's claw arms): lit along its top, dark underneath,
     // stretched once over the arm. Tinted by the line colour like the twine.
-    public static void Wire(LineRenderer line)
+    public static void Wire(LineRenderer line, bool inPlace = false)
     {
-        if (!LineTexture(line, "Tiles/Wire")) return;
+        if (!LineTexture(line, "Tiles/Wire", inPlace)) return;
         line.textureMode = LineTextureMode.Stretch;
     }
 
-    static bool LineTexture(LineRenderer line, string tileName)
+    static bool LineTexture(LineRenderer line, string tileName, bool inPlace = false)
     {
         if (line == null || line.sharedMaterial == null) return false;
         Sprite tile = Get(tileName);
         if (tile == null) return false;
         Material source = line.sharedMaterial;
+        if (inPlace) { source.mainTexture = tile.texture; return true; }
         if (!lineArt.TryGetValue((source, tileName), out Material material) || material == null)
         {
             material = new Material(source) { name = source.name + " (" + tile.name + ")", mainTexture = tile.texture };

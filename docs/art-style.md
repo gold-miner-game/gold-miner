@@ -69,6 +69,7 @@ and the Dev scenes are not reached and are left as they are.
 | Primitive shapes (circle, square, triangle, hexagon) | `Assets/Sprites/` |
 | Prefab sprite swaps (Tools > Gold Miner > Art > Apply Papercraft Reskin) | `Assets/Editor/Art/PapercraftReskin.cs` |
 | Screenshots of real screens in an isolated copy (no analytics, no save changes) | `tools/art_capture/capture.ps1` |
+| Moments a scene load never shows (`level_02:win`, `:fail`, `:crush`, `:reward`, `:pause`, `Menu:confirm`) | `-Scenes` entries `NAME:action`, see `tools/art_capture/ArtCaptureRunner.cs` |
 
 Small pieces drawn by code use the same materials:
 
@@ -142,6 +143,8 @@ art-only and posed on twos.
 | Treasure | registered boil on threes; one light-catch star at a time | `PaperShadows`, `PaperFx` |
 | Life / reel-in / smash | felt-heart burst / dust puff / paper crumbs | `PaperFx` |
 | HUD numbers | the label stamps: big, smaller, settled | `PaperHud` |
+| Titles appear (results, WHO ARE U) | stamped in: big, smaller, small overshoot, settled (unscaled time, so paused result screens still play it) | `PaperType` |
+| Round won | cut-paper confetti falls over the whole screen (result screen included) and sways; unscaled twos | `PaperConfetti` |
 | Life lost / gained | the felt pip over the head pops (big, smaller, settled) as it empties or fills | `PlayerLifeBar` |
 | Block lands | a pop-up card shield (three nested paper half discs) pops open, overshoots, holds, folds flat | `BlockFlash` |
 | Attack (Mr. Hyde) | a torn-paper slash sweeps round; it leaves in two held steps | `AttackSwing` |

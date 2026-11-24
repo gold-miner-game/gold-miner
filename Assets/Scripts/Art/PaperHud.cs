@@ -17,6 +17,7 @@ public class PaperHud : MonoBehaviour
         public string last;
         public Vector3 rest;
         public int poppedAt = -100;
+        public int restoredFor = -100;   // the pop whose rest scale was put back
     }
 
     static PaperHud instance;
@@ -64,8 +65,14 @@ public class PaperHud : MonoBehaviour
                 l.last = now;
             }
             int pose = frame - l.poppedAt;
-            if (pose < 0 || pose >= Stamp.Length + 1) continue;
-            l.text.rectTransform.localScale = l.rest * (pose < Stamp.Length ? Stamp[pose] : 1f);
+            if (pose < 0) continue;
+            if (pose >= Stamp.Length)
+            {
+                // settled: put the rest scale back once, even if a long frame skipped the last pose
+                if (l.restoredFor != l.poppedAt) { l.text.rectTransform.localScale = l.rest; l.restoredFor = l.poppedAt; }
+                continue;
+            }
+            l.text.rectTransform.localScale = l.rest * Stamp[pose];
         }
     }
 }

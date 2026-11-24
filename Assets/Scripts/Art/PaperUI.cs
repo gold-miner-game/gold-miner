@@ -71,7 +71,9 @@ public class PaperUI : MonoBehaviour
         Color c = image.color;
         Canvas canvas = image.canvas;
         RectTransform rect = image.rectTransform;
-        if (canvas != null && floor != null && IsBackdrop(rect, canvas))
+        bool fullScreen = canvas != null && IsBackdrop(rect, canvas);
+        if (fullScreen && c.a < 0.9f) return;   // a see-through dimmer over the game (result screens): keep it a dimmer
+        if (fullScreen && floor != null)
         {
             image.sprite = floor;
             image.type = Image.Type.Tiled;

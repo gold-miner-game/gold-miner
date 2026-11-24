@@ -23,7 +23,7 @@ public class PaperType : MonoBehaviour
     float nextScan;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { titleMaterial = null; bodyTmp = displayTmp = null; skinnedButton = null; }   // Play without a domain reload keeps statics
+    static void ResetStatics() { titleMaterial = null; bodyTmp = displayTmp = null; skinnedButton = null; titles.Clear(); }   // Play without a domain reload keeps statics
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Install()
@@ -63,23 +63,50 @@ public class PaperType : MonoBehaviour
     static bool StockTmp(TMP_FontAsset font) => font == null || font.name.StartsWith("LiberationSans");
     static bool StockLegacy(Font font) => font == null || font.name == "LegacyRuntime" || font.name == "Arial";
 
+    void EnsureTmp()
+    {
+        if (bodyTmp != null) return;
+        TMP_FontAsset stock = TMP_Settings.defaultFontAsset;
+        bodyTmp = Tmp(Body, stock);
+        displayTmp = Tmp(Display, stock);
+        // A text that renders for the first time (a result panel switching on) is queued and restyled
+        // in the next LateUpdate, at most one frame later, instead of waiting for the half-second scan.
+        // (Not restyled inside the event: that fires during the canvas rebuild, where marking a graphic
+        // dirty is an error.)
+        TMPro_EventManager.TEXT_CHANGED_EVENT.Add(OnTextChanged);
+    }
+
+    void OnDestroy() { TMPro_EventManager.TEXT_CHANGED_EVENT.Remove(OnTextChanged); }
+
+    readonly List<TMP_Text> pending = new List<TMP_Text>();
+
+    void OnTextChanged(Object changed)
+    {
+        if (changed is TMP_Text text && !done.Contains(text.GetInstanceID())) pending.Add(text);
+    }
+
+    void Style(TMP_Text text)
+    {
+        if (text == null || !done.Add(text.GetInstanceID()) || !StockTmp(text.font)) return;
+        bool title = text.fontSize >= TitleSize || Heading(text.text, text.fontSize);
+        text.font = title ? displayTmp : bodyTmp;
+        if (title) Gild(text);
+    }
+
+    void Start() { if (Body != null) EnsureTmp(); }
+
     void LateUpdate()
     {
+        if (pending.Count > 0)
+        {
+            foreach (TMP_Text text in pending) Style(text);
+            pending.Clear();
+        }
+        Stamp();
         if (Time.unscaledTime < nextScan) return;
         nextScan = Time.unscaledTime + 0.5f;
-        if (bodyTmp == null)
-        {
-            TMP_FontAsset stock = TMP_Settings.defaultFontAsset;
-            bodyTmp = Tmp(Body, stock);
-            displayTmp = Tmp(Display, stock);
-        }
-        foreach (TMP_Text text in FindObjectsByType<TMP_Text>(FindObjectsSortMode.None))
-        {
-            if (!done.Add(text.GetInstanceID()) || !StockTmp(text.font)) continue;
-            bool title = text.fontSize >= TitleSize || Heading(text.text, text.fontSize);
-            text.font = title ? displayTmp : bodyTmp;
-            if (title) Gild(text);
-        }
+        EnsureTmp();
+        foreach (TMP_Text text in FindObjectsByType<TMP_Text>(FindObjectsSortMode.None)) Style(text);
         foreach (Text text in FindObjectsByType<Text>(FindObjectsSortMode.None))
         {
             if (!done.Add(text.GetInstanceID()) || !StockLegacy(text.font)) continue;
@@ -105,6 +132,47 @@ public class PaperType : MonoBehaviour
     // Uses the mobile SDF shader with OUTLINE_ON + UNDERLAY_ON, the same variant as TMP's "Drop Shadow"
     // preset in Resources, so a build always has it.
     static Material titleMaterial;
+
+    // Titles stamp in when they appear or change (results, rewards): big, smaller, a small overshoot,
+    // settled, on twos in unscaled time (result screens may pause the game). Skipped while any other
+    // code is scaling the title, so it never fights an existing animation.
+    class Title { public TMP_Text text; public Vector3 scale; public bool shown; public string words; public float at = -100f; public bool settled = true; }
+    static readonly List<Title> titles = new List<Title>();
+    static readonly float[] StampPoses = { 1.32f, 1.1f, 0.96f, 1f };
+
+    static void Stamp()
+    {
+        for (int i = titles.Count - 1; i >= 0; i--)
+        {
+            Title t = titles[i];
+            if (t.text == null) { titles.RemoveAt(i); continue; }
+            bool shown = t.text.isActiveAndEnabled;
+            if (shown && (!t.shown || t.words != t.text.text)) { t.at = Time.unscaledTime; t.settled = false; }
+            t.shown = shown;
+            t.words = t.text.text;
+            if (!shown) continue;
+            int step = Mathf.FloorToInt((Time.unscaledTime - t.at) * StopMotion.Twos);
+            if (t.settled) continue;
+            Transform tr = t.text.rectTransform;
+            Vector3 now = tr.localScale;
+            if (step >= StampPoses.Length)
+            {
+                // over: back to the rest scale once (a long frame may have skipped the last pose)
+                if (IsStampOf(now, t.scale)) tr.localScale = t.scale;
+                t.settled = true;
+                continue;
+            }
+            bool ours = step == 0 ? (now - t.scale).sqrMagnitude < 1e-6f || IsStampOf(now, t.scale) : IsStampOf(now, t.scale);
+            if (!ours) { t.settled = true; continue; }   // something else is scaling it: stay out of the way
+            tr.localScale = t.scale * StampPoses[step];
+        }
+    }
+
+    static bool IsStampOf(Vector3 now, Vector3 baseScale)
+    {
+        foreach (float k in StampPoses) if ((now - baseScale * k).sqrMagnitude < 1e-6f) return true;
+        return (now - baseScale).sqrMagnitude < 1e-6f;
+    }
     static readonly Color GoldLeaf = new Color(0.98f, 0.8f, 0.32f);
 
     static void Gild(TMP_Text text)
@@ -126,6 +194,8 @@ public class PaperType : MonoBehaviour
             ShaderUtilities.UpdateShaderRatios(titleMaterial);
         }
         text.fontSharedMaterial = titleMaterial;
+        text.fontStyle |= FontStyles.UpperCase;   // the display face is a capitals face; its lowercase looks broken
+        titles.Add(new Title { text = text, scale = text.rectTransform.localScale, shown = false, words = null });
         Color c = text.color;
         if (c.r > 0.9f && c.g > 0.9f && c.b > 0.9f) text.color = new Color(GoldLeaf.r, GoldLeaf.g, GoldLeaf.b, c.a);
     }

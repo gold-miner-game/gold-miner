@@ -2,6 +2,8 @@
 # or sending analytics: mirrors the project into a separate capture copy (product name changed,
 # analytics FormUrl emptied), builds a Windows player there, and runs it with ArtCaptureRunner.
 #   powershell -File tools/art_capture/capture.ps1 -Scenes "Menu,Select,level_01"
+# A scene entry NAME:action (win, fail, crush, reward, pause, confirm) triggers that moment first;
+# see ArtCaptureRunner.cs.
 param(
     [string]$UnityEditor = 'E:\unity\6000.3.22f1\Editor\Unity.exe',
     [string]$Work = (Join-Path $PSScriptRoot '..\..\..\_art_capture'),
@@ -10,6 +12,7 @@ param(
     [double]$Wait = 3,
     [int]$Frames = 0,          # also save this many 12 fps frames per scene (motion check)
     [switch]$Peel,             # press the menu's main button before the Menu frames
+    [double]$TriggerWait = 2.5, # seconds after a NAME:action trigger before its shot
     [switch]$SkipBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -51,7 +54,7 @@ if (!$SkipBuild) {
 New-Item -ItemType Directory -Force -Path $Out | Out-Null
 $playerLog = Join-Path $Out 'player.log'
 $playerArgs = @('-screen-fullscreen', '0', '-screen-width', '1600', '-screen-height', '900',
-    '-artcapture', ('"' + $Out + '"'), '-artscenes', $Scenes, '-artwait', $Wait, '-artframes', $Frames,
+    '-artcapture', ('"' + $Out + '"'), '-artscenes', $Scenes, '-artwait', $Wait, '-artframes', $Frames, '-arttriggerwait', $TriggerWait,
     '-logFile', ('"' + $playerLog + '"'))
 if ($Peel) { $playerArgs += '-artpeel' }
 $p = Start-Process -FilePath $exe -ArgumentList $playerArgs -PassThru
