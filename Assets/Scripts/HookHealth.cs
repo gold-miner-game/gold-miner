@@ -148,9 +148,9 @@ public class HookHealth : MonoBehaviour
         float width = Mathf.Clamp(b.size.x, 0.6f, 1.4f), height = 0.12f;
         bar.position = new Vector3(b.center.x, b.max.y + 0.18f, 0f);
         Transform back = bar.GetChild(0), fill = bar.GetChild(1);
-        back.localScale = new Vector3(width + 0.06f, height + 0.06f, 1f);
+        Size(back, width + 0.06f, height + 0.06f);
         float share = maxHp > 0 ? Mathf.Clamp01((float)hp / maxHp) : 1f;
-        fill.localScale = new Vector3(width * share, height, 1f);
+        Size(fill, width * share, height);
         fill.localPosition = new Vector3(-width * 0.5f * (1f - share), 0f, 0f);   // drains from the right
         barFillSr.color = share > 0.5f ? barFill : share > 0.25f ? new Color(1f, 0.8f, 0.2f) : new Color(1f, 0.3f, 0.25f);
     }
@@ -176,8 +176,30 @@ public class HookHealth : MonoBehaviour
             sr.sortingOrder = order;
             return sr;
         }
-        Part("Back", barBack, 60);
+        SpriteRenderer backSr = Part("Back", barBack, 60);
         barFillSr = Part("Fill", barFill, 61);
+        // Art: the same felt as the player's Lives (Slices/FeltStrip, 9-sliced so the rounded ends stay
+        // round at any length). Colours unchanged; sizes are set through .size instead of the scale.
+        Sprite felt = ArtLibrary.Get("Slices/FeltStrip");
+        if (felt != null)
+            foreach (SpriteRenderer sr in new[] { backSr, barFillSr })
+            {
+                sr.sprite = felt;
+                sr.drawMode = SpriteDrawMode.Sliced;
+            }
+    }
+
+    // Sliced felt takes its size; the plain pixel takes it as a scale.
+    static void Size(Transform part, float width, float height)
+    {
+        var sr = part.GetComponent<SpriteRenderer>();
+        if (sr != null && sr.drawMode == SpriteDrawMode.Sliced)
+        {
+            part.localScale = Vector3.one;
+            sr.size = new Vector2(width, height);
+            sr.enabled = width > 0.001f;
+        }
+        else part.localScale = new Vector3(width, height, 1f);
     }
 
     void OnDestroy() { if (bar != null) Destroy(bar.gameObject); }

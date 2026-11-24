@@ -27,7 +27,8 @@ $captureMethod = if ($Characters) { 'StoreDemoCaptureDriver.BeginCharacters' } e
 $taskLog = Join-Path $CaptureProject 'capture.log'
 $taskArgs = @('-batchmode', '-projectPath', ('"' + $CaptureProject + '"'),
     '-executeMethod', $captureMethod, '-logFile', ('"' + $taskLog + '"'))
-$taskProcess = Start-Process -FilePath $UnityEditor -ArgumentList $taskArgs -WindowStyle Hidden -PassThru -Wait
+$taskProcess = Start-Process -FilePath $UnityEditor -ArgumentList $taskArgs -WindowStyle Hidden -PassThru
+$taskProcess.WaitForExit()   # -Wait would also wait for Unity's helper processes, which outlive it
 if ($taskProcess.ExitCode -ne 0) { throw "Capture failed; inspect $taskLog" }
 Write-Output "Recorded clips: $env:STORE_DEMO_OUTPUT"
 Write-Output "Capture project: $CaptureProject"

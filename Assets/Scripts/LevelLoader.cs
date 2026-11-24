@@ -1126,6 +1126,8 @@ public class LevelLoader : MonoBehaviour
 
     static Sprite discSprite;
 
+    static Sprite hunterRim;   // art: hunter miners' burrow rim
+
     static Sprite DiscSprite()
     {
         if (discSprite != null) return discSprite;
@@ -1173,8 +1175,10 @@ public class LevelLoader : MonoBehaviour
         ring.transform.SetParent(miner.transform, false);
         ring.transform.localScale = Vector3.one * 1.42f;
         SpriteRenderer ringRenderer = ring.AddComponent<SpriteRenderer>();
-        ringRenderer.sprite = disc;
-        ringRenderer.color = new Color(0.55f, 0.34f, 0.1f, 1f);
+        // Art: a torn-paper burrow rim in the same brown (black centre hidden under the body disc)
+        if (hunterRim == null) hunterRim = HookHole.CreateSprite(new Color(0.04f, 0.03f, 0.03f, 1f), new Color(0.55f, 0.34f, 0.1f, 1f));
+        ringRenderer.sprite = hunterRim;
+        ringRenderer.color = Color.white;
         ringRenderer.sortingOrder = order;
 
         if (body != null)
@@ -1789,6 +1793,7 @@ public class LevelLoader : MonoBehaviour
             };
             guideStyle.normal.background = back;
             guideStyle.normal.textColor = Color.white;
+            ArtLibrary.FeltBox(guideStyle);   // art: stitched felt card
         }
         // Centered over the arena (HUDLayout), just under the top bar, at most guideMaxWidth of the
         // arena's width. In ScreenFrame's 1280x720 space, so it is the same share of every screen

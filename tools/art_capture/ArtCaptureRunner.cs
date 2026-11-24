@@ -1,0 +1,183 @@
+// Copied only into the disposable art-capture project by capture.ps1; never part of the game.
+// Started with "-artcapture <folder>", it opens each scene named by "-artscenes A,B,C", waits
+// "-artwait" seconds of real time, saves a full-screen PNG (sprites, uGUI and IMGUI alike) and quits.
+// "-artframes N" also saves N more frames, one per stop-motion pose (StopMotion.Pose), per scene (NAME_000.png...) to check motion.
+// "-artpeel" presses the menu's main button (MainMenu.StartGame) before the Menu frames.
+// A scene entry "NAME:action" also triggers a moment a plain load never shows, through the game's own
+// methods, then waits "-arttriggerwait" seconds (default 2.5) and saves NAME-action.png:
+//   win / fail / crush   GameManager.WinRound / EndRound(false) / Crush: result panels, CAUGHT
+//   reward               SkillUnlockSummary.PlayEveryTime, then a win: the skill reward demo
+//   pause                HUDController.OpenPause: the Pause card ("Quit Game?" on the world map)
+//   confirm              MainMenu page = ConfirmNew: the New Game confirmation
+//   tutorial             LevelLoader.ScriptedTutorial = true before the load, as GameFlow does
+//   focus                MapHub.FocusPortal on the first portal: the reveal spotlight
+//   target / hurt        HUDController.CelebrateTarget / FlashDamage: the Target reached banner, the red edge flash
+using System;
+using System.Collections;
+using System.Globalization;
+using System.IO;
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class ArtCaptureRunner : MonoBehaviour
+{
+    string outDir;
+    string[] scenes;
+    float wait = 3f;
+    int frames;
+    bool peel;
+    int videoFps;
+    float triggerWait = 2.5f;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void Boot()
+    {
+        string[] args = Environment.GetCommandLineArgs();
+        string dir = null, list = null;
+        float seconds = 3f;
+        int count = 0;
+        bool pressPeel = false;
+        float triggerSeconds = 2.5f;
+        int videoFps = 0;
+        for (int i = 0; i < args.Length; i++)
+        {
+            bool hasValue = i < args.Length - 1;
+            if (args[i] == "-artcapture" && hasValue) dir = args[i + 1];
+            else if (args[i] == "-artscenes" && hasValue) list = args[i + 1];
+            else if (args[i] == "-artwait" && hasValue) float.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out seconds);
+            else if (args[i] == "-artframes" && hasValue) int.TryParse(args[i + 1], out count);
+            else if (args[i] == "-artpeel") pressPeel = true;
+            else if (args[i] == "-arttriggerwait" && hasValue) float.TryParse(args[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out triggerSeconds);
+            else if (args[i] == "-artvideo" && hasValue) int.TryParse(args[i + 1], out videoFps);
+        }
+        if (string.IsNullOrEmpty(dir)) return;
+        var go = new GameObject("Art Capture");
+        DontDestroyOnLoad(go);
+        var runner = go.AddComponent<ArtCaptureRunner>();
+        runner.outDir = dir;
+        runner.scenes = (list ?? "Menu").Split(',');
+        runner.wait = seconds;
+        runner.frames = count;
+        runner.peel = pressPeel;
+        runner.videoFps = videoFps;
+        // "-artvideo FPS": the game clock advances exactly 1/FPS per rendered frame and every frame is saved,
+        // so saving screenshots can never slow the game: the frames play back at FPS as the game really looks.
+        if (videoFps > 0) Time.captureFramerate = videoFps;
+        runner.triggerWait = triggerSeconds;
+    }
+
+    IEnumerator Start()
+    {
+        Directory.CreateDirectory(outDir);
+        Application.runInBackground = true;
+        foreach (string raw in scenes)
+        {
+            string entry = raw.Trim();
+            if (entry.Length == 0) continue;
+            string[] parts = entry.Split(':');
+            string scene = parts[0], action = parts.Length > 1 ? parts[1] : null;
+            if (action == "reward") SkillUnlockSummary.PlayEveryTime = true;
+            LevelLoader.ScriptedTutorial = action == "tutorial" ? true : (bool?)null;
+            SceneManager.LoadScene(scene);
+            yield return Hold(wait);
+            if (action != null)
+            {
+                Trigger(action);
+                yield return Hold(triggerWait);
+                scene = scene + "-" + action;
+            }
+            yield return Shot(scene);
+            if (frames <= 0) continue;
+            if (peel && scene == "Menu")
+            {
+                var menu = FindFirstObjectByType<MainMenu>();
+                MethodInfo start = typeof(MainMenu).GetMethod("StartGame", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (menu != null && start != null) start.Invoke(menu, null);
+            }
+            string loaded = parts[0];
+            // "NAME:walk": hold the real right-arrow key (Input System) while saving frames at 30 a second, to
+            // see whether moving pieces step on the stop-motion beat or glide.
+            bool walk = action == "walk";
+            if (walk && UnityEngine.InputSystem.Keyboard.current == null) UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
+            if (walk && UnityEngine.InputSystem.Keyboard.current != null)
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(UnityEngine.InputSystem.Keyboard.current,
+                    new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.RightArrow));
+            for (int f = 0; f < frames; f++)
+            {
+                float next = Time.realtimeSinceStartup + (walk ? 1f / 30f : 1f / StopMotion.Pose);
+                yield return Shot(scene + "_" + f.ToString("000"));
+                if (videoFps <= 0) while (Time.realtimeSinceStartup < next) yield return null;
+                if (SceneManager.GetActiveScene().name != loaded && !(peel && scene == "Menu")) break;
+            }
+            if (walk && UnityEngine.InputSystem.Keyboard.current != null)
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(UnityEngine.InputSystem.Keyboard.current, new UnityEngine.InputSystem.LowLevel.KeyboardState());
+        }
+        Debug.Log("ART_CAPTURE_DONE");
+        Application.Quit();
+    }
+
+    // Real seconds normally; in video mode the same span of GAME time, counted in locked frames.
+    IEnumerator Hold(float seconds)
+    {
+        if (videoFps > 0)
+        {
+            int n = Mathf.RoundToInt(seconds * videoFps);
+            for (int i = 0; i < n; i++) yield return null;
+            yield break;
+        }
+        float until = Time.realtimeSinceStartup + seconds;
+        while (Time.realtimeSinceStartup < until) yield return null;
+    }
+
+    static void Trigger(string action)
+    {
+        const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
+        GameManager gm = GameManager.Instance;
+        switch (action)
+        {
+            case "win":
+            case "reward":
+                if (gm != null) gm.WinRound("art capture");
+                break;
+            case "fail":
+                if (gm != null) typeof(GameManager).GetMethod("EndRound", Private)?.Invoke(gm, new object[] { false, "art capture" });
+                break;
+            case "crush":
+                if (gm != null) gm.Crush("art capture");
+                break;
+            case "pause":
+                var hud = FindFirstObjectByType<HUDController>();
+                if (hud != null) typeof(HUDController).GetMethod("OpenPause", Private)?.Invoke(hud, null);
+                break;
+            case "target":   // the Target reached banner and flag swell (HUDController display methods)
+            case "hurt":     // the lost-life edge flash
+                var cue = FindFirstObjectByType<HUDController>();
+                if (cue != null) typeof(HUDController).GetMethod(action == "target" ? "CelebrateTarget" : "FlashDamage", Private)?.Invoke(cue, null);
+                break;
+            case "focus":
+                var hub = FindFirstObjectByType<MapHub>();
+                var portal = FindFirstObjectByType<HubPortal>();
+                if (hub != null && portal != null) hub.FocusPortal(portal);
+                break;
+            case "walk": break;   // handled while saving frames
+            case "time": Debug.Log("ART_CAPTURE_TIME " + StoreView.GrantConsoleItem("Time Machine")); break;   // the console's good Time Machine
+            case "shield": Debug.Log("ART_CAPTURE_SHIELD " + StoreView.GrantConsoleItem("Shield")); break;   // the console's good Shield
+            case "confirm":
+                var menu = FindFirstObjectByType<MainMenu>();
+                FieldInfo page = typeof(MainMenu).GetField("page", Private);
+                if (menu != null && page != null) page.SetValue(menu, Enum.Parse(page.FieldType, "ConfirmNew"));
+                break;
+        }
+        Debug.Log("ART_CAPTURE_TRIGGER " + action);
+    }
+
+    IEnumerator Shot(string name)
+    {
+        yield return new WaitForEndOfFrame();
+        Texture2D shot = ScreenCapture.CaptureScreenshotAsTexture();
+        File.WriteAllBytes(Path.Combine(outDir, name + ".png"), shot.EncodeToPNG());
+        Destroy(shot);
+        Debug.Log("ART_CAPTURE_SAVED " + name);
+    }
+}

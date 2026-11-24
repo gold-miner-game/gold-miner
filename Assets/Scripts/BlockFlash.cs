@@ -43,9 +43,23 @@ public class BlockFlash : MonoBehaviour
             Debug.Log("Block flash at " + surface + ", " + flash.size.x.ToString("0.00") + " wide, facing " + towardHook.normalized);
     }
 
+    // Art: with the paper dome, the flash is posed on twos like a pop-up card: it pops open, overshoots,
+    // holds, then folds flat (height first) instead of fading. Same lifetime and size range.
+    static readonly float[] PopPoses = { 0f, 0.75f, 1f, 0.92f };   // 0 = startScale, 1 = endScale
+
     void Update()
     {
         age += Time.deltaTime;   // a frozen game holds the flash too
+        if (paper)
+        {
+            int step = Mathf.FloorToInt(age * StopMotion.Pose);
+            int foldSteps = 2;
+            int foldAt = Mathf.Max(PopPoses.Length, Mathf.FloorToInt(lifetime * StopMotion.Pose) - foldSteps);
+            float open = Mathf.LerpUnclamped(startScale, endScale, PopPoses[Mathf.Min(step, PopPoses.Length - 1)] * 1.08f);
+            float fold = step < foldAt ? 1f : step == foldAt ? 0.55f : 0.18f;
+            transform.localScale = new Vector3(size.x * open, size.y * open * fold, 1f);
+            return;
+        }
         float k = Mathf.Clamp01(age / lifetime);
         float grow = 1f - (1f - k) * (1f - k);   // fast out, settling
         transform.localScale = size * Mathf.Lerp(startScale, endScale, grow);
@@ -53,10 +67,22 @@ public class BlockFlash : MonoBehaviour
         sr.color = new Color(1f, 1f, 1f, 1f - fade);
     }
 
+    // Art: a pop-up card shield of three nested paper half discs (Resources/Art/Fx/BlockDome), else the
+    // generated white half disc. Either way one unit wide, flat side down.
+    bool paper => dome != null && dome.name == "BlockDome";
+
     // A solid white half disc, one unit wide, flat side down, with a slightly soft round edge
     static Sprite Dome()
     {
         if (dome != null) return dome;
+        Sprite art = ArtLibrary.Get("Fx/BlockDome");
+        if (art != null)
+        {
+            Texture2D t = art.texture;
+            dome = Sprite.Create(t, new Rect(0, 0, t.width, t.height), new Vector2(0.5f, 0f), t.width, 0, SpriteMeshType.FullRect);
+            dome.name = "BlockDome";
+            return dome;
+        }
         const int w = 128, h = 64;
         var texture = new Texture2D(w, h, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
         var pixels = new Color32[w * h];

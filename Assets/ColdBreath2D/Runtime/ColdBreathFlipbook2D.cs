@@ -53,6 +53,11 @@ public sealed class ColdBreathFlipbook2D : MonoBehaviour
     double startedAt;
     bool wasPlaying;
     int previousFrame=-1;
+    // ContactLength keeps using the true 24 fps frame. Only the atlas has a held cache:
+    // changing the contact frame would change Elsa's frost reach and Editor test queries.
+    int displayedFrame=-1, heldFrame=-1, heldTick=int.MinValue;
+    bool wasStepping, hasPlaybackTime;
+    float playbackTime;
 #if UNITY_EDITOR
     double lastEditorTick;
 #endif
@@ -69,6 +74,7 @@ public sealed class ColdBreathFlipbook2D : MonoBehaviour
         startedAt=Clock();
         EnsureObjects();
         RefreshShape();
+        ResetHeldFrame();
         SetFrame(Mathf.FloorToInt(previewTime*Fps));
 #if UNITY_EDITOR
         EditorApplication.update-=EditorTick;
@@ -82,20 +88,25 @@ public sealed class ColdBreathFlipbook2D : MonoBehaviour
 #endif
         if(mesh!=null){if(Application.isPlaying)Destroy(mesh);else DestroyImmediate(mesh);}
         mesh=null;
+        ResetHeldFrame();
     }
     void OnValidate()
     {
         length=Mathf.Max(.01f,length);halfArc=Mathf.Clamp(halfArc,1,89);
         previousLength=-1;previousFrame=-1;
+        displayedFrame=-1;ResetHeldFrame();
     }
     void Update()
     {
         EnsureObjects();RefreshShape();
         // ExecuteAlways can be enabled before Unity flips isPlaying. Reset the
         // clock at that transition so editor time never becomes runtime time.
-        if(wasPlaying!=Application.isPlaying){wasPlaying=Application.isPlaying;startedAt=Clock();}
+        if(wasPlaying!=Application.isPlaying){wasPlaying=Application.isPlaying;startedAt=Clock();ResetHeldFrame();}
         if(Application.isPlaying && !externalPlayback)ShowTime((float)(Clock()-startedAt));
         else if(!Application.isPlaying && !animateInEditor)ShowTime(previewTime);
+        // External playback can pause its calls. A console toggle must still release/reseed
+        // the drawing immediately on the next Update, even while the shared clock is paused.
+        else if(hasPlaybackTime && wasStepping!=(Application.isPlaying && StopMotion.Enabled))ShowTime(playbackTime);
     }
     static double Clock()
     {
@@ -115,7 +126,9 @@ public sealed class ColdBreathFlipbook2D : MonoBehaviour
     }
 #endif
     [ContextMenu("Replay")]
-    public void Replay(){startedAt=Clock();previousFrame=-1;ShowTime(0);}
+    public void Replay(){startedAt=Clock();previousFrame=-1;displayedFrame=-1;ResetHeldFrame();ShowTime(0);}
+
+    void ResetHeldFrame(){heldTick=int.MinValue;heldFrame=-1;wasStepping=false;hasPlaybackTime=false;}
 
     /// <summary>Useful for a Timeline/event hook or choosing a fixed animation moment.</summary>
     public void ShowTime(float seconds)
@@ -123,7 +136,23 @@ public sealed class ColdBreathFlipbook2D : MonoBehaviour
         EnsureObjects();RefreshShape();
         int frame=Mathf.FloorToInt(Mathf.Max(0,seconds)*Fps);
         frame=loop?frame%Frames:Mathf.Min(frame,Frames-1);
-        SetFrame(frame);
+        bool stepping=Application.isPlaying && StopMotion.Enabled;
+        int shown=frame;
+        if(stepping)
+        {
+            int tick=StopMotion.Frame;
+            // Latch to the shared scaled clock as well as selecting even atlas frames.
+            // Scalar caches introduce no per-frame allocations; backwards seeks/replays
+            // and toggles reseed instead of leaving a stale drawing from another playback.
+            if(!wasStepping || heldTick!=tick || !hasPlaybackTime || seconds<playbackTime)
+            {
+                heldTick=tick;
+                heldFrame=(frame/2)*2;
+            }
+            shown=heldFrame;
+        }
+        wasStepping=stepping;hasPlaybackTime=true;playbackTime=seconds;
+        SetFrame(frame,shown);
     }
     void EnsureObjects()
     {
@@ -151,15 +180,18 @@ public sealed class ColdBreathFlipbook2D : MonoBehaviour
         mesh.vertices=new[]{new Vector3(-PivotX*width,-PivotY*height,0),new Vector3((1-PivotX)*width,-PivotY*height,0),new Vector3(-PivotX*width,(1-PivotY)*height,0),new Vector3((1-PivotX)*width,(1-PivotY)*height,0)};
         mesh.RecalculateBounds();previousLength=length;previousArc=halfArc;
     }
-    void SetFrame(int frame)
+    void SetFrame(int frame, int shown=-1)
     {
         frame=Mathf.Clamp(frame,0,Frames-1);
-        if(frame==previousFrame||meshRenderer==null||atlas==null)return;
-        int col=frame%Columns,row=frame/Columns;
+        if(meshRenderer==null||atlas==null)return;
+        previousFrame=frame; // True contact advances even when the displayed atlas pose holds.
+        if(shown<0)shown=frame;
+        if(shown==displayedFrame)return;
+        int col=shown%Columns,row=shown/Columns;
         float x=(col*(FrameWidth+2*Gutter)+Gutter)/(float)AtlasWidth;
         float y=(AtlasHeight-row*(FrameHeight+2*Gutter)-Gutter-FrameHeight)/(float)AtlasHeight;
         properties.SetTexture("_MainTex",atlas);
         properties.SetVector("_FrameRect",new Vector4(x,y,FrameWidth/(float)AtlasWidth,FrameHeight/(float)AtlasHeight));
-        meshRenderer.SetPropertyBlock(properties);previousFrame=frame;
+        meshRenderer.SetPropertyBlock(properties);displayedFrame=shown;
     }
 }

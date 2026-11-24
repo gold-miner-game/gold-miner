@@ -34,6 +34,14 @@ public class MainMenu : MonoBehaviour
     GUIStyle buttonStyle;
     GUIStyle bodyStyle;
     GUIStyle footStyle;
+    GUIStyle paperBox;      // art: paper card (gold "main choice" tab); the rounded box without art
+    Texture2D titleArt;     // art: painted title backdrop; null = the gradient
+    Texture2D logo;         // art: felt and gold-leaf "Oinky Oinky" logo; null = the text title
+    bool crafted;           // art: felt buttons are in use (tints become light, the felt has its own colour)
+    static readonly Color FeltTint    = new Color(0.9f, 0.88f, 0.86f, 1f);
+    static readonly Color FeltHot     = new Color(1f, 1f, 1f, 1f);
+    static readonly Color Cream       = new Color(0.95f, 0.88f, 0.74f, 1f);
+    static readonly Color TitleShadow = new Color(0.12f, 0.06f, 0.02f, 0.75f);
 
     static bool HasProgress => ProgressStore.TutorialDone || ProgressStore.HasPickedCharacter;
 
@@ -41,10 +49,65 @@ public class MainMenu : MonoBehaviour
 
     void Update()
     {
+        if (peelStart >= 0f && Time.unscaledTime - peelStart >= PeelTime)
+        {
+            peelStart = -1f;
+            peeled = true;   // the sticker is gone: don't redraw it while the next scene loads
+            Play();
+            return;
+        }
         Keyboard keyboard = DeveloperConsole.CapturesInput ? null : Keyboard.current;
         if (keyboard == null) return;
         if (keyboard.escapeKey.wasPressedThisFrame && page != Page.Main) page = Page.Main;
-        else if (keyboard.enterKey.wasPressedThisFrame && page == Page.Main) Play();
+        else if (keyboard.enterKey.wasPressedThisFrame && page == Page.Main) StartGame();
+    }
+
+    // Art: the main button is a felt sticker. Pressing it peels the sticker off, right to left, in
+    // stop-motion poses (docs/art-style.md), then the game starts. Without art it starts at once.
+    // Shot on threes (8 poses a second), every pose held 0.125 s so each reads as a separate exposure:
+    // corner lifts and holds (anticipation), a third, two thirds, all of it curled, then it flips off.
+    static readonly float[] PeelPoses = { 0.06f, 0.06f, 0.34f, 0.68f, 1f, 1f };
+    const float PeelTime = 0.75f;   // the Start/Continue transition, as before; the six poses share it evenly
+    float peelStart = -1f;
+    bool peeled;
+
+    void StartGame()
+    {
+        if (!crafted) { Play(); return; }
+        if (peelStart < 0f) peelStart = Time.unscaledTime;
+    }
+
+    void DrawPeel(Rect rect, string label)
+    {
+        int pose = Mathf.Clamp(Mathf.FloorToInt((Time.unscaledTime - peelStart) / PeelTime * PeelPoses.Length), 0, PeelPoses.Length - 1);
+        float p = PeelPoses[pose];
+        bool flipping = pose == PeelPoses.Length - 1;   // last pose: the sticker leaves the backdrop
+        // Pulled by its gold tab on the left: the sticker peels left to right.
+        float edge = rect.x + rect.width * p;
+        float curl = Mathf.Min(rect.width * p * 0.5f, 46f);
+
+        // the sticker's shadow on the backdrop where it has already lifted
+        Color before = GUI.backgroundColor;
+        GUI.backgroundColor = new Color(0f, 0f, 0f, 0.35f);
+        GUI.Box(new Rect(rect.x, rect.y + 4f, edge - rect.x, rect.height), GUIContent.none, paperBox);
+
+        // the part still stuck down (the right of the sticker)
+        GUI.BeginGroup(new Rect(edge, rect.y, Mathf.Max(0f, rect.xMax - edge), rect.height));
+        GUI.backgroundColor = FeltHot;
+        GUI.Box(new Rect(rect.x - edge, 0f, rect.width, rect.height), GUIContent.none, box);
+        buttonStyle.normal.textColor = Gold;
+        GUI.Label(new Rect(rect.x - edge, 0f, rect.width, rect.height), label, buttonStyle);
+        GUI.EndGroup();
+
+        // the peeled flap: the sticker's paper back, folded over the edge
+        if (curl > 1f)
+        {
+            GUI.backgroundColor = new Color(0.95f, 0.9f, 0.8f);
+            // on the last pose the curled sticker is lifted clear, up and to the right, as it is pulled off
+            float lift = flipping ? rect.height * 0.9f : 0f;
+            GUI.Box(new Rect(edge + lift * 0.4f, rect.y - 2f - lift, curl, rect.height + 4f), GUIContent.none, paperBox);
+        }
+        GUI.backgroundColor = before;
     }
 
     void OnGUI()
@@ -54,10 +117,28 @@ public class MainMenu : MonoBehaviour
         EnsureStyles();
         float w = ScreenFrame.GuiWidth;
         float h = ScreenFrame.GuiHeight;
-        GUI.DrawTexture(new Rect(0, 0, w, h), gradient, ScaleMode.StretchToFill);
+        if (titleArt != null) GUI.DrawTexture(new Rect(0, 0, w, h), titleArt, ScaleMode.ScaleAndCrop);
+        else GUI.DrawTexture(new Rect(0, 0, w, h), gradient, ScaleMode.StretchToFill);
 
-        GUI.Label(new Rect(0, 120, w, 90), "Oinky Oinky", titleStyle);
-        GUI.Label(new Rect(0, 205, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
+        if (logo != null)
+        {
+            // art: the felt and gold-leaf logo (the same words), centred where the title was
+            float lh = 175f, lw = lh * logo.width / logo.height;
+            GUI.DrawTexture(new Rect((w - lw) * 0.5f, 52f, lw, lh), logo, ScaleMode.ScaleToFit);
+        }
+        else
+        {
+            if (crafted)
+            {
+                // cut-paper title: a dark shadow card slightly down-right of the gold letters
+                Color gold = titleStyle.normal.textColor;
+                titleStyle.normal.textColor = TitleShadow;
+                GUI.Label(new Rect(4, 125, w, 90), "Oinky Oinky", titleStyle);
+                titleStyle.normal.textColor = gold;
+            }
+            GUI.Label(new Rect(0, 120, w, 90), "Oinky Oinky", titleStyle);
+        }
+        GUI.Label(new Rect(0, logo != null ? 228f : 205f, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
 
         switch (page)
         {
@@ -77,7 +158,11 @@ public class MainMenu : MonoBehaviour
     {
         float x = (w - ButtonWidth) * 0.5f;
         float y = 290f;
-        if (DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), HasProgress ? "Continue" : "Start", true)) Play();
+        Rect main = new Rect(x, y, ButtonWidth, ButtonHeight);
+        string mainLabel = HasProgress ? "Continue" : "Start";
+        if (peeled) { }
+        else if (peelStart >= 0f) DrawPeel(main, mainLabel);
+        else if (DrawButton(main, mainLabel, true)) StartGame();
         y += ButtonHeight + ButtonGap;
         if (HasProgress)
         {
@@ -115,18 +200,19 @@ public class MainMenu : MonoBehaviour
     {
         bool hot = rect.Contains(Event.current.mousePosition);
         Color before = GUI.backgroundColor;
-        GUI.backgroundColor = tint ?? (hot ? ButtonHot : Button);
+        GUI.backgroundColor = tint ?? (crafted ? (hot ? FeltHot : FeltTint) : (hot ? ButtonHot : Button));
         GUI.Box(rect, GUIContent.none, box);
         GUI.backgroundColor = before;
 
         if (primary && tint == null)
         {
-            // A gold bar on the left marks the main choice
+            // A gold bar on the left marks the main choice (art: a gold paper tab)
             GUI.backgroundColor = Gold;
-            GUI.Box(new Rect(rect.x, rect.y, 6f, rect.height), GUIContent.none, box);
+            if (crafted) GUI.Box(new Rect(rect.x - 10f, rect.y + 6f, 22f, rect.height - 12f), GUIContent.none, paperBox);
+            else GUI.Box(new Rect(rect.x, rect.y, 6f, rect.height), GUIContent.none, box);
             GUI.backgroundColor = before;
         }
-        buttonStyle.normal.textColor = hot ? Gold : TextBright;
+        buttonStyle.normal.textColor = hot ? Gold : (crafted ? Cream : TextBright);
         if (tint != null) buttonStyle.normal.textColor = TextBright;
         return GUI.Button(rect, label, buttonStyle);
     }
@@ -134,7 +220,7 @@ public class MainMenu : MonoBehaviour
     void DrawPanel(Rect rect)
     {
         Color before = GUI.backgroundColor;
-        GUI.backgroundColor = Panel;
+        GUI.backgroundColor = crafted ? FeltHot : Panel;
         GUI.Box(rect, GUIContent.none, box);
         GUI.backgroundColor = before;
     }
@@ -150,6 +236,26 @@ public class MainMenu : MonoBehaviour
         rounded = WorldMapController.MakeRounded(Radius);
         box = new GUIStyle { border = new RectOffset(Radius, Radius, Radius, Radius) };
         box.normal.background = rounded;
+        paperBox = box;
+
+        // Art (papercraft): painted title backdrop, stitched felt buttons, a gold paper tab
+        Sprite backdrop = ArtLibrary.Get("Menu/TitleBackdrop");
+        Sprite felt = ArtLibrary.Get("UI/FeltPanel");
+        Sprite paper = ArtLibrary.Get("UI/PaperCard");
+        if (backdrop != null) titleArt = backdrop.texture;
+        Sprite logoArt = ArtLibrary.Get("Menu/Logo");
+        if (logoArt != null) logo = logoArt.texture;
+        if (felt != null)
+        {
+            box = new GUIStyle { border = new RectOffset(24, 24, 24, 24) };
+            box.normal.background = felt.texture;
+            crafted = true;
+        }
+        if (paper != null)
+        {
+            paperBox = new GUIStyle { border = new RectOffset(20, 20, 20, 20) };
+            paperBox.normal.background = paper.texture;
+        }
 
         titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 72, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         titleStyle.normal.textColor = Gold;
@@ -160,5 +266,7 @@ public class MainMenu : MonoBehaviour
         bodyStyle.normal.textColor = TextBright;
         footStyle = new GUIStyle(GUI.skin.label) { fontSize = 15, alignment = TextAnchor.MiddleCenter };
         footStyle.normal.textColor = TextDim;
+        if (crafted) { taglineStyle.normal.textColor = Cream; footStyle.normal.textColor = Cream; }
+        if (PaperType.Display != null) titleStyle.font = PaperType.Display;   // art: hand-cut title letters
     }
 }

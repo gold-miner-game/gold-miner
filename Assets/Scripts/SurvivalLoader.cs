@@ -494,9 +494,21 @@ public class SurvivalLoader : MonoBehaviour
 
         Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f),
                                       size / groundCell, 0, SpriteMeshType.FullRect);
+        // Art: the same grid as quilting seams sewn into the felt floor (a running stitch over a sunk
+        // line), same cell size. The seam art is white, so groundLines still colours it.
+        Sprite seam = ArtLibrary.Get("Tiles/QuiltSeam");
+        Color seamTint = Color.white;
+        if (seam != null)
+        {
+            Texture2D art = seam.texture;
+            sprite = Sprite.Create(art, new Rect(0, 0, art.width, art.height), new Vector2(0.5f, 0.5f),
+                                   art.width / groundCell, 0, SpriteMeshType.FullRect);
+            seamTint = groundLines;
+        }
         var go = new GameObject("Ground");
         ground = go.AddComponent<SpriteRenderer>();
         ground.sprite = sprite;
+        ground.color = seamTint;
         if (spriteMaterial != null) ground.sharedMaterial = spriteMaterial;
         ground.drawMode = SpriteDrawMode.Tiled;
         ground.sortingOrder = -100;
@@ -586,12 +598,14 @@ public class SurvivalLoader : MonoBehaviour
         };
         boxStyle.normal.background = back;
         boxStyle.normal.textColor = Color.white;
+        ArtLibrary.FeltBox(boxStyle);   // art: stitched felt card
 
         titleStyle = new GUIStyle(GUI.skin.label)
         {
             fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter,
         };
         titleStyle.normal.textColor = new Color(1f, 0.4f, 0.35f);
+        if (PaperType.Display != null) { titleStyle.font = PaperType.Display; titleStyle.fontStyle = FontStyle.Normal; }   // art: hand-cut title letters
 
         textStyle = new GUIStyle(GUI.skin.label)
         {
