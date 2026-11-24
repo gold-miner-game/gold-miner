@@ -6,6 +6,16 @@ thing on screen.
 
 ![key frame](images/art-keyframe.jpg)
 
+## The game now
+
+Real screens from a build of this branch (captured with `tools/art_capture/capture.ps1`):
+
+![screens](images/art-screens.jpg)
+
+Before and after:
+
+![before and after](images/art-before-after.jpg)
+
 ## Rules
 
 1. **Readable first.** The floor is dark and low-contrast, and play pieces are lighter and saturated. A piece must
