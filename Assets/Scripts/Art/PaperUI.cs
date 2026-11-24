@@ -57,6 +57,15 @@ public class PaperUI : MonoBehaviour
     void Skin(Image image)
     {
         if (image == null || !done.Add(image.GetInstanceID())) return;
+        if (MaskedFill(image))
+        {
+            // A meter's fill inside a rounded mask (the HUD's SKILL / DIGEST pills): a strip of paper in
+            // the same colour, so a refilling pill reads as paper sliding in. The mask keeps the shape.
+            image.sprite = paper;
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 4f;
+            return;
+        }
         if (!PlainPanel(image)) return;
         Color c = image.color;
         Canvas canvas = image.canvas;
@@ -77,6 +86,15 @@ public class PaperUI : MonoBehaviour
         image.pixelsPerUnitMultiplier = Mathf.Clamp(64f / Mathf.Max(8f, Mathf.Min(rect.rect.width, rect.rect.height)), 1f, 4f);   // small pills: thinner edges
         // felt carries its own colour; paper takes the panel's colour so colour codes still read
         image.color = dark ? new Color(Mathf.Lerp(0.85f, 1.1f, val / 0.32f), Mathf.Lerp(0.85f, 1.1f, val / 0.32f), Mathf.Lerp(0.85f, 1.1f, val / 0.32f), c.a) : c;
+    }
+
+    static bool MaskedFill(Image image)
+    {
+        if (image.sprite != null || image.type != Image.Type.Simple || image.color.a < 0.3f) return false;
+        Transform parent = image.transform.parent;
+        if (parent == null || parent.GetComponent<Mask>() == null) return false;
+        RectTransform rect = image.rectTransform;
+        return rect.anchorMin == Vector2.zero;   // anchored to the track's left edge, grown by anchorMax
     }
 
     static bool IsBackdrop(RectTransform rect, Canvas canvas)

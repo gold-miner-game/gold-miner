@@ -70,10 +70,31 @@ public class PlayerLifeBar : MonoBehaviour
         int normalFilled = filled - bonus;
         for (int i = 0; i < segments.Length; i++)
         {
-            if (i >= filled) segments[i].color = empty;
-            else if (i >= normalFilled) segments[i].color = braceFull;
-            else segments[i].color = full;
+            Color c;
+            if (i >= filled) c = empty;
+            else if (i >= normalFilled) c = braceFull;
+            else c = full;
+            // Art: a pip that empties or fills pops (big, smaller, settled) on twos, like a stamped label.
+            if (primed && segments[i].color != c && pipArt != null) popAt[i] = StopMotion.Time;
+            segments[i].color = c;
+            if (pipArt != null) segments[i].transform.localScale = pipScale * PopScale(popAt[i]);
         }
+        primed = true;
+    }
+
+    // Art: felt pips sewn on a dark felt strip (Resources/Art/Fx/LifePip, Slices/FeltStrip). The pip art
+    // is light felt, so the colours above still say red Life / orange Brace / dark lost. Without the art,
+    // the old flat bar is drawn.
+    static Sprite pipArt, stripArt;
+    static readonly float[] Pop = { 1.35f, 1.12f, 0.96f, 1f };
+    float[] popAt = new float[0];
+    Vector3 pipScale = Vector3.one;
+    bool primed;   // false right after Build: the first colours are a setup, not a change
+
+    static float PopScale(float at)
+    {
+        int step = Mathf.FloorToInt((StopMotion.Time - at) * StopMotion.Twos + 0.001f);
+        return step >= 0 && step < Pop.Length ? Pop[step] : 1f;
     }
 
     void Make()
@@ -85,21 +106,42 @@ public class PlayerLifeBar : MonoBehaviour
             tex.Apply();
             pixel = Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
         }
+        if (pipArt == null) { pipArt = ArtLibrary.Get("Fx/LifePip"); stripArt = ArtLibrary.Get("Slices/FeltStrip"); }
         bar = new GameObject(name + " Lives").transform;   // not a child: the player's flip and scale leave it alone
         bar.gameObject.AddComponent<FrostIgnore2D>();
         back = Part("Frame", frame, 62);
+        if (stripArt != null && pipArt != null)
+        {
+            back.sprite = stripArt;
+            back.drawMode = SpriteDrawMode.Sliced;
+        }
     }
 
     void Build(int count)
     {
         foreach (SpriteRenderer s in segments) if (s != null) Destroy(s.gameObject);
         segments = new SpriteRenderer[count];
+        popAt = new float[count];
+        for (int i = 0; i < count; i++) popAt[i] = -100f;
+        primed = false;
         float width = count * segmentWidth + (count - 1) * gap;
-        back.transform.localScale = new Vector3(width + gap * 2f, segmentHeight + gap * 2f, 1f);
+        if (back.drawMode == SpriteDrawMode.Sliced)
+        {
+            back.transform.localScale = Vector3.one;
+            back.size = new Vector2(width + gap * 2f, segmentHeight + gap * 2f);
+        }
+        else back.transform.localScale = new Vector3(width + gap * 2f, segmentHeight + gap * 2f, 1f);
         for (int i = 0; i < count; i++)
         {
             SpriteRenderer s = Part("Life " + (i + 1), full, 63);
-            s.transform.localScale = new Vector3(segmentWidth, segmentHeight, 1f);
+            if (pipArt != null)
+            {
+                s.sprite = pipArt;
+                Vector2 art = pipArt.bounds.size;   // the art's own size; fitted to the segment fields
+                pipScale = new Vector3(segmentWidth / art.x, segmentHeight / art.y, 1f);
+                s.transform.localScale = pipScale;
+            }
+            else s.transform.localScale = new Vector3(segmentWidth, segmentHeight, 1f);
             s.transform.localPosition = new Vector3(-width * 0.5f + segmentWidth * 0.5f + i * (segmentWidth + gap), 0f, 0f);
             segments[i] = s;
         }
@@ -120,5 +162,5 @@ public class PlayerLifeBar : MonoBehaviour
     void OnDestroy() { if (bar != null) Destroy(bar.gameObject); }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { pixel = null; }   // Play without a domain reload keeps statics
+    static void ResetStatics() { pixel = null; pipArt = null; stripArt = null; }   // Play without a domain reload keeps statics
 }

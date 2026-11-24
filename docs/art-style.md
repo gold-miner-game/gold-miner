@@ -70,6 +70,15 @@ and the Dev scenes are not reached and are left as they are.
 | Prefab sprite swaps (Tools > Gold Miner > Art > Apply Papercraft Reskin) | `Assets/Editor/Art/PapercraftReskin.cs` |
 | Screenshots of real screens in an isolated copy (no analytics, no save changes) | `tools/art_capture/capture.ps1` |
 
+Small pieces drawn by code use the same materials:
+
+| Piece | Look |
+|---|---|
+| Lives over the head | felt pips sewn on a dark felt strip (`Fx/LifePip`, 9-slice `Slices/FeltStrip`); red / orange / dark tints unchanged |
+| Hook claw arms | rolled tin wire (`Tiles/Wire`), tinted by the hook colour like the twine rope |
+| SKILL / DIGEST pills | the fill is a paper strip in the same colour, inside the rounded mask |
+| Survival grid | quilting seams sewn into the felt (`Tiles/QuiltSeam`), same cell size and tint |
+
 The primitive shapes were repainted in place with `tools/art/paperize.py`. Their files, alpha shapes and physics
 outlines are unchanged, so every shape-built character, rock and map tile picks up the paper look automatically.
 
@@ -121,6 +130,8 @@ art-only and posed on twos.
 | Treasure | registered boil on threes; one light-catch star at a time | `PaperShadows`, `PaperFx` |
 | Life / reel-in / smash | felt-heart burst / dust puff / paper crumbs | `PaperFx` |
 | HUD numbers | the label stamps: big, smaller, settled | `PaperHud` |
+| Life lost / gained | the felt pip over the head pops (big, smaller, settled) as it empties or fills | `PlayerLifeBar` |
+| Hook aim (telegraph) | a running stitch of twisted thread, whole line shown at once; stitches march toward the target on twos | `TelegraphLine` |
 | Scene change | felt curtain holds, dips, is pulled away | `PaperCurtain` |
 | Start / Continue | the felt sticker peels off right to left (suggested by the team) | `MainMenu` |
 

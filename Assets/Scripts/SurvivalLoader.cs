@@ -494,9 +494,21 @@ public class SurvivalLoader : MonoBehaviour
 
         Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f),
                                       size / groundCell, 0, SpriteMeshType.FullRect);
+        // Art: the same grid as quilting seams sewn into the felt floor (a running stitch over a sunk
+        // line), same cell size. The seam art is white, so groundLines still colours it.
+        Sprite seam = ArtLibrary.Get("Tiles/QuiltSeam");
+        Color seamTint = Color.white;
+        if (seam != null)
+        {
+            Texture2D art = seam.texture;
+            sprite = Sprite.Create(art, new Rect(0, 0, art.width, art.height), new Vector2(0.5f, 0.5f),
+                                   art.width / groundCell, 0, SpriteMeshType.FullRect);
+            seamTint = groundLines;
+        }
         var go = new GameObject("Ground");
         ground = go.AddComponent<SpriteRenderer>();
         ground.sprite = sprite;
+        ground.color = seamTint;
         if (spriteMaterial != null) ground.sharedMaterial = spriteMaterial;
         ground.drawMode = SpriteDrawMode.Tiled;
         ground.sortingOrder = -100;

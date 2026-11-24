@@ -33,24 +33,38 @@ public static class ArtLibrary
         return frames;
     }
 
-    static readonly Dictionary<Material, Material> twine = new Dictionary<Material, Material>();
+    static readonly Dictionary<(Material, string), Material> lineArt = new Dictionary<(Material, string), Material>();
 
     // Twisted twine texture along a rope line. Its colour (start/end colour, e.g. yellow or red hooks)
     // still comes from the line, so state colours keep their meaning. No art: the line stays plain.
     public static void Twine(LineRenderer line, float twistsPerUnit = 9f)
     {
-        if (line == null || line.sharedMaterial == null) return;
-        Sprite tile = Get("Tiles/Twine");
-        if (tile == null) return;
-        Material source = line.sharedMaterial;
-        if (!twine.TryGetValue(source, out Material material) || material == null)
-        {
-            material = new Material(source) { name = source.name + " (Twine)", mainTexture = tile.texture };
-            twine[source] = material;
-        }
-        line.sharedMaterial = material;
+        if (!LineTexture(line, "Tiles/Twine")) return;
         line.textureMode = LineTextureMode.Tile;
         line.textureScale = new Vector2(twistsPerUnit, 1f);
+    }
+
+    // Rolled tin wire along a short line (the hook's claw arms): lit along its top, dark underneath,
+    // stretched once over the arm. Tinted by the line colour like the twine.
+    public static void Wire(LineRenderer line)
+    {
+        if (!LineTexture(line, "Tiles/Wire")) return;
+        line.textureMode = LineTextureMode.Stretch;
+    }
+
+    static bool LineTexture(LineRenderer line, string tileName)
+    {
+        if (line == null || line.sharedMaterial == null) return false;
+        Sprite tile = Get(tileName);
+        if (tile == null) return false;
+        Material source = line.sharedMaterial;
+        if (!lineArt.TryGetValue((source, tileName), out Material material) || material == null)
+        {
+            material = new Material(source) { name = source.name + " (" + tile.name + ")", mainTexture = tile.texture };
+            lineArt[(source, tileName)] = material;
+        }
+        line.sharedMaterial = material;
+        return true;
     }
 
     public static readonly Color Cream = new Color(0.97f, 0.9f, 0.74f);

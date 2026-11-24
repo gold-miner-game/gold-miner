@@ -40,6 +40,14 @@ public class ArtImportRules : AssetPostprocessor
             settings.spriteMeshType = SpriteMeshType.FullRect;
             settings.spriteBorder = new Vector4(32, 32, 32, 32);
         }
+        else if (assetPath.Contains("/Slices/"))
+        {
+            // 9-slice strips for small world-space pieces (SpriteRenderer drawMode Sliced): 1024 px = 1
+            // unit, so a 46 px rounded corner is about 0.045 units and fits a bar a fifth of a unit tall.
+            settings.spritePixelsPerUnit = 1024;
+            settings.spriteMeshType = SpriteMeshType.FullRect;
+            settings.spriteBorder = new Vector4(46, 46, 46, 46);
+        }
         importer.SetTextureSettings(settings);
     }
 }
