@@ -504,7 +504,7 @@ public sealed class FrostField2D : MonoBehaviour
             properties.SetFloat("_StrokeMode", 1f); properties.SetFloat("_HasCoverage", 1f);
             properties.SetTexture("_CoverageTex", coverage);
             properties.SetColor("_FrostColor", FrostEffect.OriginalRimColor(seconds));
-            properties.SetFloat("_EffectTime", seconds); properties.SetFloat("_Opacity", template.opacity);
+            properties.SetFloat("_EffectTime", FrostEffect.PaperFrost(properties, seconds)); properties.SetFloat("_Opacity", template.opacity);
             properties.SetFloat("_BodyFrost", template.bodyFrost); properties.SetFloat("_EdgeWidth", template.edgeWidth);
             properties.SetFloat("_TargetAlpha", 1f); lineEffect.SetPropertyBlock(properties);
         }

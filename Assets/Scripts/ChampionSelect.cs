@@ -7,7 +7,7 @@ using UnityEngine.UI;
 // Put this on an empty object in the Select ("WHO ARE U") scene. Each Select button calls Choose
 // with its number in On Click ():
 // 0 = Mr. Hyde, 1 = JK. Rolling, 2 = Scrat, 3 = Rero Rero, 4 = Elsa, 5 = Hulk.
-// The name plates are labels. Picking starts a brand-new cross-level record (wallet, lives, skills).
+// The name plates are labels. Picking resets character stats and skills while keeping store goods.
 // From the world map this scene is the RolePick node, so the pick is saved and the map comes back.
 // Opened on its own (or by the old level list), it still loads the Game scene.
 public class ChampionSelect : MonoBehaviour
@@ -53,7 +53,7 @@ public class ChampionSelect : MonoBehaviour
         yield return new WaitForSecondsRealtime(0.45f);
 
         ChampionSpawner.Chosen = champion;
-        CrossLevelStatus.StartFresh(ChampionSpawner.RecordType(champion));
+        CrossLevelStatus.StartFreshKeepingGoods(ChampionSpawner.RecordType(champion));
         ProgressStore.SelectedCharacter = champion.ToString();
         PlayAnalytics.CharacterPicked(champion, Time.unscaledTime - openedAt);
 

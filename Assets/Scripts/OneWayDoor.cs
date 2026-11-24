@@ -86,6 +86,13 @@ public class OneWayDoor : MonoBehaviour
     static Sprite ChevronSprite()
     {
         if (chevron != null) return chevron;
+        // Art: the same "<" cut from paper (Resources/Art/Fx/Chevron), one unit across like the old one
+        Sprite art = ArtLibrary.Get("Fx/Chevron");
+        if (art != null)
+        {
+            Texture2D t = art.texture;
+            return chevron = Sprite.Create(t, new Rect(0, 0, t.width, t.height), new Vector2(0.5f, 0.5f), t.width, 0, SpriteMeshType.FullRect);
+        }
         const int size = 64;
         var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
         tex.filterMode = FilterMode.Bilinear;

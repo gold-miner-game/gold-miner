@@ -88,6 +88,15 @@ public class RedSquare : RedEnemy
     // A solid red square with a dark rim, one unit across
     public static Sprite CreateSprite()
     {
+        // Art: a red felt block with a stitched seam, dark cut rim and an angry ink face
+        // (Resources/Art/Objects/RedSquare; light felt, so Red still tints it). Full rect, one unit
+        // across, so its bounds (and any box fitted to them) are exactly the old square's.
+        Sprite art = ArtLibrary.Get("Objects/RedSquare");
+        if (art != null)
+        {
+            Texture2D t = art.texture;
+            return Sprite.Create(t, new Rect(0, 0, t.width, t.height), new Vector2(0.5f, 0.5f), t.width, 0, SpriteMeshType.FullRect);
+        }
         const int size = 32;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
         var pixels = new Color[size * size];

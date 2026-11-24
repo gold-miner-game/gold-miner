@@ -138,6 +138,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     private SpriteRenderer shieldBubble;
     private Bounds bodyBounds;   // the body sprite, in the character's local space
     private GUIStyle digestLabelStyle;
+    private GUIStyle digestTagStyle;   // art: the paper tag behind the "Digesting" cue
 
     protected virtual void Awake()
     {
@@ -198,7 +199,8 @@ public abstract class PlayerCharacter : MonoBehaviour
         var mask = new GameObject("CooldownMask");
         mask.transform.SetParent(transform, false);
         cooldownMask = mask.AddComponent<SpriteMask>();
-        cooldownMask.sprite = Sprite.Create(white, new Rect(0, 0, white.width, white.height),
+        cooldownMask.sprite = ArtLibrary.MaskShape("Fx/TornFill", new Vector2(0.5f, 0f))   // art: a torn-paper fill line
+                              ?? Sprite.Create(white, new Rect(0, 0, white.width, white.height),
                                             new Vector2(0.5f, 0f), white.width);
         cooldownMask.isCustomRangeActive = true;   // only cut the tint, nothing else
         cooldownMask.frontSortingLayerID = cooldownMask.backSortingLayerID = body.sortingLayerID;
@@ -210,7 +212,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         mask.transform.localPosition = new Vector3(bodyBounds.center.x, bodyBounds.min.y, 0f);
     }
 
-    // A larger, see-through copy of the body, drawn over everything while the record's shield is up
+    // Drawn over everything while the record's shield is up (art: a flat kraft box worn on the head)
     void CreateShieldBubble()
     {
         int top = body.sortingOrder;
@@ -225,6 +227,38 @@ public abstract class PlayerCharacter : MonoBehaviour
         shieldBubble.sortingLayerID = body.sortingLayerID;
         shieldBubble.sortingOrder = top + 1;
         shieldBubble.color = new Color(0.45f, 0.85f, 1f, 0.4f);
+        // Art: a flat kraft box worn on the head (Resources/Art/Fx/PaperHelmet, cut from the Meshy bag's cuff):
+        // it covers just the part above the eyes (ears and horns too, so it reads as worn), its front edge resting
+        // just above them, and adds almost nothing to the character's outline. Eyes, the face below and the digest/cooldown hints stay in view; PaperSkillFx tears it
+        // when the shield runs out. Sized from the whole cut-out (every part's box in the body's space), so it
+        // fits any character. Look only: no collider, same enable rule.
+        Sprite helmet = ArtLibrary.Get("Fx/PaperHelmet");
+        if (helmet != null && body.sprite != null)
+        {
+            Bounds box = LocalBounds(body.transform, body);
+            float eyeTop = float.NegativeInfinity;
+            foreach (SpriteRenderer part in GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                if (part == body || part == shieldBubble || part.sprite == null || part.maskInteraction != SpriteMaskInteraction.None) continue;
+                string n = part.name;
+                if (n.Contains("Breath") || n.Contains("Life") || n.Contains("Shadow") || n.Contains("Frost") || n.Contains("Cooldown")) continue;
+                Bounds local = LocalBounds(body.transform, part);
+                box.Encapsulate(local);
+                bool eye = false;
+                for (Transform t = part.transform; t != null && t != transform; t = t.parent)
+                    if (t.name.Contains("Eye") && !t.name.Contains("Catchlight") && !t.name.Contains("Ring")) { eye = true; break; }
+                if (eye && part.gameObject.activeInHierarchy) eyeTop = Mathf.Max(eyeTop, local.max.y);
+            }
+            if (float.IsNegativeInfinity(eyeTop)) eyeTop = box.center.y + box.extents.y * 0.2f;   // no eye parts: the upper face
+            Vector2 art = helmet.bounds.size;
+            float rim = eyeTop + box.size.y * 0.03f;                // the rim just clears the eyes
+            float wide = box.size.x * 1.03f / art.x;                // the cut-out's own width, barely wider
+            float tall = (box.max.y - rim) * 1.04f / art.y;          // flat: just over the ears and horns (the life pips lift above it)
+            shieldBubble.sprite = helmet;
+            shieldBubble.color = Color.white;
+            bubble.transform.localScale = new Vector3(wide, tall, 1f);
+            bubble.transform.localPosition = new Vector3(box.center.x, rim + art.y * tall * 0.5f, 0f);
+        }
         shieldBubble.enabled = false;
     }
 
@@ -423,7 +457,15 @@ public abstract class PlayerCharacter : MonoBehaviour
         {
             Color prev = GUI.color;
             GUI.color = new Color(0.75f, 1f, 0.45f, 0.22f + 0.5f * pulse);
-            GUI.DrawTexture(new Rect(rect.x - 8f, rect.y - 4f, rect.width + 16f, rect.height + 8f), Texture2D.whiteTexture);
+            Rect tag = new Rect(rect.x - 8f, rect.y - 4f, rect.width + 16f, rect.height + 8f);
+            if (digestTagStyle == null)
+            {
+                digestTagStyle = new GUIStyle();
+                if (!ArtLibrary.PaperBox(digestTagStyle)) digestTagStyle = GUIStyle.none;
+            }
+            // Art: a paper tag (same tint and pulse) instead of a flat white box
+            if (digestTagStyle != GUIStyle.none) GUI.Box(tag, GUIContent.none, digestTagStyle);
+            else GUI.DrawTexture(tag, Texture2D.whiteTexture);
             GUI.color = prev;
         }
         GUI.Label(rect, "Digesting\u2026", digestLabelStyle);
@@ -460,12 +502,16 @@ public abstract class PlayerCharacter : MonoBehaviour
     }
 
     // Blink while invincible (right after losing a Life)
+    int blinkPose = int.MinValue;
     void UpdateBlink()
     {
+        if (StopMotion.Enabled && blinkPose == StopMotion.Frame) return;
+        blinkPose = StopMotion.Enabled ? StopMotion.Frame : int.MinValue;
         bool invincible = GameManager.Instance != null && GameManager.Instance.IsInvincible;
 
-        // Toggle visible/hidden 10 times per second
-        bool visible = !invincible || Mathf.FloorToInt(Time.time * 10f) % 2 == 0;
+        // Toggle visible/hidden 10 times per second (art: in stop-motion mode, once per held pose instead)
+        float rate = StopMotion.Enabled ? StopMotion.Pose : 10f;
+        bool visible = !invincible || Mathf.FloorToInt(Time.time * rate) % 2 == 0;
         for (int i = 0; i < parts.Length; i++)
             if (parts[i] != null) parts[i].enabled = partShown[i] && visible;
     }

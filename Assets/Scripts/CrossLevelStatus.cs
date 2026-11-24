@@ -124,8 +124,7 @@ public class CrossLevelStatus : MonoBehaviour
     }
 
     // A new run: throw the current record away (if any) and start a fresh one of this type.
-    // The select screen calls it when a champion is picked, after the tutorial, so nothing carries
-    // over from an earlier run. Unlike Install, nothing is copied.
+    // Unlike Install, nothing is copied. Character picks use StartFreshKeepingGoods instead.
     public static CrossLevelStatus StartFresh(Type type)
     {
         StoreView.ShuffleStock();
@@ -139,6 +138,31 @@ public class CrossLevelStatus : MonoBehaviour
         preferred.Clear();
         preferred.Add(type);
         return Create(type);
+    }
+
+    public static CrossLevelStatus StartFreshKeepingGoods(Type type)
+    {
+        // Purchases belong to the player across character picks. Snapshot only unused stock and
+        // next-level reservations: Install/copyFrom would overwrite the new champion's defaults
+        // and skills with the old champion's stats and effects. Armed Brace grants its life on start.
+        var goods = new List<PlayerSkill>();
+        if (Active != null)
+        {
+            foreach (PlayerSkill skill in Active.skills)
+            {
+                if (!IsStoreEffect(skill.id)) continue;
+                goods.Add(new PlayerSkill { id = skill.id, stock = skill.stock, armed = skill.armed });
+            }
+        }
+
+        CrossLevelStatus created = StartFresh(type);
+        foreach (PlayerSkill goodsItem in goods)
+        {
+            PlayerSkill skill = created.addSkill(goodsItem.id);
+            skill.stock = goodsItem.stock;
+            skill.armed = goodsItem.armed;
+        }
+        return created;
     }
 
     static Type ChooseType()

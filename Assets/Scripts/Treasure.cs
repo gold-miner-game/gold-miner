@@ -24,6 +24,7 @@ public class Treasure : MonoBehaviour
         if (type != TreasureType.Diamond) return;
         SpriteRenderer look = GetComponent<SpriteRenderer>();
         if (look == null) return;
+        if (ArtLibrary.ApplyPainted(look, "Objects/Diamond")) return;   // art: painted gem when available
         look.sprite = GemSprite();
         look.color = new Color(0.45f, 0.78f, 1f);
     }

@@ -588,6 +588,10 @@ public class HUDController : MonoBehaviour
     static Texture2D GoldWhiteStripes()
     {
         if (goldWhiteStripes != null) return goldWhiteStripes;
+        // Art: felt and cream paper stripes in the same two colours (the miner lavender and white;
+        // Resources/Art/Tiles/PaperStripes, a repeating tile with the same diagonal period).
+        Sprite stripes = ArtLibrary.Get("Tiles/PaperStripes");
+        if (stripes != null) return goldWhiteStripes = stripes.texture;
         const int size = 32;
         goldWhiteStripes = new Texture2D(size, size, TextureFormat.RGBA32, false);
         goldWhiteStripes.wrapMode = TextureWrapMode.Repeat;
@@ -690,6 +694,9 @@ public class HUDController : MonoBehaviour
     static Sprite TargetFlagSprite()
     {
         if (targetFlagSprite != null) return targetFlagSprite;
+        // Art: a felt pennant (Resources/Art/Fx/Pennant), white so the flag's red still colours it
+        Sprite pennant = ArtLibrary.Get("Fx/Pennant");
+        if (pennant != null) return targetFlagSprite = pennant;
         const int size = 32;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
         texture.filterMode = FilterMode.Bilinear;
