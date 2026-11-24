@@ -333,7 +333,11 @@ public class HUDController : MonoBehaviour
             if (gm.Lives != lastLives)
             {
                 lives.Flash(gm.Lives < lastLives ? lifeLostColor : lifeGainedColor, moneyFlashTime);
-                if (gm.Lives < lastLives) FlashDamage();
+                if (gm.Lives < lastLives)
+                {
+                    FlashDamage();
+                    GameplayCamera.Shake();   // F3: the view jolts with the red edge flash
+                }
             }
             if (gm.IsPlaying && gm.UsesMoneyTarget && !targetCelebrated
                 && lastPlayerMoney < gm.MoneyTarget && gm.PlayerMoney >= gm.MoneyTarget)
