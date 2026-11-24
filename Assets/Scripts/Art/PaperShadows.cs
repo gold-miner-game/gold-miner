@@ -53,6 +53,8 @@ public class PaperShadows : MonoBehaviour
         nextScan = Time.unscaledTime + ScanEvery;
         foreach (Treasure t in Treasure.Active) Cut(t.GetComponent<SpriteRenderer>(), t, Kind.Treasure);
         foreach (Rock r in FindObjectsByType<Rock>(FindObjectsSortMode.None)) Cut(r.GetComponent<SpriteRenderer>(), null, Kind.Rock);
+        // map portals: hidden ones are disguised as rocks (PaperPortalStones), so they cast and boil like rocks
+        foreach (HubPortal h in FindObjectsByType<HubPortal>(FindObjectsSortMode.None)) Cut(h.GetComponent<SpriteRenderer>(), null, Kind.Rock);
         foreach (LifePickup l in FindObjectsByType<LifePickup>(FindObjectsSortMode.None)) Cut(l.GetComponent<SpriteRenderer>(), null, Kind.Life);
         foreach (PlayerCharacter p in FindObjectsByType<PlayerCharacter>(FindObjectsSortMode.None)) Pool(p);
     }
@@ -133,10 +135,17 @@ public class PaperShadows : MonoBehaviour
     // sprite is swapped (same outline): transforms, colliders and colours stay as gameplay set them.
     static void Boil(Piece s)
     {
-        if (s.boil == null) return;
         Sprite current = s.caster.sprite;
-        if (current != s.boil[0] && current != s.boil[1] && current != s.boil[2]) return;   // code changed it
+        if (s.boil == null || (current != s.boil[0] && current != s.boil[1] && current != s.boil[2]))
+        {
+            // A new sprite: boil it only if it is painted art with registered frames (e.g. PaperRocks'
+            // stones replacing the placeholder hexagon). Anything else code set is left alone.
+            Sprite[] frames = ArtLibrary.BoilFrames(current);
+            if (frames == null) return;
+            s.boil = frames;
+        }
         if (s.treasure != null && s.treasure.IsFrozen) return;
+        if (FrostField2D.IsFrozen(s.caster)) return;   // frost covers this exact sprite: hold it still
         Sprite next = s.boil[(StopMotion.BoilFrame * 2 + s.seed) % 3];
         if (current != next) s.caster.sprite = next;
     }

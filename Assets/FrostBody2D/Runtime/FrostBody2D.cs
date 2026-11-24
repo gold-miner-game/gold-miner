@@ -138,7 +138,7 @@ namespace FrostBody2D
             properties.SetTexture(MainTex, current.sprite.texture);
             properties.SetVector(UVOrigin, uvOrigin); properties.SetVector(UVX, uvX); properties.SetVector(UVY, uvY);
             properties.SetVector(BodyRect, bodyRect); properties.SetColor(FrostColor, rim);
-            properties.SetFloat(EdgeWidth, edgeWidth); properties.SetFloat(EffectTime, seconds);
+            properties.SetFloat(EdgeWidth, edgeWidth); properties.SetFloat(EffectTime, PaperFrost(properties, seconds));
             properties.SetFloat(Opacity, opacity); properties.SetFloat(BodyFrost, bodyFrost);
             properties.SetFloat(TargetAlpha, current.color.a);
             properties.SetFloat("_HasCoverage", coverageMask != null ? 1f : 0f);
@@ -184,6 +184,18 @@ namespace FrostBody2D
         // Common_ColdBuff00/Fresnel: first 3 seconds fade from white-blue to
         // blue, then a persistent blue rim starts at 3.03 s. Values are copied
         // from RimLightingAnimationSetup, rather than sampled from screenshots.
+        // Art (papercraft pass): the frost rim's noise is torn paper and fibre (Resources/Art/Tiles/
+        // PaperFrostNoise, same mean and contrast as the original noise), and its drift and twinkle step on
+        // twos like every other art motion. Look only: the rim colour timeline and all frost gameplay
+        // (coverage, expiry, freezing) keep their own unsnapped time. No art: the original look.
+        internal static float PaperFrost(MaterialPropertyBlock block, float seconds)
+        {
+            Sprite noise = ArtLibrary.Get("Tiles/PaperFrostNoise");
+            if (noise == null) return seconds;
+            block.SetTexture("_FrostNoise", noise.texture);
+            return StopMotion.Snap(seconds, StopMotion.Twos);
+        }
+
         internal static Color OriginalRimColor(float seconds)
         {
             if (seconds >= 3.03f) return new Color(.5450981f, .682353f, 1, .7058824f);

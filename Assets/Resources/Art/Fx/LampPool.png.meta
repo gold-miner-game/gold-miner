@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 15be7a408b37e014fb9a731a750f70fe
+guid: 0de7fe3941d816f439475f64c51c6426
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 1951201946459122054
-    second: Slab_0
+      213: -7123149404732422164
+    second: LampPool_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,13 +113,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Slab_0
+      name: LampPool_0
       rect:
         serializedVersion: 2
-        x: 2
-        y: 6
-        width: 251
-        height: 243
+        x: 9
+        y: 9
+        width: 238
+        height: 238
       alignment: 0
       pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 6892fb715df041b10800000000000000
-      internalID: 1951201946459122054
+      spriteID: ce783e04b5d752d90800000000000000
+      internalID: -7123149404732422164
       vertices: []
       indices: 
       edges: []

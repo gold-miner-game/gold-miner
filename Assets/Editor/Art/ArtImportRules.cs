@@ -57,6 +57,9 @@ public class ArtImportRules : AssetPostprocessor
             settings.spriteMeshType = SpriteMeshType.FullRect;
             settings.spriteBorder = new Vector4(46, 46, 46, 46);
         }
+        // Data textures read by shaders as numbers, not colour (the frost rim's noise): linear, like the
+        // original FrostBody2D noise.
+        if (file == "PaperFrostNoise") settings.sRGBTexture = false;   // in settings: SetTextureSettings below would overwrite the importer flag
         importer.SetTextureSettings(settings);
     }
 }

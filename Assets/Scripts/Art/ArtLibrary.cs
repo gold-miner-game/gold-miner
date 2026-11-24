@@ -26,6 +26,7 @@ public static class ArtLibrary
     }
 
     static readonly Dictionary<Sprite, Sprite[]> boil = new Dictionary<Sprite, Sprite[]>();
+    static readonly Dictionary<(Sprite, int), Sprite> scaledBoil = new Dictionary<(Sprite, int), Sprite>();
 
     // Registered boil frames of a painted object (itself, NAME_b1, NAME_b2; tools/art/boil_frames.py):
     // identical outline, only the surface light changes. Null when it has none.
@@ -38,6 +39,32 @@ public static class ArtLibrary
         boil[sprite] = frames;
         if (frames != null) { boil[b1] = frames; boil[b2] = frames; }
         return frames;
+    }
+
+    // Share smaller cut-outs, including their boil, so packed rocks never need a sprite per rock.
+    public static Sprite ScaledBoil(Sprite baseSprite, float factor)
+    {
+        if (baseSprite == null) return null;
+        Sprite[] frames = BoilFrames(baseSprite);
+        if (frames != null) baseSprite = frames[0];
+        // Round down to keep the gap; 0.35 is the first 0.05 step strictly above 0.3.
+        int step = Mathf.Clamp(Mathf.FloorToInt(Mathf.Clamp(factor, 0.35f, 1f) * 20f), 7, 20);
+        if (step == 20) return baseSprite;
+        if (scaledBoil.TryGetValue((baseSprite, step), out Sprite cached)) return cached;
+        factor = step / 20f;
+        Sprite[] scaled = new Sprite[frames != null ? frames.Length : 1];
+        for (int i = 0; i < scaled.Length; i++)
+        {
+            Sprite source = frames != null ? frames[i] : baseSprite;
+            Texture2D texture = source.texture;
+            scaled[i] = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f), source.pixelsPerUnit / factor, 0, SpriteMeshType.FullRect);
+            scaled[i].name = source.name + " (scaled " + step + "/20)";
+        }
+        // Every frame must resolve to this triple when PaperShadows notices a changed caster.
+        for (int i = 0; i < scaled.Length; i++) boil[scaled[i]] = frames != null ? scaled : null;
+        scaledBoil[(baseSprite, step)] = scaled[0];
+        return scaled[0];
     }
 
     // A mask shape (Fx/TornFill, Fx/CutDisc) as a fresh 1x1-unit sprite with the given pivot, for a

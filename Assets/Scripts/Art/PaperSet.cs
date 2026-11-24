@@ -10,7 +10,7 @@ using UnityEngine.SceneManagement;
 // the same every time a given scene opens (seeded by its name).
 public class PaperSet : MonoBehaviour
 {
-    static readonly string[] Props = { "Plank", "Rope", "Lantern", "Moss", "Mushrooms", "Slab", "Rail", "Crate", "Pebbles" };
+    static readonly string[] Props = { "Plank", "Rope", "Lantern", "Moss", "Mushrooms", "Rail", "Crate", "Pebbles" };
     static readonly Color Dim = new Color(0.6f, 0.56f, 0.52f, 0.9f);
     const int Count = 9;
     const float Band = 0.16f;   // share of the view, from each edge, that props may use
@@ -71,6 +71,7 @@ public class PaperSet : MonoBehaviour
             look.sprite = art;
             look.color = Dim;
             look.sortingOrder = short.MinValue + 1;   // just above the floor, under everything else
+            if (art.name == "Lantern") PaperLamps.Lantern(prop.transform);   // it casts a warm pool on the floor
             placed++;
         }
     }
