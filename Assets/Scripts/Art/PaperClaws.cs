@@ -35,7 +35,10 @@ public class PaperClaws : MonoBehaviour
         public Hook hook;
         public LineRenderer left, right;
         public SpriteRenderer plate, prongL, prongR;
-        public LineRenderer rope, cable;
+        public LineRenderer rope, ropeOutline, cable;
+        public Color ropeColor = Color.white, outlineColor = Color.clear;   // the colours Hook last gave its rope (we hold them at alpha 0)
+        public LineRenderer[] arms;   // ClawLeft, its outline, ClawRight, its outline: hidden under the brass claw
+        public Color[] armColors;
         public float drawn = 40f;     // the held drawn opening (degrees)
         public int lastFrame = -1;
         public int step;              // index into the running sequence
@@ -46,8 +49,12 @@ public class PaperClaws : MonoBehaviour
     Sprite plateArt, prongA, prongB;
     Material cableMaterial;
     readonly Vector3[] points = new Vector3[64];
-    const float CableWidth = 0.07f;   // slim two-ply twine like the keyframe
+    const float CableWidth = 0.19f;   // the keyframe twine, its two strands parting into open eyes on the (larger drawn) claw
+    const float ClawScale = 1.3f;     // the brass claw is drawn larger than its arms, so the thick rope has a plate to tie onto
+    const float CableAspect = 641f / 128f;   // Tiles/Cable: one full lazy twist (two open eyes), seamless
     float nextScan;
+    bool drawPose = true;
+    int artFrame = int.MinValue;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
@@ -57,7 +64,16 @@ public class PaperClaws : MonoBehaviour
         DontDestroyOnLoad(go);
         go.AddComponent<FrostIgnore2D>();
         instance = go.AddComponent<PaperClaws>();
-        SceneManager.sceneLoaded += (s, m) => { if (instance != null) instance.nextScan = 0f; };
+        SceneManager.sceneLoaded -= OnSceneLoaded;   // domain reload is off: never stack
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    static void OnSceneLoaded(Scene s, LoadSceneMode m) { if (instance != null) instance.nextScan = 0f; }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     void Start()
@@ -91,8 +107,13 @@ public class PaperClaws : MonoBehaviour
         {
             nextScan = Time.unscaledTime + 0.5f;
             foreach (Hook hook in FindObjectsByType<Hook>(FindObjectsSortMode.None))
-                if (!claws.Exists(c => c.hook == hook)) Add(hook);
+                if (!claws.Exists(c => c.hook == hook) && !Add(hook) && Time.timeSinceLevelLoad < 3f) nextScan = Time.unscaledTime;   // still being built: look again next frame
         }
+        // stop-motion mode: the claw and twine are redrawn only on a new pose and held between (the hidden
+        // gameplay strokes keep moving smoothly underneath); hiding them still runs every frame
+        int frame = StopMotion.Frame;
+        drawPose = !StopMotion.Enabled || frame != artFrame;
+        artFrame = frame;
         for (int i = claws.Count - 1; i >= 0; i--)
         {
             Claw c = claws[i];
@@ -110,14 +131,15 @@ public class PaperClaws : MonoBehaviour
         }
     }
 
-    void Add(Hook hook)
+    bool Add(Hook hook)
     {
         Transform l = hook.transform.Find("ClawLeft"), r = hook.transform.Find("ClawRight");
         LineRenderer left = l != null ? l.GetComponent<LineRenderer>() : null;
         LineRenderer right = r != null ? r.GetComponent<LineRenderer>() : null;
-        if (left == null || right == null) return;   // not drawn yet; the next scan tries again
+        if (left == null || right == null) return false;   // not drawn yet; the next scan tries again
         Transform ropeT = hook.transform.Find("Rope");
         LineRenderer rope = ropeT != null ? ropeT.GetComponent<LineRenderer>() : null;
+        Transform outlineT = hook.transform.Find("RopeOutline");
         claws.Add(new Claw
         {
             hook = hook, left = left, right = right,
@@ -125,8 +147,12 @@ public class PaperClaws : MonoBehaviour
             prongL = prongA != null ? Piece("Claw Prong", prongA) : null,
             prongR = prongB != null ? Piece("Claw Prong", prongB) : null,
             rope = rope,
+            ropeOutline = outlineT != null ? outlineT.GetComponent<LineRenderer>() : null,
+            arms = new[] { left, Line(hook, "ClawLeftOutline"), right, Line(hook, "ClawRightOutline") },
+            armColors = new[] { Color.white, Color.clear, Color.white, Color.clear },
             cable = rope != null && cableMaterial != null ? Cable() : null,
         });
+        return true;
     }
 
     LineRenderer Cable()
@@ -143,24 +169,66 @@ public class PaperClaws : MonoBehaviour
         return line;
     }
 
-    // The cable follows the rope's own points every frame; one twist pattern every ~0.6 units.
+    // The cable is a casual two-ply jute twine (Meshy-painted from the keyframe, a lazy twist with open eyes) laid over
+    // the rope's own points every frame. The texture is pinned at the hook end and tiled at a fixed length,
+    // never stretched: paying out shows more twists at the burrow while the ones by the claw ride with it.
     void PoseCable(Claw c)
     {
         if (c.cable == null || c.rope == null) return;
-        bool shown = c.rope.enabled && c.rope.gameObject.activeInHierarchy && c.rope.positionCount >= 2;
+        bool shown = c.rope.enabled && c.rope.gameObject.activeInHierarchy && c.rope.positionCount >= 2 && !PaperMiners.UnderHatch(c.hook);
         c.cable.enabled = shown;
+        if (PaperMiners.UnderHatch(c.hook))   // under the closed hatch: the gameplay rope stays hidden too
+        {
+            Hold(c.rope, ref c.ropeColor, false);
+            Hold(c.ropeOutline, ref c.outlineColor, false);
+        }
         if (!shown) return;
+        // The twine is the rope's whole look, its open eyes included, so the gameplay rope (fill and outline)
+        // is held at alpha 0 underneath: it stays enabled, so frost still finds it. Hook keeps its own colours
+        // and repaints them (owner, hostile, cut fade); a non-zero alpha is a new colour, which we keep for the
+        // twine. While frost patches lie on the rope it is drawn again, because they take its vertex alpha.
+        bool frosted = Frosted(c.rope) || Frosted(c.ropeOutline);
+        Hold(c.rope, ref c.ropeColor, frosted);
+        Hold(c.ropeOutline, ref c.outlineColor, frosted);
+        if (!drawPose) return;
         int n = Mathf.Min(c.rope.GetPositions(points), points.Length);
+        Vector2 hook = c.hook.transform.position;
+        if (((Vector2)points[n - 1] - hook).sqrMagnitude < ((Vector2)points[0] - hook).sqrMagnitude)
+            System.Array.Reverse(points, 0, n);   // Tile mode counts from point 0: make that the hook's end
         c.cable.positionCount = n;
         c.cable.SetPositions(points);
-        Color rope = c.rope.startColor;
+        Color rope = c.ropeColor;
         bool frozen = FrostField2D.IsFrozen(c.rope);
-        Color tint = frozen ? Ice : Color.Lerp(Color.white, new Color(rope.r, rope.g, rope.b), 0.6f);
+        Color tint = frozen ? Ice : Color.Lerp(Color.white, new Color(rope.r, rope.g, rope.b), 0.3f);   // jute dyed toward its owner's colour (the claw carries it fully)
         tint.a = rope.a;
         c.cable.startColor = c.cable.endColor = tint;
-        c.cable.textureScale = new Vector2(1f / 0.6f / CableWidth * 0.1f, 1f);
+        c.cable.textureScale = new Vector2(1f / (CableWidth * CableAspect), 1f);
         c.cable.sortingLayerID = c.rope.sortingLayerID;
         c.cable.sortingOrder = c.rope.sortingOrder + 1;   // over the gameplay rope, under the claw
+    }
+
+    static LineRenderer Line(Hook hook, string child)
+    {
+        Transform t = hook.transform.Find(child);
+        return t != null ? t.GetComponent<LineRenderer>() : null;
+    }
+
+    static void Hold(LineRenderer line, ref Color kept, bool show)
+    {
+        if (line == null) return;
+        Color now = line.startColor;
+        if (now.a > 0f && (!show || now != kept)) kept = now;   // Hook painted it since our last frame
+        Color want = kept;
+        if (!show) want.a = 0f;
+        if (line.startColor != want) line.startColor = line.endColor = want;
+    }
+
+    static bool Frosted(LineRenderer line)
+    {
+        if (line == null) return false;
+        FrostArtOverlay2D patches = line.GetComponentInChildren<FrostArtOverlay2D>();
+        LineRenderer drawn = patches != null ? patches.GetComponent<LineRenderer>() : null;
+        return drawn != null && drawn.enabled;
     }
 
     SpriteRenderer Piece(string pieceName, Sprite art)
@@ -175,14 +243,25 @@ public class PaperClaws : MonoBehaviour
 
     void Pose(Claw c)
     {
-        bool shown = c.left.enabled && c.left.gameObject.activeInHierarchy && c.left.positionCount >= 3;
+        bool shown = c.left.enabled && c.left.gameObject.activeInHierarchy && c.left.positionCount >= 3
+                     && !PaperMiners.UnderHatch(c.hook);   // still down the shaft under the closed level-start hatch
         c.plate.enabled = shown;
         if (c.prongL != null) c.prongL.enabled = shown;
         if (c.prongR != null) c.prongR.enabled = shown;
+        if (PaperMiners.UnderHatch(c.hook))   // under the closed hatch: the gameplay arms stay hidden too
+            for (int i = 0; i < c.arms.Length; i++) Hold(c.arms[i], ref c.armColors[i], false);
         if (!shown) return;
 
+        // The brass claw is drawn larger than the real arms, so the arms (and their outlines) would peek out
+        // beside it as a second claw: hold them at alpha 0 like the rope (still enabled for frost), and draw
+        // them again while frost patches lie on them or when there is no prong art to stand in.
+        bool armFrost = c.prongL == null;
+        foreach (LineRenderer arm in c.arms) armFrost |= Frosted(arm);
+        for (int i = 0; i < c.arms.Length; i++) Hold(c.arms[i], ref c.armColors[i], armFrost);
+        if (!drawPose) return;
+
         bool frozen = FrostField2D.IsFrozen(c.left) || FrostField2D.IsFrozen(c.right);
-        Color line = c.left.startColor;
+        Color line = c.armColors[0];
         Color tint = frozen ? Ice : Color.Lerp(Color.white, new Color(line.r, line.g, line.b), 0.45f);
         tint.a = line.a;   // a cut rope's half fades out with its arms
 
@@ -196,7 +275,7 @@ public class PaperClaws : MonoBehaviour
         // plate: rivet on the pivot, long side pointing back up the rope
         float back = Mathf.Atan2(-dir.y, -dir.x) * Mathf.Rad2Deg - 90f;
         c.plate.transform.SetPositionAndRotation(pivot, Quaternion.Euler(0f, 0f, back));
-        c.plate.transform.localScale = Vector3.one * (prongA != null ? reach * 0.62f : Mathf.Max(0.12f, c.hook.clawWidth * 2.6f));
+        c.plate.transform.localScale = Vector3.one * (prongA != null ? reach * 0.62f * ClawScale : Mathf.Max(0.12f, c.hook.clawWidth * 2.6f));
         c.plate.color = tint;
         Order(c.plate, c.left, 3);
         if (c.prongL == null) return;
@@ -233,7 +312,7 @@ public class PaperClaws : MonoBehaviour
         float side = Mathf.Sign(dir.x * (elbow - pivot).y - dir.y * (elbow - pivot).x);
         if (side == 0f) side = 1f;
         Vector2 toTip = Quaternion.Euler(0f, 0f, side * tipAngle) * dir;
-        float length = Mathf.Max(0.05f, Vector2.Distance(pivot, tip)) * 1.04f;
+        float length = Mathf.Max(0.05f, Vector2.Distance(pivot, tip)) * 1.04f * ClawScale;
 
         // the prong's curve must bulge to the elbow's side: A bulges to its right, B to its left
         bool useA = side < 0f;

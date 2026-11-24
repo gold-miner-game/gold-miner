@@ -959,7 +959,7 @@ public class Level1Tutorial : MonoBehaviour
     void Bob()
     {
         PlaceCallouts();
-        float w = 0.18f * Mathf.Sin(Time.unscaledTime * 6f);
+        float w = 0.18f * Mathf.Sin(StopMotion.Snap(Time.unscaledTime, StopMotion.Pose) * 6f);   // art: bobs in held poses on twos
         foreach (Callout mark in callouts)
         {
             if (!mark.used || mark.arrow == null || !mark.arrow.gameObject.activeSelf) continue;

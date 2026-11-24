@@ -52,9 +52,9 @@ public class BlockFlash : MonoBehaviour
         age += Time.deltaTime;   // a frozen game holds the flash too
         if (paper)
         {
-            int step = Mathf.FloorToInt(age * StopMotion.Twos);
+            int step = Mathf.FloorToInt(age * StopMotion.Pose);
             int foldSteps = 2;
-            int foldAt = Mathf.Max(PopPoses.Length, Mathf.FloorToInt(lifetime * StopMotion.Twos) - foldSteps);
+            int foldAt = Mathf.Max(PopPoses.Length, Mathf.FloorToInt(lifetime * StopMotion.Pose) - foldSteps);
             float open = Mathf.LerpUnclamped(startScale, endScale, PopPoses[Mathf.Min(step, PopPoses.Length - 1)] * 1.08f);
             float fold = step < foldAt ? 1f : step == foldAt ? 0.55f : 0.18f;
             transform.localScale = new Vector3(size.x * open, size.y * open * fold, 1f);

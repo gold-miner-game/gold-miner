@@ -9,7 +9,7 @@ public sealed class PaperStepSkills : MonoBehaviour
     Transform pivot;
     Quaternion trueRotation, heldRotation;
     bool safe, hasPose, applied;
-    bool wasStepping;
+    bool wasStepping, ending;
     int heldFrame = int.MinValue;
 
     internal void Initialize(CatController owner, Transform visual)
@@ -33,12 +33,16 @@ public sealed class PaperStepSkills : MonoBehaviour
             heldRotation = rotation;
             heldFrame = frame;
         }
+        ending = false;
         wasStepping = stepping;
         hasPose = true;
     }
 
     void LateUpdate()
     {
+        // FinishSpin restores the true base immediately; the picture finishes on the next pose.
+        if (ending && heldFrame != StopMotion.Frame)
+        { ending = false; hasPose = false; return; }
         if (!safe || cat == null || !cat.isActiveAndEnabled || !hasPose
             || !Application.isPlaying || !StopMotion.Enabled) return;
         trueRotation = pivot.localRotation;
@@ -55,18 +59,13 @@ public sealed class PaperStepSkills : MonoBehaviour
         applied = false;
     }
 
-    internal void CancelPose() { Restore(); hasPose = false; heldFrame = int.MinValue; }
-    void OnDisable() { CancelPose(); }
-    void OnDestroy() { CancelPose(); }
-}
-
-// Like PaperPuppetRestore: restore before physics callbacks and gameplay Update.
-// The two restores write different local transforms (pivot versus ears/eyes/bubble),
-// so their equal execution order cannot fight. Catchlight locals are also restored.
-[DefaultExecutionOrder(-32000)]
-public sealed class PaperStepSkillsRestore : MonoBehaviour
-{
-    internal PaperStepSkills skills;
-    void FixedUpdate() { if (skills != null) skills.Restore(); }
-    void Update() { if (skills != null) skills.Restore(); }
+    internal void CancelPose()
+    {
+        Restore();
+        if (safe && hasPose && Application.isPlaying && StopMotion.Enabled) { ending = true; return; }
+        ClearPose();
+    }
+    void ClearPose() { Restore(); ending = hasPose = false; heldFrame = int.MinValue; }
+    void OnDisable() { ClearPose(); }
+    void OnDestroy() { ClearPose(); }
 }

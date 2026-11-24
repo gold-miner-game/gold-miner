@@ -193,7 +193,7 @@ namespace FrostBody2D
             Sprite noise = ArtLibrary.Get("Tiles/PaperFrostNoise");
             if (noise == null) return seconds;
             block.SetTexture("_FrostNoise", noise.texture);
-            return StopMotion.Snap(seconds, StopMotion.Twos);
+            return StopMotion.Snap(seconds, StopMotion.Pose);
         }
 
         internal static Color OriginalRimColor(float seconds)

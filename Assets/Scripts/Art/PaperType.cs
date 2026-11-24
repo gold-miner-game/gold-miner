@@ -151,7 +151,7 @@ public class PaperType : MonoBehaviour
             t.shown = shown;
             t.words = t.text.text;
             if (!shown) continue;
-            int step = Mathf.FloorToInt((Time.unscaledTime - t.at) * StopMotion.Twos);
+            int step = Mathf.FloorToInt((Time.unscaledTime - t.at) * StopMotion.Pose);
             if (t.settled) continue;
             Transform tr = t.text.rectTransform;
             Vector3 now = tr.localScale;

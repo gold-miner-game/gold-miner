@@ -16,6 +16,8 @@ public class PlayerLifeBar : MonoBehaviour
     public float gap = 0.05f;
     [Tooltip("Above the top of the player's body, in world units")]
     public float lift = 0.22f;
+    SpriteRenderer helmet;   // art: the shield's paper-bag helmet, looked up once
+    bool helmetLooked;
     public Color full = new Color(0.92f, 0.16f, 0.2f);
     // Brace bonus pips: orange (#FF8C14), same cue as the sidebar LIFE +N.
     public Color braceFull = new Color(1f, 0.549f, 0.078f, 1f);
@@ -63,7 +65,11 @@ public class PlayerLifeBar : MonoBehaviour
             Vector2 headOffset = new Vector2(body.bounds.center.x, body.bounds.max.y) - physicsPosition;
             at = (Vector2)transform.position + headOffset;
         }
-        bar.position = new Vector3(at.x, at.y + lift, 0f);
+        float y = at.y + lift;
+        // Art: while the paper-bag helmet (the shield) is worn, the pips rest just above it instead of on it.
+        if (!helmetLooked) { helmetLooked = true; foreach (SpriteRenderer r in GetComponentsInChildren<SpriteRenderer>(true)) if (r.name == "ShieldBubble") { helmet = r; break; } }
+        if (helmet != null && helmet.enabled && helmet.gameObject.activeInHierarchy) y = Mathf.Max(y, helmet.bounds.max.y + 0.18f);   // clear of the bag and its 5% breath
+        bar.position = new Vector3(at.x, y, 0f);
 
         // Rightmost filled segments are Brace bonus Lives (orange); the rest stay bright red.
         bonus = Mathf.Clamp(bonus, 0, filled);
@@ -93,7 +99,7 @@ public class PlayerLifeBar : MonoBehaviour
 
     static float PopScale(float at)
     {
-        int step = Mathf.FloorToInt((StopMotion.Time - at) * StopMotion.Twos + 0.001f);
+        int step = Mathf.FloorToInt((StopMotion.Time - at) * StopMotion.Pose + 0.001f);
         return step >= 0 && step < Pop.Length ? Pop[step] : 1f;
     }
 

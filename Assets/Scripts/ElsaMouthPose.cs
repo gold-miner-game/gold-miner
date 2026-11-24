@@ -126,6 +126,15 @@ public class ElsaMouthPose : MonoBehaviour
         Vector3 parentForward = new Vector3(Mathf.Sign(restForward.x), 0f, 0f);
         forward = upperRest.part.parent != null ? (Vector2)upperRest.part.parent.TransformVector(parentForward) : (Vector2)parentForward;
         forward.Normalize();
+        // Art: Elsa's artwork is drawn at 80% (Penguin.prefab "Artwork", so she matches the pig and the cat).
+        // The breath must still start where it did at full size, so the mouth point is scaled back out from
+        // the artwork's centre by its drawn scale: the freeze cone, its reach and every freeze rule stay
+        // exactly as before. A full-size artwork (scale 1) leaves the point untouched.
+        Transform art = upperRest.part;
+        while (art != null && art.parent != null && art.parent != transform) art = art.parent;
+        float drawn = art != null && art.parent == transform ? Mathf.Abs(art.localScale.y) : 1f;
+        if (drawn > 0.01f && Mathf.Abs(drawn - 1f) > 0.001f)
+            position = art.position + (position - art.position) / drawn;
         return true;
     }
 

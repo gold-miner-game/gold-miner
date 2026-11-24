@@ -147,7 +147,7 @@ public class PaperPortalStones : MonoBehaviour
                 // Absolute magnitude also handles int.MinValue without a negative array index.
                 uint hash = (uint)(signedHash < 0 ? -(long)signedHash : signedHash);
                 if (look.stone == null)
-                    look.stone = ArtLibrary.ScaledBoil(stones[0], MatchRocks(look.portal.transform));   // Stone1, like the green rocks
+                    look.stone = ArtLibrary.ScaledBoil(stones[2], MatchRocks(look.portal.transform));   // Stone3, like the green rocks
                 // PaperShadows boils this renderer like a rock (on threes): leave any of the stone's boil
                 // frames in place, only put the stone back when something else is showing.
                 Sprite[] frames = ArtLibrary.BoilFrames(look.stone);

@@ -67,7 +67,7 @@ public class MainMenu : MonoBehaviour
     // Shot on threes (8 poses a second), every pose held 0.125 s so each reads as a separate exposure:
     // corner lifts and holds (anticipation), a third, two thirds, all of it curled, then it flips off.
     static readonly float[] PeelPoses = { 0.06f, 0.06f, 0.34f, 0.68f, 1f, 1f };
-    static float PeelTime => PeelPoses.Length / StopMotion.Threes;
+    const float PeelTime = 0.75f;   // the Start/Continue transition, as before; the six poses share it evenly
     float peelStart = -1f;
     bool peeled;
 
@@ -79,7 +79,7 @@ public class MainMenu : MonoBehaviour
 
     void DrawPeel(Rect rect, string label)
     {
-        int pose = Mathf.Clamp(Mathf.FloorToInt((Time.unscaledTime - peelStart) * StopMotion.Threes), 0, PeelPoses.Length - 1);
+        int pose = Mathf.Clamp(Mathf.FloorToInt((Time.unscaledTime - peelStart) / PeelTime * PeelPoses.Length), 0, PeelPoses.Length - 1);
         float p = PeelPoses[pose];
         bool flipping = pose == PeelPoses.Length - 1;   // last pose: the sticker leaves the backdrop
         // Pulled by its gold tab on the left: the sticker peels left to right.

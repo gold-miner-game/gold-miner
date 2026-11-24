@@ -5,20 +5,21 @@ using UnityEngine.SceneManagement;
 // Art: rocks and walls as flat 2D cut-paper stones: two or three torn paper layers seen from straight
 // above, like the set's other cut-outs (Resources/Art/Objects/Stone1..9, painted with Meshy using the
 // cover and the character sheet as style references, cut with slice_sheet.py). Each has registered boil
-// frames (Stone*_b1/_b2, boil_frames.py), so PaperShadows re-lays its paper surface on threes like the
+// frames (Stone*_b1/_b2, boil_frames.py), so each drawing re-lays its paper surface on threes like the
 // gold: a stop-motion stone, never a still image.
-// The hexagon (Assets/Sprites/HexagonFlatTop) was only a placeholder for level design; every rock still
-// drawn with it gets a stone, picked and mirrored from its position so a layout always looks the same.
+// The hexagon (Assets/Sprites/HexagonFlatTop) stays on the gameplay renderer for frost geometry;
+// an independent stone is picked and mirrored from its position so a layout always looks the same.
 //   - Art only: loose rocks keep their fitted cut-out; sealed walls get independent paper stones
 //     packed by path distance. Nothing here changes a Rock field, collider or gameplay transform.
 //     Stones/shadows live under PaperRocks' own FrostIgnore2D root; covered rocks hide via alpha 0.
 //   - Same meaning: the stones are light grey, so the renderer tint (green = rhino-proof, map area
-//     colours) still colours them. Shards of a broken rock reuse its sprite, so they are stone too.
-//     Packed stones hold their boil and blend 60% ice tint while any covered rock is frozen.
+//     colours) still colours them. Gameplay shards continue to use the original rock sprite.
+//     Stones hold their boil and blend 60% ice tint while any covered rock is frozen.
 //   - Walls keep a small paper gap: loose drawings fit the nearest centre; sealed walls use path packing.
 //     Walls only get the chunky stones (the long oval and slab, Stone4 and Stone8, are kept for loose rocks).
 public class PaperRocks : MonoBehaviour
 {
+    const int StoneBelow = 2;   // stones draw two steps under their rock's order: gold always lies over a stone
     const string Placeholder = "HexagonFlatTop";
     const float DenseSpacing = 0.48f, FillerMinimum = 0.40f, Gap = 0.04f;
     static readonly string[] Chunky = { "Stone1", "Stone2", "Stone3", "Stone5", "Stone6", "Stone7", "Stone9" };
@@ -27,6 +28,8 @@ public class PaperRocks : MonoBehaviour
     static PaperRocks instance;
     Sprite[] chunky, any;
     float nextScan;
+    readonly Dictionary<Rock, Node> known = new Dictionary<Rock, Node>();
+    readonly List<Node> tracked = new List<Node>();
     readonly Dictionary<int, WallScene> walls = new Dictionary<int, WallScene>();
 
     sealed class WallScene
@@ -41,6 +44,13 @@ public class PaperRocks : MonoBehaviour
         public float width;
         public int id;
         public bool active;
+        public Color tint;
+        public float alpha = 1f;      // the rock's real alpha, given back before gameplay runs (PaperRocksRestore)
+        public bool hidden;
+        public Sprite sprite;
+        public bool flip, packed;
+        public int seed;
+        public Drawing drawing;
         public readonly List<Node> neighbours = new List<Node>();
     }
     sealed class Path
@@ -72,7 +82,9 @@ public class PaperRocks : MonoBehaviour
         if (instance != null) return;
         var go = new GameObject("Paper Rocks");
         DontDestroyOnLoad(go);
+        go.AddComponent<FrostIgnore2D>();
         instance = go.AddComponent<PaperRocks>();
+        go.AddComponent<PaperRocksRestore>();
         SceneManager.sceneLoaded += instance.SceneLoaded;
         SceneManager.sceneUnloaded += instance.SceneUnloaded;
     }
@@ -102,28 +114,25 @@ public class PaperRocks : MonoBehaviour
         // half-second clock allocate. Query covered renderers once per boil tick: the Renderer
         // overload is a dictionary lookup, and the independent art root ignores automatic frost.
         int boilFrame = StopMotion.BoilFrame;
+        for (int i = tracked.Count - 1; i >= 0; i--)
+        {
+            Node node = tracked[i];
+            if (node.rock == null || node.look == null)
+            {
+                RetireIndividual(node);
+                known.Remove(node.rock);
+                tracked.RemoveAt(i);
+                continue;
+            }
+            CaptureTint(node);
+            if (!node.rock.gameObject.activeInHierarchy) { RetireIndividual(node); continue; }
+            if (node.drawing == null) continue;
+            PlaceIndividual(node);
+            UpdateDrawing(node.drawing, boilFrame);
+        }
         foreach (WallScene wall in walls.Values)
             foreach (Chain chain in wall.chains)
-                foreach (Drawing drawing in chain.drawings)
-                {
-                    if (drawing.lastFrozenBoilFrame != boilFrame)
-                    {
-                        drawing.lastFrozenBoilFrame = boilFrame;
-                        bool frozen = false;
-                        foreach (Node node in drawing.covers)
-                            if (node.rock != null && node.look != null && FrostField2D.IsFrozen(node.look)) { frozen = true; break; }
-                        if (drawing.frozen != frozen)
-                        {
-                            drawing.frozen = frozen;
-                            // Restore the stored tint on thaw; never compound ice or tint the shadow.
-                            drawing.stone.color = frozen ? Color.Lerp(drawing.normalTint, new Color(0.72f, 0.9f, 1f, 1f), 0.6f) : drawing.normalTint;
-                        }
-                    }
-                    if (drawing.frozen || drawing.frames == null || drawing.frames.Length == 0) continue;
-                    Sprite frame = drawing.frames[(boilFrame * 2 + drawing.seed) % drawing.frames.Length];
-                    if (drawing.stone.sprite == frame) continue;
-                    drawing.stone.sprite = drawing.shadow.sprite = frame;
-                }
+                foreach (Drawing drawing in chain.drawings) UpdateDrawing(drawing, boilFrame);
         if (Time.unscaledTime < nextScan) return;
         nextScan = Time.unscaledTime + 0.5f;
         foreach (WallScene wall in walls.Values)
@@ -144,9 +153,15 @@ public class PaperRocks : MonoBehaviour
         foreach (Rock rock in rocks)
         {
             SpriteRenderer look = rock.GetComponent<SpriteRenderer>();
+            if (known.TryGetValue(rock, out Node existing))
+            {
+                // Reactivation uses the original decision, even if neighbours or tint changed.
+                if (!existing.packed && existing.drawing == null) CreateIndividual(existing);
+                continue;
+            }
             if (look == null || look.sprite == null || look.sprite.name.Replace(" ", "") != Placeholder) continue;
             Vector2 p = rock.transform.position;
-            // Preserve the old individual hash, pool, flip and fitted ScaledBoil exactly.
+            // Preserve the old individual hash, pool, flip and fitted ScaledBoil exactly, on art only.
             int rawHash = Mathf.RoundToInt(p.x * 7.13f) * 73856093 ^ Mathf.RoundToInt(p.y * 5.71f) * 19349663;
             int hash = rawHash == int.MinValue ? 0 : Mathf.Abs(rawHash);
             float scale = Mathf.Abs(rock.transform.lossyScale.x);
@@ -163,18 +178,28 @@ public class PaperRocks : MonoBehaviour
             // spacing is uniform, so the spacing fit above already gives one size everywhere (the hexagons
             // overlapped by design, so a size taken from the rock's own scale would overlap).
             // Green tiles (unrevealed levels) share one shape on top of that.
-            look.sprite = ArtLibrary.ScaledBoil(green ? chunky[0] : pool[hash % pool.Length], factor);
-            look.flipX = !green && (hash / 7 & 1) == 1;
+            var node = new Node { rock = rock, look = look, at = rock.transform.position,
+                width = scale, active = true, tint = new Color(look.color.r, look.color.g, look.color.b, 1f),
+                sprite = ArtLibrary.ScaledBoil(green ? chunky[2] : pool[hash % pool.Length], factor),   // green: Stone3, a faceted stone that still reads as rock in green (Stone1 read as a felt dot)
+                flip = !green && (hash / 7 & 1) == 1, seed = hash & 0xff };
+            known.Add(rock, node);
+            tracked.Add(node);
+            CaptureTint(node);
             int scene = rock.gameObject.scene.handle;
-            // Classify each placeholder once: conversion itself is the marker. No retained loose
-            // records or growing retry list in scenes without walls. Later spawns stay individual
-            // after the first eligible batch; scenes built over several scans intentionally commit
-            // to the first scan containing eligible placeholders.
+            // Explicit tracking replaces the sprite-swap marker: NEVER change the rock's sprite
+            // or flipX. Frost uses its original sprite/bounds for contact and coverage stamping.
+            // Later spawns stay individual after the first eligible batch, just as before.
             if (walls.ContainsKey(scene) || !rock.isWall || scale <= 0f ||
                 IsHub(rock) ||   // the hub's multi-row honeycomb walls: path packing assumes single-file walls
-                rock.GetComponent<MapRockDamage>() != null || NearestCentre(rock, rocks) >= DenseSpacing) continue;
+                rock.GetComponent<MapRockDamage>() != null || nearest >= DenseSpacing)
+            {
+                CreateIndividual(node);
+                continue;
+            }
             if (!batches.TryGetValue(scene, out List<Node> batch)) batches.Add(scene, batch = new List<Node>());
-            batch.Add(new Node { rock = rock, look = look, at = rock.transform.position, width = scale, active = true, id = batch.Count });
+            node.packed = true;
+            node.id = batch.Count;
+            batch.Add(node);
         }
         foreach (var batch in batches)
         {
@@ -182,6 +207,81 @@ public class PaperRocks : MonoBehaviour
             walls.Add(batch.Key, wall);
             BuildChains(wall, batch.Value);
         }
+    }
+
+    static void CaptureTint(Node node)
+    {
+        Color tint = node.look.color;
+        // Gameplay can restore an opaque colour (e.g. a blocked flash). Keep its RGB intact for
+        // RhinoProof and copy it to the art, then hide again before PaperShadows.LateUpdate.
+        node.tint = new Color(tint.r, tint.g, tint.b, 1f);
+        if (tint.a == 0f) return;
+        node.alpha = tint.a;
+        node.hidden = true;
+        tint.a = 0f;
+        node.look.color = tint;
+        // Do not disable/forceRenderingOff: frost must still see the original renderer.
+    }
+    static void UpdateDrawing(Drawing drawing, int boilFrame)
+    {
+        Color tint = new Color(0f, 0f, 0f, 1f);
+        foreach (Node node in drawing.covers)
+        { tint.r += node.tint.r; tint.g += node.tint.g; tint.b += node.tint.b; }
+        tint.r /= drawing.covers.Length; tint.g /= drawing.covers.Length; tint.b /= drawing.covers.Length;
+        drawing.normalTint = tint;
+        if (drawing.lastFrozenBoilFrame != boilFrame)
+        {
+            drawing.lastFrozenBoilFrame = boilFrame;
+            drawing.frozen = false;
+            foreach (Node node in drawing.covers)
+                if (node.rock != null && node.look != null && FrostField2D.IsFrozen(node.look))
+                { drawing.frozen = true; break; }
+        }
+        // Reapply even between boil ticks so a flash shows immediately, including under ice.
+        drawing.stone.color = drawing.frozen ? Color.Lerp(drawing.normalTint,
+            new Color(0.72f, 0.9f, 1f, 1f), 0.6f) : drawing.normalTint;
+        if (drawing.frozen || drawing.frames == null || drawing.frames.Length == 0) return;
+        Sprite frame = drawing.frames[(boilFrame * 2 + drawing.seed) % drawing.frames.Length];
+        if (drawing.stone.sprite != frame) drawing.stone.sprite = drawing.shadow.sprite = frame;
+    }
+    void CreateIndividual(Node node)
+    {
+        var go = new GameObject("Rock paper");
+        go.transform.SetParent(transform, false);
+        var stone = go.AddComponent<SpriteRenderer>();
+        stone.sprite = node.sprite; stone.flipX = node.flip;
+        var shadowObject = new GameObject("Rock paper shadow");
+        shadowObject.transform.SetParent(transform, false);
+        var shadow = shadowObject.AddComponent<SpriteRenderer>();
+        shadow.sprite = node.sprite; shadow.flipX = node.flip;
+        shadow.color = new Color(0.12f, 0.08f, 0.06f, 0.55f);
+        node.drawing = new Drawing { stone = stone, shadow = shadow, covers = new[] { node },
+            frames = ArtLibrary.BoilFrames(node.sprite), seed = node.seed, normalTint = node.tint };
+        PlaceIndividual(node);
+        UpdateDrawing(node.drawing, StopMotion.BoilFrame);
+    }
+    static void PlaceIndividual(Node node)
+    {
+        Drawing drawing = node.drawing;
+        Transform source = node.look.transform;
+        drawing.stone.transform.SetPositionAndRotation(source.position, source.rotation);
+        drawing.shadow.transform.SetPositionAndRotation(source.position + ShadowOffset, source.rotation);
+        drawing.stone.transform.localScale = drawing.shadow.transform.localScale = source.lossyScale;
+        drawing.stone.sharedMaterial = drawing.shadow.sharedMaterial = node.look.sharedMaterial;
+        drawing.stone.sortingLayerID = drawing.shadow.sortingLayerID = node.look.sortingLayerID;
+        drawing.stone.sortingOrder = node.look.sortingOrder - StoneBelow;   // gold, characters and the rest at the rock's order lie on top
+        drawing.shadow.sortingOrder = node.look.sortingOrder - StoneBelow - 1;
+        // Follow gameplay visibility (e.g. staged smashing) without ever changing that renderer.
+        drawing.stone.enabled = drawing.shadow.enabled = node.look.enabled && !node.look.forceRenderingOff;
+    }
+    void RetireIndividual(Node node)
+    {
+        if (node.drawing == null) return;
+        node.drawing.stone.gameObject.SetActive(false);
+        node.drawing.shadow.gameObject.SetActive(false);
+        Destroy(node.drawing.stone.gameObject);
+        Destroy(node.drawing.shadow.gameObject);
+        node.drawing = null;
     }
 
     static int CompareRocks(Rock a, Rock b)
@@ -215,12 +315,6 @@ public class PaperRocks : MonoBehaviour
             chain.nodes.Sort(CompareNodes);
             BuildPaths(chain);
             wall.chains.Add(chain);
-            foreach (Node node in chain.nodes)
-            {
-                // Alpha only, once on admission. RGB and renderer eligibility carry gameplay and
-                // frost meaning; PaperShadows automatically multiplies its own alpha by this one.
-                Color tint = node.look.color; tint.a = 0f; node.look.color = tint;
-            }
             Repack(chain);
         }
     }
@@ -434,7 +528,7 @@ public class PaperRocks : MonoBehaviour
         uint hash = PositionHash(at);
         Sprite sprite = chunky[hash % (uint)chunky.Length];
         Color tint = new Color(0f, 0f, 0f, 1f);
-        foreach (Node node in covers) { Color c = node.look.color; tint.r += c.r; tint.g += c.g; tint.b += c.b; }
+        foreach (Node node in covers) { Color c = node.tint; tint.r += c.r; tint.g += c.g; tint.b += c.b; }
         tint.r /= covers.Count; tint.g /= covers.Count; tint.b /= covers.Count;
         var go = new GameObject("Wall stone");
         go.transform.SetParent(chain.root.transform, false);
@@ -445,7 +539,7 @@ public class PaperRocks : MonoBehaviour
         stone.sprite = sprite; stone.color = tint; stone.flipX = (hash / 7u & 1u) == 1u;
         // Sorting/material follow the closest covered rock when a path crosses authored layers.
         stone.sharedMaterial = nearest.look.sharedMaterial;
-        stone.sortingLayerID = nearest.look.sortingLayerID; stone.sortingOrder = nearest.look.sortingOrder;
+        stone.sortingLayerID = nearest.look.sortingLayerID; stone.sortingOrder = nearest.look.sortingOrder - StoneBelow;
         var shadowObject = new GameObject("Wall stone shadow");
         shadowObject.transform.SetParent(chain.root.transform, false);
         shadowObject.transform.position = at + ShadowOffset;
@@ -473,6 +567,23 @@ public class PaperRocks : MonoBehaviour
         }
         return Mathf.Sqrt(nearestSquared);
     }
+    // Before any gameplay: each rock gets its real alpha back, so whatever gameplay copies from it (the
+    // pieces it shatters into, a charge-smashed block) is visible. LateUpdate hides it again for drawing only.
+    internal void Restore()
+    {
+        foreach (Node node in tracked)
+        {
+            if (!node.hidden || node.look == null) continue;
+            node.hidden = false;
+            Color c = node.look.color;
+            if (c.a == 0f) { c.a = node.alpha; node.look.color = c; }
+        }
+    }
+
+    internal static void RestoreNow() { if (instance != null) instance.Restore(); }
+
+    void OnDisable() { Restore(); }
+
     void OnDestroy()
     {
         SceneManager.sceneLoaded -= SceneLoaded;

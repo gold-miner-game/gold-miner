@@ -28,6 +28,7 @@ public class PaperShadows : MonoBehaviour
         public int seed;
         public Sprite[] hang;       // treasure hang poses (NAME_h1, NAME_h2) while a claw holds it
         public bool hangLooked;
+        public Sprite[] rock;       // treasure rock poses (NAME_r1 +6, NAME_r2 -6 degrees about the centre)
     }
 
     enum Kind { Rock, Treasure, Life, Character }
@@ -45,8 +46,21 @@ public class PaperShadows : MonoBehaviour
         var go = new GameObject("Paper Shadows");
         DontDestroyOnLoad(go);
         instance = go.AddComponent<PaperShadows>();
-        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += s => sceneChangeFrame = Time.frameCount;
-        UnityEngine.SceneManagement.SceneManager.sceneLoaded += (s, m) => sceneChangeFrame = Time.frameCount;
+        UnityEngine.SceneManagement.SceneManager.sceneUnloaded -= OnSceneUnloaded;   // domain reload is off: never stack
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+        UnityEngine.SceneManagement.SceneManager.sceneUnloaded += OnSceneUnloaded;
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    static void OnSceneUnloaded(UnityEngine.SceneManagement.Scene s) => sceneChangeFrame = Time.frameCount;
+    static void OnSceneLoaded(UnityEngine.SceneManagement.Scene s, UnityEngine.SceneManagement.LoadSceneMode m) => sceneChangeFrame = Time.frameCount;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics()
+    {
+        UnityEngine.SceneManagement.SceneManager.sceneUnloaded -= OnSceneUnloaded;
+        UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
+        sceneChangeFrame = -10;
     }
 
     void Update()
@@ -121,10 +135,10 @@ public class PaperShadows : MonoBehaviour
             if (!visible) continue;
             if (s.blob) { PlaceBlob(s); continue; }
             Boil(s);
-            s.lastAt = s.caster.transform.position;
+            s.lastAt = s.caster.transform.position + PaperHolds.DisplayOffset(s.caster.transform);
             s.lastSize = s.caster.transform.lossyScale.x;
             Transform t = s.look.transform, c = s.caster.transform;
-            t.SetPositionAndRotation(c.position + Offset, c.rotation);
+            t.SetPositionAndRotation(c.position + PaperHolds.DisplayOffset(c) + Offset, c.rotation);
             t.localScale = c.lossyScale;
             if (s.look.sprite != s.caster.sprite) s.look.sprite = s.caster.sprite;
             s.look.flipX = s.caster.flipX;
@@ -163,10 +177,34 @@ public class PaperShadows : MonoBehaviour
         return false;
     }
 
+    // Stop-motion rock (characters' mode): a treasure lying on the floor tips +6 / rest / -6 on the shared
+    // StopMotion.Rock beat, against the characters' lean. Pre-drawn on the same full-rect canvas, so its sprite
+    // bounds (frost, Hook.HoldInClaw) never change; held still while frozen.
+    static bool RockTreasure(Piece s, ref Sprite current)
+    {
+        if (s.treasure == null || s.boil == null) return false;
+        if (s.rock == null)
+        {
+            Sprite r1 = ArtLibrary.Get("Objects/" + s.boil[0].name + "_r1"), r2 = ArtLibrary.Get("Objects/" + s.boil[0].name + "_r2");
+            s.rock = r1 != null && r2 != null ? new[] { r1, r2 } : new Sprite[0];
+        }
+        if (s.rock.Length < 2) return false;
+        int pose = StopMotion.Enabled && !s.treasure.IsFrozen ? StopMotion.Rock : 0;
+        if (pose != 0)
+        {
+            Sprite next = pose > 0 ? s.rock[0] : s.rock[1];
+            if (current != next) s.caster.sprite = next;
+            return true;
+        }
+        if (current == s.rock[0] || current == s.rock[1]) { s.caster.sprite = s.boil[0]; current = s.boil[0]; }
+        return false;
+    }
+
     static void Boil(Piece s)
     {
         Sprite current = s.caster.sprite;
         if (Hang(s, ref current)) return;
+        if (RockTreasure(s, ref current)) return;
         if (s.boil == null || (current != s.boil[0] && current != s.boil[1] && current != s.boil[2]))
         {
             // A new sprite: boil it only if it is painted art with registered frames (e.g. PaperRocks'
@@ -199,7 +237,7 @@ public class PaperShadows : MonoBehaviour
     {
         Bounds b = s.caster.bounds;
         Transform t = s.look.transform;
-        t.SetPositionAndRotation(new Vector3(b.center.x, b.min.y + b.size.y * 0.18f, b.center.z) + Offset, Quaternion.identity);
+        t.SetPositionAndRotation(new Vector3(b.center.x, b.min.y + b.size.y * 0.18f, b.center.z) + PaperHolds.DisplayOffset(s.caster.transform) + Offset, Quaternion.identity);
         t.localScale = new Vector3(b.size.x * 1.05f, b.size.y * 0.42f, 1f);
         s.look.color = new Color(Blob.r, Blob.g, Blob.b, Blob.a * s.caster.color.a);
     }

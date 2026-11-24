@@ -53,7 +53,7 @@ public class PaperHud : MonoBehaviour
                 labels.Add(new Label { text = t, last = t.text, rest = t.rectTransform.localScale });
             }
         }
-        int frame = Mathf.FloorToInt(Time.unscaledTime * StopMotion.Twos);
+        int frame = Mathf.FloorToInt(Time.unscaledTime * StopMotion.Pose);
         for (int i = labels.Count - 1; i >= 0; i--)
         {
             Label l = labels[i];

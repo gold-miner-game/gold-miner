@@ -3,12 +3,12 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Art: lamplight in the mine, like the title cover. Warm pools of light on the FLOOR only:
-//   - the miner's lamp: a soft pool on the ground around the player character, following it
+//   - (no lamp follows the player: the character stands in the same shade as every other cut-out; playtest)
 //   - the mine lamp: one large, very soft glow from the top-left of the view (the cover's light)
 //   - lanterns: every set-dressing lantern (PaperSet) casts its own small pool
 // Each pool is a soft disc (Resources/Art/Fx/LampPool) drawn just above the floor and the props and
 // below every game piece, so light can only brighten the ground: it never hides or tints a hook, rock,
-// treasure or character, and nothing gets darker. Flames flicker on threes (8 fps poses), like the
+// treasure or character, and nothing gets darker. Flames flicker on the boil clock (6 poses a second), like the
 // boil: held poses, not jitter. Read-only: it follows positions, nothing else.
 public class PaperLamps : MonoBehaviour
 {
@@ -74,11 +74,6 @@ public class PaperLamps : MonoBehaviour
         {
             nextScan = Time.unscaledTime + 0.5f;
             PlayerCharacter player = FindAnyObjectByType<PlayerCharacter>();
-            if (player != null && (minerLamp == null || minerLamp.follow != player.transform))
-            {
-                if (minerLamp != null) { Destroy(minerLamp.look.gameObject); lamps.Remove(minerLamp); }
-                minerLamp = Add(player.transform, Vector3.zero, 4.2f, 0.16f, 1);
-            }
             if (player != null && mineLamp == null) mineLamp = Add(cam.transform, Vector3.zero, 1f, 0.11f, 2);
         }
 
@@ -102,7 +97,7 @@ public class PaperLamps : MonoBehaviour
             uint hash = unchecked((uint)(l.seed * 2654435 + 977));   // unsigned: no Abs(int.MinValue) overflow
             float period = 1.6f + (hash % 1000) / 500f;
             float phase = (hash / 1000 % 628) / 100f;
-            float breath = 0.8f + 0.2f * Mathf.Sin(frame / StopMotion.Threes * 2f * Mathf.PI / period + phase);
+            float breath = 0.8f + 0.2f * Mathf.Sin(frame / StopMotion.Boil * 2f * Mathf.PI / period + phase);
             float flicker = flame * breath;
             Vector3 at = l.follow.position + l.offset;
             float size = l.size;

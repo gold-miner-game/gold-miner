@@ -5,6 +5,8 @@ using UnityEngine.SceneManagement;
 // white torn-fibre lips, tiling sideways) frame the bottom and top edges of the view in battle levels
 // (not the hub, which keeps its dark dungeon floor, nor Survival),
 // so every level reads as a cut through the mine.
+//   - Only level 3 (level_02) wears the strata (the user's pick); every other level keeps the plain felt
+//     floor, which MineBackdrop tints a little differently per level so each one still has its own ground.
 //   - Floor layer only: drawn just above the felt floor and below the set props, lamplight and every game
 //     piece, so it can never hide a hook, rock, treasure or character.
 //   - Follows the camera (Survival's camera moves), sized to the view; nothing else is touched.
@@ -15,18 +17,24 @@ public class PaperStrata : MonoBehaviour
     const float Band = 0.16f;   // share of the view height each band takes: deep like the keyframe, clear of the hub's corridors
     static readonly Color Tone = new Color(0.86f, 0.84f, 0.82f);   // a touch dimmer than the pieces
     static PaperStrata instance;
-    Sprite tile;
+    Sprite sandstone, tile;
+    enum Bands { None, Both, Bottom }
+    struct Look { public Sprite art; public Bands bands; }
+    string lookFor;   // the level file the current look was chosen for
+    Look look;
     SpriteRenderer bottom, top;
     LevelLoader level;
     SurvivalLoader survival;
-    float nextLook;
+    float nextLook, nextName;
 
     LevelLoader FindLevel()
     {
         if (Time.unscaledTime >= nextLook)
         {
             nextLook = Time.unscaledTime + 0.5f;
-            level = FindAnyObjectByType<LevelLoader>();
+            LevelLoader found = FindAnyObjectByType<LevelLoader>();
+            if (found != level) nextName = 0f;   // a new level: choose its look on this frame
+            level = found;
             survival = FindAnyObjectByType<SurvivalLoader>();
         }
         return level;
@@ -43,7 +51,8 @@ public class PaperStrata : MonoBehaviour
 
     void Start()
     {
-        tile = ArtLibrary.Get("Tiles/Strata");
+        sandstone = ArtLibrary.Get("Tiles/Strata");
+        tile = sandstone;
         if (tile == null) { enabled = false; return; }
         bottom = Make("Strata Bottom");
         top = Make("Strata Top");
@@ -61,14 +70,30 @@ public class PaperStrata : MonoBehaviour
         return sr;
     }
 
+    // The strata are level 3's look alone.
+    Look Choose(string name)
+        => name == "level_02" ? new Look { art = sandstone, bands = Bands.Both } : new Look { art = null, bands = Bands.None };
+
     void LateUpdate()
     {
         Camera cam = Camera.main;
         // battle levels only: the hub keeps its plain dark dungeon floor, Survival its open felt mat
         bool show = cam != null && cam.orthographic && GameManager.Instance != null && MapHub.Active == null
                     && FindLevel() != null && survival == null;
-        bottom.enabled = top.enabled = show;
+        if (show)
+        {
+            if (Time.unscaledTime >= nextName)   // a level's name is a fresh string each read: check twice a second
+            {
+                nextName = Time.unscaledTime + 0.5f;
+                string name = level.LevelName();
+                if (name != lookFor) { lookFor = name; look = Choose(name); }
+            }
+            show = look.bands != Bands.None && look.art != null;
+        }
+        bottom.enabled = show;
+        top.enabled = show && look.bands == Bands.Both;
         if (!show) return;
+        if (tile != look.art) { tile = look.art; bottom.sprite = top.sprite = tile; }
         float h = cam.orthographicSize, w = h * cam.aspect;
         Vector2 art = tile.bounds.size;                 // one tile: 8 x 2 units at 128 px per unit
         float scale = 2f * h * Band / art.y;            // band height = Band of the view

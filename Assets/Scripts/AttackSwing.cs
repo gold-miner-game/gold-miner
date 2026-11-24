@@ -44,7 +44,7 @@ public class AttackSwing : MonoBehaviour
         // Solid while it sweeps, then a quick fade (art: two held steps on twos, like a cut-out pulled away)
         float fade = Mathf.Clamp01((age - duration) / 0.12f);
         if (blade != null && blade.name == "Slash" && age > duration)
-            fade = (age - duration) * StopMotion.Twos < 1f ? 0.45f : 1f;
+            fade = (age - duration) * StopMotion.Pose < 1f ? 0.45f : 1f;
         sr.color = new Color(1f, 1f, 1f, 1f - fade);
     }
 

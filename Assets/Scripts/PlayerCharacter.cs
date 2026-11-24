@@ -212,7 +212,7 @@ public abstract class PlayerCharacter : MonoBehaviour
         mask.transform.localPosition = new Vector3(bodyBounds.center.x, bodyBounds.min.y, 0f);
     }
 
-    // A larger, see-through copy of the body, drawn over everything while the record's shield is up
+    // Drawn over everything while the record's shield is up (art: a paper-bag helmet on the head)
     void CreateShieldBubble()
     {
         int top = body.sortingOrder;
@@ -227,15 +227,37 @@ public abstract class PlayerCharacter : MonoBehaviour
         shieldBubble.sortingLayerID = body.sortingLayerID;
         shieldBubble.sortingOrder = top + 1;
         shieldBubble.color = new Color(0.45f, 0.85f, 1f, 0.4f);
-        // Art: a cellophane bubble with a stitched rim and the store's felt shield badge
-        // (Resources/Art/Fx/ShieldBubble, 1 unit), sized to wrap the body like the old 1.45x copy did.
-        Sprite cellophane = ArtLibrary.Get("Fx/ShieldBubble");
-        if (cellophane != null && body.sprite != null)
+        // Art: a kraft paper bag pulled down over the head like a helmet (Resources/Art/Fx/PaperHelmet, Meshy):
+        // it covers everything above the eyes (ears and horns too, so it reads as worn) and its folded rim rests
+        // just above them. Eyes, the face below and the digest/cooldown hints stay in view; PaperSkillFx tears it
+        // when the shield runs out. Sized from the whole cut-out (every part's box in the body's space), so it
+        // fits any character. Look only: no collider, same enable rule.
+        Sprite helmet = ArtLibrary.Get("Fx/PaperHelmet");
+        if (helmet != null && body.sprite != null)
         {
-            Vector2 size = body.sprite.bounds.size;
-            shieldBubble.sprite = cellophane;
-            shieldBubble.color = Color.white;   // the art carries its own see-through colours
-            bubble.transform.localScale = Vector3.one * 1.45f * Mathf.Max(size.x, size.y) / cellophane.bounds.size.x;
+            Bounds box = LocalBounds(body.transform, body);
+            float eyeTop = float.NegativeInfinity;
+            foreach (SpriteRenderer part in GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                if (part == body || part == shieldBubble || part.sprite == null || part.maskInteraction != SpriteMaskInteraction.None) continue;
+                string n = part.name;
+                if (n.Contains("Breath") || n.Contains("Life") || n.Contains("Shadow") || n.Contains("Frost") || n.Contains("Cooldown")) continue;
+                Bounds local = LocalBounds(body.transform, part);
+                box.Encapsulate(local);
+                bool eye = false;
+                for (Transform t = part.transform; t != null && t != transform; t = t.parent)
+                    if (t.name.Contains("Eye") && !t.name.Contains("Catchlight") && !t.name.Contains("Ring")) { eye = true; break; }
+                if (eye && part.gameObject.activeInHierarchy) eyeTop = Mathf.Max(eyeTop, local.max.y);
+            }
+            if (float.IsNegativeInfinity(eyeTop)) eyeTop = box.center.y + box.extents.y * 0.2f;   // no eye parts: the upper face
+            Vector2 art = helmet.bounds.size;
+            float rim = eyeTop + box.size.y * 0.03f;                // the rim just clears the eyes
+            float wide = box.size.x * 1.12f / art.x;                // a little wider than the whole cut-out
+            float tall = Mathf.Max((box.max.y - rim) * 1.06f / art.y, wide * 0.75f);   // over the ears and horns, near its own shape (the life pips lift above it)
+            shieldBubble.sprite = helmet;
+            shieldBubble.color = Color.white;
+            bubble.transform.localScale = new Vector3(wide, tall, 1f);
+            bubble.transform.localPosition = new Vector3(box.center.x, rim + art.y * tall * 0.5f, 0f);
         }
         shieldBubble.enabled = false;
     }
@@ -480,12 +502,16 @@ public abstract class PlayerCharacter : MonoBehaviour
     }
 
     // Blink while invincible (right after losing a Life)
+    int blinkPose = int.MinValue;
     void UpdateBlink()
     {
+        if (StopMotion.Enabled && blinkPose == StopMotion.Frame) return;
+        blinkPose = StopMotion.Enabled ? StopMotion.Frame : int.MinValue;
         bool invincible = GameManager.Instance != null && GameManager.Instance.IsInvincible;
 
-        // Toggle visible/hidden 10 times per second
-        bool visible = !invincible || Mathf.FloorToInt(Time.time * 10f) % 2 == 0;
+        // Toggle visible/hidden 10 times per second (art: in stop-motion mode, once per held pose instead)
+        float rate = StopMotion.Enabled ? StopMotion.Pose : 10f;
+        bool visible = !invincible || Mathf.FloorToInt(Time.time * rate) % 2 == 0;
         for (int i = 0; i < parts.Length; i++)
             if (parts[i] != null) parts[i].enabled = partShown[i] && visible;
     }

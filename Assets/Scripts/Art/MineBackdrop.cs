@@ -2,17 +2,39 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 // Art: the felt-and-paper mine floor behind every orthographic scene. It follows the main camera and
-// covers its view, so no scene needs editing. During the store's slow time it cools toward blue-green,
-// the same cue the camera's background colour gave before (TimeMovesWithPlayer.Slowness).
+// covers its view, so no scene needs editing. Slow time (the time machine) no longer tints it: PaperSkillFx
+// bleaches the whole floor layer toward white paper instead.
+// Each battle level tints the felt a little differently (by level file name), so every level has its own
+// ground without new art: warmer clay near the top of the mine, cooler charcoal deeper down. The hub and
+// other scenes keep the plain floor.
 [DefaultExecutionOrder(1000)]
 public class MineBackdrop : MonoBehaviour
 {
     const string FloorArt = "MineFloor";
     static readonly Color Floor = new Color(0.92f, 0.9f, 0.88f);
-    static readonly Color SlowFloor = new Color(0.55f, 0.75f, 0.72f);
 
     SpriteRenderer look;
     Camera cam;
+    Color floor = Floor;
+    LevelLoader level;
+    float nextLook;
+
+    static Color LevelFloor(string name)
+    {
+        switch (name)
+        {
+            case "level_01a_dodge": return new Color(0.98f, 0.9f, 0.84f);   // warm clay
+            case "level_01b_block": return new Color(0.88f, 0.88f, 0.9f);   // cool grey-brown
+            case "level_02": return Floor;                                  // level 3: the strata do the talking
+            case "level_03": return new Color(1f, 0.86f, 0.8f);             // red earth
+            case "level_04": return new Color(0.9f, 0.9f, 0.8f);            // olive umber
+            case "level_05": return new Color(0.82f, 0.84f, 0.9f);          // cold charcoal
+            case "level_06": return new Color(0.98f, 0.92f, 0.78f);         // ochre
+            case "level_07": return new Color(0.78f, 0.8f, 0.86f);          // deep slate
+            case "level_08": return new Color(0.74f, 0.72f, 0.76f);         // the deepest, darkest gallery
+            default: return Floor;
+        }
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Install()
@@ -53,6 +75,12 @@ public class MineBackdrop : MonoBehaviour
         Vector3 at = cam.transform.position;
         transform.position = new Vector3(at.x, at.y, at.z + cam.farClipPlane * 0.9f);
         look.size = new Vector2(width, height);
-        look.color = Color.Lerp(Floor, SlowFloor, TimeMovesWithPlayer.Slowness);
+        if (Time.unscaledTime >= nextLook)   // the level's name is a fresh string each read: twice a second
+        {
+            nextLook = Time.unscaledTime + 0.5f;
+            level = MapHub.Active == null ? FindAnyObjectByType<LevelLoader>() : null;
+            floor = level != null && FindAnyObjectByType<SurvivalLoader>() == null ? LevelFloor(level.LevelName()) : Floor;
+        }
+        look.color = floor;
     }
 }

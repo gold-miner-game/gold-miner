@@ -60,7 +60,7 @@ public class PaperConfetti : MonoBehaviour
             p.at += p.velocity * dt;
             p.angle += p.spin * dt;
         }
-        int frame = Mathf.FloorToInt(Time.unscaledTime * StopMotion.Twos);
+        int frame = Mathf.FloorToInt(Time.unscaledTime * StopMotion.Pose);
         if (frame == shownFrame) return;   // hold the pose until the next twos
         shownFrame = frame;
         foreach (Piece p in live) Pose(p);

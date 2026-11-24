@@ -10,8 +10,9 @@ param(
     [string]$Scenes = 'Menu,world_map,Select,Store,Survival,level_01,level_02,level_04',
     [string]$Out,
     [double]$Wait = 3,
-    [int]$Frames = 0,          # also save this many 12 fps frames per scene (motion check)
+    [int]$Frames = 0,          # also save this many stop-motion poses per scene (motion check)
     [switch]$Peel,             # press the menu's main button before the Menu frames
+    [int]$Video = 0,           # record at this many frames a second on a locked game clock (every frame saved)
     [double]$TriggerWait = 2.5, # seconds after a NAME:action trigger before its shot
     [switch]$SkipBuild
 )
@@ -57,6 +58,7 @@ $playerArgs = @('-screen-fullscreen', '0', '-screen-width', '1600', '-screen-hei
     '-artcapture', ('"' + $Out + '"'), '-artscenes', $Scenes, '-artwait', $Wait, '-artframes', $Frames, '-arttriggerwait', $TriggerWait,
     '-logFile', ('"' + $playerLog + '"'))
 if ($Peel) { $playerArgs += '-artpeel' }
+if ($Video -gt 0) { $playerArgs += '-artvideo', $Video }
 $p = Start-Process -FilePath $exe -ArgumentList $playerArgs -PassThru
 if (!$p.WaitForExit(600000)) { $p.Kill(); throw "Player timed out; see $playerLog" }
 Write-Output "Shots: $Out (exit $($p.ExitCode))"

@@ -67,9 +67,11 @@ public class CatController : PlayerCharacter
     private float nextRollTime = float.NegativeInfinity;
     private Quaternion restVisualRotation;
     private float spinStart;
+    private int spinStartBeat;   // art: the stop-motion beat the roll began on
     private bool spinning;
     private float spinDirection = 1f;
     private bool lookingTired;
+    private int tiredPose = int.MinValue;
     private bool wasRolling;
     private float spinLength;   // this roll's duration
     private int rollEaten;   // value eaten during this roll, digested when it ends
@@ -135,7 +137,11 @@ public class CatController : PlayerCharacter
         }
         if (wasRolling && !IsRolling) EndRollDigest();
         wasRolling = IsRolling;
-        SetTired(IsTired);
+        if (!StopMotion.Enabled || tiredPose != StopMotion.Frame)
+        {
+            tiredPose = StopMotion.Frame;
+            SetTired(IsTired);
+        }
     }
 
     // While rolling, eating doesn't start a digest: it's saved up for the end of the roll. (A digest that
@@ -174,6 +180,7 @@ public class CatController : PlayerCharacter
         nextRollTime = rollUntil + Mathf.Max(0f, RollCooldown);
         spinDirection = reverseSpinWhenRollingLeft && lastDirection.x < -.01f ? -1f : 1f;
         spinStart = Time.time;
+        spinStartBeat = StopMotion.Frame;
         spinning = true;
     }
 
@@ -248,10 +255,10 @@ public class CatController : PlayerCharacter
             360f * Mathf.Max(1, rotationsPerRoll) * t * spinDirection * mirrorSign);
         if (steppedSpin != null)
         {
-            // Sample the shared art clock without replacing the true spin seen by frost/gameplay.
-            float poseT = Mathf.Clamp01((StopMotion.Time - spinStart) / Mathf.Max(.001f, spinLength));
-            steppedSpin.SetPose(restVisualRotation * Quaternion.Euler(0f, 0f,
-                360f * Mathf.Max(1, rotationsPerRoll) * poseT * spinDirection * mirrorSign));
+            // Art (stop-motion): a quarter turn on every beat, so one revolution is four beats and the default
+            // 0.5 s roll (4 beats at 8/s) lands upright again; the true spin seen by frost/gameplay is untouched.
+            int beats = StopMotion.Frame - spinStartBeat;
+            steppedSpin.SetPose(restVisualRotation * Quaternion.Euler(0f, 0f, 90f * (beats % 4) * spinDirection * mirrorSign));
         }
         if (t >= 1f) FinishSpin();
     }

@@ -213,7 +213,7 @@ public class PaperFx : MonoBehaviour
             Bounds b = look.bounds;
             Vector3 at = b.center + new Vector3(b.extents.x * ArtLibrary.Range(-0.45f, 0.2f), b.extents.y * ArtLibrary.Range(0.1f, 0.5f), 0f);
             Color tint = t.type == TreasureType.Diamond ? new Color(0.88f, 0.97f, 1f) : new Color(1f, 0.97f, 0.82f);
-            Bit c = Spawn(Kind.Catch, sparkle, at, Vector3.zero, 0f, CatchPoses.Length / StopMotion.Twos, b.size.y * 0.6f, 0f, tint, look.sortingOrder + 1);
+            Bit c = Spawn(Kind.Catch, sparkle, at, Vector3.zero, 0f, CatchPoses.Length / StopMotion.Pose, b.size.y * 0.6f, 0f, tint, look.sortingOrder + 1);
             c.angle = ArtLibrary.Range(0, 2) * 45f;
             Pose(c);
             return;

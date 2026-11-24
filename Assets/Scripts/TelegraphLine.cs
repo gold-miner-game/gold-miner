@@ -12,15 +12,19 @@ public class TelegraphLine : MonoBehaviour
 
     // Art: the aim is a running stitch of twisted thread (Resources/Art/Fx/Stitch) instead of dots, in
     // the same colour (yellow = treasure, red = you). The whole line shows at once, as before; the
-    // stitches only march toward the target on twos, so the line also says which way it will go.
+    // stitches only march toward the target on the pose clock, so the line also says which way it will go.
     // Without the art, the dots are drawn as before.
     static readonly Vector2 StitchSize = new Vector2(0.21f, 0.09f);   // world units: thread length and thickness
-    const int MarchSteps = 3;   // one stitch spacing every 3 twos-frames
+    const int MarchSteps = 3;   // one stitch spacing every 3 poses
     Sprite stitch;
     bool shown;
     Vector2 shownFrom, shownDir;
     float shownLength;
     Color shownColor;
+    // stop-motion mode: the aim is held between poses (the gameplay aim keeps tracking underneath)
+    int heldFrame = int.MinValue;
+    Vector2 heldFrom, heldDir;
+    float heldLength;
 
     void Awake()
     {
@@ -43,21 +47,27 @@ public class TelegraphLine : MonoBehaviour
     void LateUpdate()
     {
         if (!shown || stitch == null || spacing <= 0f) return;
+        if (!StopMotion.Enabled || StopMotion.Frame != heldFrame)
+        {
+            heldFrame = StopMotion.Frame;
+            heldFrom = shownFrom; heldDir = shownDir; heldLength = shownLength;
+        }
         float phase = (StopMotion.Frame % MarchSteps) / (float)MarchSteps;
-        int count = Mathf.Min(maxDots, Mathf.FloorToInt(shownLength / spacing - phase) + 1);
-        float angle = Mathf.Atan2(shownDir.y, shownDir.x) * Mathf.Rad2Deg;
+        int count = Mathf.Min(maxDots, Mathf.FloorToInt(heldLength / spacing - phase) + 1);
+        float angle = Mathf.Atan2(heldDir.y, heldDir.x) * Mathf.Rad2Deg;
         for (int i = 0; i < dots.Count; i++)
         {
             bool on = i < count;
             if (dots[i].gameObject.activeSelf != on) dots[i].gameObject.SetActive(on);
             if (!on) continue;
-            dots[i].transform.SetPositionAndRotation(shownFrom + shownDir * (spacing * (i + phase)), Quaternion.Euler(0f, 0f, angle));
+            dots[i].transform.SetPositionAndRotation(heldFrom + heldDir * (spacing * (i + phase)), Quaternion.Euler(0f, 0f, angle));
             dots[i].color = shownColor;
         }
     }
 
     public void Show(Vector2 from, Vector2 to, Color color)
     {
+        if (!shown) heldFrame = int.MinValue;   // a fresh aim shows at once, never the last one held
         shown = true;
         shownFrom = from;
         shownDir = (to - from).normalized;

@@ -433,7 +433,7 @@ public class TutorialDialogue : MonoBehaviour
         void Update()
         {
             if (rect == null) return;
-            float s = 1f + 0.04f * Mathf.Sin(Time.unscaledTime * 5f);
+            float s = 1f + 0.04f * Mathf.Sin(StopMotion.Snap(Time.unscaledTime, StopMotion.Pose) * 5f);   // art: held poses on twos
             rect.localScale = new Vector3(s, s, 1f);
         }
     }
