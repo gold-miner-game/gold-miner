@@ -7,10 +7,11 @@
 // methods, then waits "-arttriggerwait" seconds (default 2.5) and saves NAME-action.png:
 //   win / fail / crush   GameManager.WinRound / EndRound(false) / Crush: result panels, CAUGHT
 //   reward               SkillUnlockSummary.PlayEveryTime, then a win: the skill reward demo
-//   pause                HUDController.OpenPause: the "Quit Game?" popup
+//   pause                HUDController.OpenPause: the Pause card ("Quit Game?" on the world map)
 //   confirm              MainMenu page = ConfirmNew: the New Game confirmation
 //   tutorial             LevelLoader.ScriptedTutorial = true before the load, as GameFlow does
 //   focus                MapHub.FocusPortal on the first portal: the reveal spotlight
+//   target / hurt        HUDController.CelebrateTarget / FlashDamage: the Target reached banner, the red edge flash
 using System;
 using System.Collections;
 using System.Globalization;
@@ -148,6 +149,11 @@ public class ArtCaptureRunner : MonoBehaviour
             case "pause":
                 var hud = FindFirstObjectByType<HUDController>();
                 if (hud != null) typeof(HUDController).GetMethod("OpenPause", Private)?.Invoke(hud, null);
+                break;
+            case "target":   // the Target reached banner and flag swell (HUDController display methods)
+            case "hurt":     // the lost-life edge flash
+                var cue = FindFirstObjectByType<HUDController>();
+                if (cue != null) typeof(HUDController).GetMethod(action == "target" ? "CelebrateTarget" : "FlashDamage", Private)?.Invoke(cue, null);
                 break;
             case "focus":
                 var hub = FindFirstObjectByType<MapHub>();

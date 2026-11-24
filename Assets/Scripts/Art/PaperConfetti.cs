@@ -46,6 +46,13 @@ public class PaperConfetti : MonoBehaviour
         if (won && !sawWin) Celebrate();
         sawWin = won;
         if (live.Count == 0) return;
+        if (gm != null && gm.IsPlaying)
+        {
+            // a new round has started (Play Again / R right after a win): the party is over, sweep it up
+            foreach (Piece p in live) if (p.look != null) Destroy(p.look.gameObject);
+            live.Clear();
+            return;
+        }
 
         float dt = Time.unscaledDeltaTime;
         float g = Screen.height * 0.55f;   // gravity, in pixels per second squared

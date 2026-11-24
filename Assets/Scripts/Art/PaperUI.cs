@@ -15,6 +15,8 @@ public class PaperUI : MonoBehaviour
     static readonly Color FloorTint = new Color(0.9f, 0.88f, 0.86f);
     static PaperUI instance;
     readonly HashSet<int> done = new HashSet<int>();
+    readonly List<Canvas> roots = new List<Canvas>();
+    readonly List<Image> found = new List<Image>();
     Sprite felt, paper, floor;
     float nextScan;
 
@@ -37,9 +39,25 @@ public class PaperUI : MonoBehaviour
 
     void LateUpdate()
     {
-        if (felt == null || paper == null || Time.unscaledTime < nextScan) return;
-        nextScan = Time.unscaledTime + 0.5f;   // UI built later (store, dialogue) is picked up too
-        foreach (Image image in FindObjectsByType<Image>(FindObjectsSortMode.None)) Skin(image);
+        if (felt == null || paper == null) return;
+        if (Time.unscaledTime >= nextScan)
+        {
+            nextScan = Time.unscaledTime + 0.5f;   // UI built later (store, dialogue) is picked up too
+            foreach (Image image in FindObjectsByType<Image>(FindObjectsSortMode.None)) Skin(image);
+            roots.Clear();
+            foreach (Canvas canvas in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+                if (canvas.isRootCanvas) roots.Add(canvas);
+            return;
+        }
+        // Every frame, the known canvases too: a pop-up built and shown this frame (Pause, the round
+        // banner, the end card) is skinned before it is drawn, never seen flat for the half second
+        foreach (Canvas canvas in roots)
+        {
+            if (canvas == null || !canvas.isActiveAndEnabled) continue;
+            canvas.GetComponentsInChildren(false, found);
+            foreach (Image image in found) Skin(image);
+        }
+        found.Clear();
     }
 
     static bool PlainPanel(Image image)

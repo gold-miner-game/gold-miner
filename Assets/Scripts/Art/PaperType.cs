@@ -87,10 +87,32 @@ public class PaperType : MonoBehaviour
 
     void Style(TMP_Text text)
     {
-        if (text == null || !done.Add(text.GetInstanceID()) || !StockTmp(text.font)) return;
-        bool title = text.fontSize >= TitleSize || Heading(text.text, text.fontSize);
+        if (text == null || !done.Add(text.GetInstanceID())) return;
+        // Code that builds a label by copying an already restyled one's font (the HUD's Pause, end card
+        // and round banner copy the clock's) arrives on the body face: still ours to judge, so its
+        // titles are titles too
+        bool copied = bodyTmp != null && text.font == bodyTmp;
+        if (!copied && !StockTmp(text.font)) return;
+        bool popupTitle = copied && PopupTitle(text);
+        bool title = text.fontSize >= TitleSize || Heading(text.text, text.fontSize) || popupTitle;
         text.font = title ? displayTmp : bodyTmp;
-        if (title) Gild(text);
+        if (!title) return;
+        Gild(text);
+        if (copied)
+        {
+            // the capitals face is wider: a long result line ("DIDN'T ACHIEVE THE TARGET") shrinks to
+            // stay on its one line in the card instead of wrapping over the row below
+            text.enableAutoSizing = true;
+            text.fontSizeMax = text.fontSize;
+            text.fontSizeMin = text.fontSize * 0.6f;
+        }
+    }
+
+    // A pop-up card's headline: the label the HUD names Title or Result, at banner size or more
+    static bool PopupTitle(TMP_Text text)
+    {
+        string n = text.name;
+        return (n == "Title" || n == "Result") && text.fontSize >= 40f;
     }
 
     void Start() { if (Body != null) EnsureTmp(); }
