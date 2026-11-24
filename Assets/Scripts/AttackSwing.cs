@@ -41,8 +41,10 @@ public class AttackSwing : MonoBehaviour
         age += Time.deltaTime;
         float k = Mathf.Clamp01(age / duration);
         Place(1f - (1f - k) * (1f - k));   // fast out, settling at the end
-        // Solid while it sweeps, then a quick fade
+        // Solid while it sweeps, then a quick fade (art: two held steps on twos, like a cut-out pulled away)
         float fade = Mathf.Clamp01((age - duration) / 0.12f);
+        if (blade != null && blade.name == "Slash" && age > duration)
+            fade = (age - duration) * StopMotion.Twos < 1f ? 0.45f : 1f;
         sr.color = new Color(1f, 1f, 1f, 1f - fade);
     }
 
@@ -58,6 +60,16 @@ public class AttackSwing : MonoBehaviour
     static Sprite Blade()
     {
         if (blade != null) return blade;
+        // Art: a torn-paper slash with fibres streaking along the swing (Resources/Art/Fx/Slash), same
+        // band and pivot: the ring centre, 1 world unit = the radius.
+        Sprite art = ArtLibrary.Get("Fx/Slash");
+        if (art != null)
+        {
+            Texture2D t = art.texture;
+            blade = Sprite.Create(t, new Rect(0, 0, t.width, t.height), new Vector2(0.5f, 0.5f), t.width * 0.5f, 0, SpriteMeshType.FullRect);
+            blade.name = "Slash";
+            return blade;
+        }
         const int size = 256;
         const float tail = 50f;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };

@@ -33,6 +33,16 @@ public static class ArtLibrary
         return frames;
     }
 
+    // A mask shape (Fx/TornFill, Fx/CutDisc) as a fresh 1x1-unit sprite with the given pivot, for a
+    // SpriteMask that code scales. A new sprite each call, so the caller may Destroy it. Null: no art.
+    public static Sprite MaskShape(string name, Vector2 pivot)
+    {
+        Sprite art = Get(name);
+        if (art == null) return null;
+        Texture2D t = art.texture;
+        return Sprite.Create(t, new Rect(0, 0, t.width, t.height), pivot, t.width, 0, SpriteMeshType.FullRect);
+    }
+
     static readonly Dictionary<(Material, string), Material> lineArt = new Dictionary<(Material, string), Material>();
 
     // Twisted twine texture along a rope line. Its colour (start/end colour, e.g. yellow or red hooks)

@@ -605,6 +605,7 @@ public class SurvivalLoader : MonoBehaviour
             fontSize = 28, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter,
         };
         titleStyle.normal.textColor = new Color(1f, 0.4f, 0.35f);
+        if (PaperType.Display != null) { titleStyle.font = PaperType.Display; titleStyle.fontStyle = FontStyle.Normal; }   // art: hand-cut title letters
 
         textStyle = new GUIStyle(GUI.skin.label)
         {

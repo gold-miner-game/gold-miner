@@ -138,6 +138,7 @@ public abstract class PlayerCharacter : MonoBehaviour
     private SpriteRenderer shieldBubble;
     private Bounds bodyBounds;   // the body sprite, in the character's local space
     private GUIStyle digestLabelStyle;
+    private GUIStyle digestTagStyle;   // art: the paper tag behind the "Digesting" cue
 
     protected virtual void Awake()
     {
@@ -198,7 +199,8 @@ public abstract class PlayerCharacter : MonoBehaviour
         var mask = new GameObject("CooldownMask");
         mask.transform.SetParent(transform, false);
         cooldownMask = mask.AddComponent<SpriteMask>();
-        cooldownMask.sprite = Sprite.Create(white, new Rect(0, 0, white.width, white.height),
+        cooldownMask.sprite = ArtLibrary.MaskShape("Fx/TornFill", new Vector2(0.5f, 0f))   // art: a torn-paper fill line
+                              ?? Sprite.Create(white, new Rect(0, 0, white.width, white.height),
                                             new Vector2(0.5f, 0f), white.width);
         cooldownMask.isCustomRangeActive = true;   // only cut the tint, nothing else
         cooldownMask.frontSortingLayerID = cooldownMask.backSortingLayerID = body.sortingLayerID;
@@ -423,7 +425,15 @@ public abstract class PlayerCharacter : MonoBehaviour
         {
             Color prev = GUI.color;
             GUI.color = new Color(0.75f, 1f, 0.45f, 0.22f + 0.5f * pulse);
-            GUI.DrawTexture(new Rect(rect.x - 8f, rect.y - 4f, rect.width + 16f, rect.height + 8f), Texture2D.whiteTexture);
+            Rect tag = new Rect(rect.x - 8f, rect.y - 4f, rect.width + 16f, rect.height + 8f);
+            if (digestTagStyle == null)
+            {
+                digestTagStyle = new GUIStyle();
+                if (!ArtLibrary.PaperBox(digestTagStyle)) digestTagStyle = GUIStyle.none;
+            }
+            // Art: a paper tag (same tint and pulse) instead of a flat white box
+            if (digestTagStyle != GUIStyle.none) GUI.Box(tag, GUIContent.none, digestTagStyle);
+            else GUI.DrawTexture(tag, Texture2D.whiteTexture);
             GUI.color = prev;
         }
         GUI.Label(rect, "Digesting\u2026", digestLabelStyle);

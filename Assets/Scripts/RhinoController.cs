@@ -327,8 +327,8 @@ public class RhinoController : PlayerCharacter
         overlapEarMaterial = new Material(overlapShader);
         overlapEarMaterial.SetFloat("_RedEnabled", 0f);
         Texture2D white = Texture2D.whiteTexture;
-        chargeMaskSprite = Sprite.Create(white, new Rect(0, 0, white.width, white.height),
-            new Vector2(.5f, 0f), white.width);
+        chargeMaskSprite = ArtLibrary.MaskShape("Fx/TornFill", new Vector2(.5f, 0f))   // art: a torn-paper fill line
+            ?? Sprite.Create(white, new Rect(0, 0, white.width, white.height), new Vector2(.5f, 0f), white.width);
         const int circleSize = 64;
         chargeGrowthTexture = new Texture2D(circleSize, circleSize, TextureFormat.RGBA32, false);
         chargeGrowthTexture.name = "Hulk charge expansion circle";
@@ -343,7 +343,8 @@ public class RhinoController : PlayerCharacter
             }
         chargeGrowthTexture.SetPixels(pixels);
         chargeGrowthTexture.Apply();
-        chargeGrowthSprite = Sprite.Create(chargeGrowthTexture, new Rect(0, 0, circleSize, circleSize),
+        chargeGrowthSprite = ArtLibrary.MaskShape("Fx/CutDisc", Vector2.one * .5f)   // art: a hand-cut disc
+            ?? Sprite.Create(chargeGrowthTexture, new Rect(0, 0, circleSize, circleSize),
             Vector2.one * .5f, circleSize, 0, SpriteMeshType.FullRect);
         var maskObject = new GameObject("Whole Hulk Charge Mask");
         maskObject.transform.SetParent(transform, false);
