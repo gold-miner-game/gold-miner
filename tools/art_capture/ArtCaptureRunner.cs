@@ -9,6 +9,8 @@
 //   reward               SkillUnlockSummary.PlayEveryTime, then a win: the skill reward demo
 //   pause                HUDController.OpenPause: the "Quit Game?" popup
 //   confirm              MainMenu page = ConfirmNew: the New Game confirmation
+//   tutorial             LevelLoader.ScriptedTutorial = true before the load, as GameFlow does
+//   focus                MapHub.FocusPortal on the first portal: the reveal spotlight
 using System;
 using System.Collections;
 using System.Globalization;
@@ -68,6 +70,7 @@ public class ArtCaptureRunner : MonoBehaviour
             string[] parts = entry.Split(':');
             string scene = parts[0], action = parts.Length > 1 ? parts[1] : null;
             if (action == "reward") SkillUnlockSummary.PlayEveryTime = true;
+            LevelLoader.ScriptedTutorial = action == "tutorial" ? true : (bool?)null;
             SceneManager.LoadScene(scene);
             float until = Time.realtimeSinceStartup + wait;
             while (Time.realtimeSinceStartup < until) yield return null;
@@ -118,6 +121,11 @@ public class ArtCaptureRunner : MonoBehaviour
             case "pause":
                 var hud = FindFirstObjectByType<HUDController>();
                 if (hud != null) typeof(HUDController).GetMethod("OpenPause", Private)?.Invoke(hud, null);
+                break;
+            case "focus":
+                var hub = FindFirstObjectByType<MapHub>();
+                var portal = FindFirstObjectByType<HubPortal>();
+                if (hub != null && portal != null) hub.FocusPortal(portal);
                 break;
             case "confirm":
                 var menu = FindFirstObjectByType<MainMenu>();
