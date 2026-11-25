@@ -64,6 +64,8 @@ public class CampHub : MonoBehaviour
         public int line = -1;
         public State state;
         public string home;
+        public Vector2 homeAnchor = new Vector2(0.5f, 0.3f);
+        public float homeSize = 2.7f;
     }
 
     readonly List<Spot> spots = new List<Spot>();
@@ -125,6 +127,9 @@ public class CampHub : MonoBehaviour
                 if (!(o is Dictionary<string, object> d) || !d.TryGetValue("character", out object c)) continue;
                 var spot = new Spot { index = Mathf.RoundToInt(ToFloat(c)), at = GridAt(level, d),
                                       home = d.TryGetValue("home", out object h) ? h as string : null };
+                if (d.TryGetValue("home_anchor", out object ha) && ha is List<object> al && al.Count == 2)
+                    spot.homeAnchor = new Vector2(ToFloat(al[0]), ToFloat(al[1]));
+                if (d.TryGetValue("home_size", out object hs)) spot.homeSize = ToFloat(hs);
                 if (spot.index < 0 || spot.index >= CharacterUnlocks.Count) continue;
                 BuildSpot(spot, fireAt, scale);
                 spots.Add(spot);
@@ -177,25 +182,23 @@ public class CampHub : MonoBehaviour
 
     void BuildSpot(Spot spot, Vector2 fireAt, float scale)
     {
-        // Each hero's home, behind them (up the screen): a mud wallow, a box bed, a stump, a pond, an
-        // igloo, a rocky cave (Camp/Home_*), so the camp reads as six friends who live here
+        // Each hero lives IN their home (Camp/Home_*): the painting is placed so its home_anchor (the
+        // mud basin, the box's cushion, the stump's doorway, the lily pads, the igloo's door, the cave
+        // mouth) lands on the hero's spot. The paintings are square, so the anchor maps straight across.
         Sprite home = spot.home != null ? ArtLibrary.Get(spot.home) : null;
+        float tagY = -0.8f;   // the name tag goes under the hero, or under the home if that reaches lower
         if (home != null)
         {
-            Vector2 homeAt = spot.at + Vector2.up * 1.15f;
-            Piece(Names[spot.index] + " Home", home, homeAt, 2.7f, -10);
-            // a solid footprint: you walk round an igloo or a pond, not over it
-            var foot = new GameObject(Names[spot.index] + " Home footprint");
-            foot.transform.SetParent(root, false);
-            foot.transform.position = homeAt + Vector2.up * 0.1f;
-            foot.AddComponent<BoxCollider2D>().size = new Vector2(1.9f, 1.1f);
+            Vector2 homeAt = spot.at - (spot.homeAnchor - new Vector2(0.5f, 0.5f)) * spot.homeSize;
+            Piece(Names[spot.index] + " Home", home, homeAt, spot.homeSize, -10);
+            tagY = Mathf.Min(tagY, homeAt.y - spot.at.y - spot.homeSize * 0.42f);
         }
         Shadow(spot.at + Vector2.down * 0.35f, 0.9f);
 
         spot.state = StateOf(spot.index);
         // the name tag and status under the hero, so the home behind them stays clear
-        spot.name = Label("Label " + Names[spot.index], Names[spot.index], spot.at + new Vector2(0f, -0.8f), 2.4f, Color.white);
-        spot.status = Label("Camp Status", "", spot.at + new Vector2(0f, -1.25f), 2.4f, ArtLibrary.Cream);
+        spot.name = Label("Label " + Names[spot.index], Names[spot.index], spot.at + new Vector2(0f, tagY), 2.4f, Color.white);
+        spot.status = Label("Camp Status", "", spot.at + new Vector2(0f, tagY - 0.45f), 2.4f, ArtLibrary.Cream);
         if (spot.state != State.Current) MakeNpc(spot, scale);
         Restyle(spot);
     }

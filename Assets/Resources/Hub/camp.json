@@ -1,6 +1,6 @@
 {
   "name": "Camp",
-  "_comment": "The character camp (CampHub): replaces the old Select screen as the world map's Pick Character node. A safe clearing in the mine (no hooks, no clock) where the player walks as their current character, meets the other heroes at their tents around the campfire, talks to them (E), and plays as an unlocked one, hires a locked one for its price, or hears that an unreleased one is not ready (Enter). The gate leads back to the map. A cave about two screens each way, the camera following you like Level 4; each hero has a home that suits them (mud wallow, box bed, stump, pond, igloo, rocky cave: \"home\" art), Hulk's inside a real walled chamber. Grid: # wall, P where you arrive. camp_spots / camp_fire / camp_gate are grid cells (col, row; fractions allowed) read by CampHub; character = ChampionSpawner order (0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Elsa, 5 Hulk).",
+  "_comment": "The character camp (CampHub): replaces the old Select screen as the world map's Pick Character node. A safe clearing in the mine (no hooks, no clock) where the player walks as their current character, meets the other heroes at their tents around the campfire, talks to them (E), and plays as an unlocked one, hires a locked one for its price, or hears that an unreleased one is not ready (Enter). The gate leads back to the map. A cave about two screens each way, the camera following you like Level 4; each hero has a home that suits them (mud wallow, box bed, stump, pond, igloo, rocky cave: \"home\" art; home_anchor = where in the painting the hero stands, as 0..1 from its bottom-left, so the pig stands IN its wallow, the frog on its lily pads, Hulk in his cave mouth; home_size = the painting's width in units), Hulk's inside a real walled chamber. Grid: # wall, P where you arrive. camp_spots / camp_fire / camp_gate are grid cells (col, row; fractions allowed) read by CampHub; character = ChampionSpawner order (0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Elsa, 5 Hulk).",
   "params": {
     "camp": 1,
     "tile_size": 1.0,
@@ -43,37 +43,67 @@
       "character": 0,
       "x": 7,
       "y": 5,
-      "home": "Camp/Home_Pig"
+      "home": "Camp/Home_Pig",
+      "home_anchor": [
+        0.33,
+        0.47
+      ],
+      "home_size": 2.7
     },
     {
       "character": 1,
       "x": 18,
       "y": 4.2,
-      "home": "Camp/Home_Cat"
+      "home": "Camp/Home_Cat",
+      "home_anchor": [
+        0.5,
+        0.48
+      ],
+      "home_size": 2.5
     },
     {
       "character": 4,
       "x": 29,
       "y": 5,
-      "home": "Camp/Home_Penguin"
+      "home": "Camp/Home_Penguin",
+      "home_anchor": [
+        0.5,
+        0.28
+      ],
+      "home_size": 3.0
     },
     {
       "character": 5,
       "x": 29.5,
       "y": 15,
-      "home": "Camp/Home_Rhino"
+      "home": "Camp/Home_Rhino",
+      "home_anchor": [
+        0.6,
+        0.45
+      ],
+      "home_size": 3.2
     },
     {
       "character": 3,
       "x": 18,
       "y": 14.8,
-      "home": "Camp/Home_Frog"
+      "home": "Camp/Home_Frog",
+      "home_anchor": [
+        0.42,
+        0.33
+      ],
+      "home_size": 2.6
     },
     {
       "character": 2,
       "x": 7,
       "y": 15,
-      "home": "Camp/Home_Squirrel"
+      "home": "Camp/Home_Squirrel",
+      "home_anchor": [
+        0.52,
+        0.84
+      ],
+      "home_size": 2.4
     }
   ],
   "camp_props": [

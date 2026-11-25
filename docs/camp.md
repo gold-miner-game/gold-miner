@@ -24,14 +24,18 @@ Each hero has a home that suits them, painted in the keyframe's cut-paper style 
 
 | Hero | Home | State on main today |
 | --- | --- | --- |
-| Mr. Hyde | mud wallow, hay bale, pink pillow | unlocked |
-| JK. Rolling | cardboard box bed, ball of yarn | unlocked |
-| Scrat | hollow stump, pile of acorns | not released: "Coming soon" |
-| Rero Rero | lily pond with reeds | not released: "Coming soon" |
-| Elsa | igloo on a patch of snow | for hire, $3,000 |
-| Hulk | rocky cave mouth | for hire, $1,500 |
+| Mr. Hyde | stands in his mud wallow (hay bale, pink pillow) | unlocked |
+| JK. Rolling | sits on the cushion in his cardboard box bed (yarn ball) | unlocked |
+| Scrat | sits on top of his hollow stump, tail up (acorns) | not released: "Coming soon" |
+| Rero Rero | sits on the lily pads in his pond | not released: "Coming soon" |
+| Elsa | stands in her igloo's doorway | for hire, $3,000 |
+| Hulk | stands in his rocky cave's mouth | for hire, $1,500 |
 
-Your own home says "Your home". The others stand in front of theirs as friends: they sway on
+Every hero lives **in** their home, not beside it. Each spot's `home_anchor` is where in the
+painting the hero stands, measured 0..1 from its bottom-left: the mud basin, the box's cushion, the
+stump's top, the lily pads, the igloo's door, the cave mouth. The painting is placed so that point
+lands on the hero, and `home_size` is the painting's width. Name tags go under whichever reaches
+lower, the hero or the home. Your own home says "Your home". The others are at theirs as friends: they sway on
 the shared stop-motion beat and turn to face you. A hero for hire is a little dimmed, and an
 unreleased one dimmer still. Name tags and states sit under them on the usual felt tags.
 
@@ -61,7 +65,6 @@ goods, the save (`ProgressStore.SelectedCharacter`), analytics, and the tutorial
     script, collider and rigidbody before it wakes, so nothing can mistake it for the player. It
     then gets a small static body. The squirrel keeps `SquirrelTailHeading`, with simulation off,
     so its tail stays in its standing pose.
-  - **Homes:** each has a solid footprint.
 - `LevelLoader.SetUpHub` adds `CampHub` instead of `MapHub` for a camp level, and skips the world
   map's saved spot there.
 - `GameFlow` opens the camp for the Pick Character node, and the old Select scene is the fallback

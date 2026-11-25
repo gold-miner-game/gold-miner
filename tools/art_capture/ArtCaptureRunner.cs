@@ -190,11 +190,14 @@ public class ArtCaptureRunner : MonoBehaviour
             case "switch":  // camp: walk up to JK. Rolling and press Enter (play as them: the camp re-opens)
             case "talk":    // camp: walk up to JK. Rolling and press E (talk)
             case "hire":    // camp: walk up to Hulk (for hire), card only
+            case "elsa":    // camp: walk up to Elsa at her igloo, card only
+            case "scrat":   // camp: walk up to Scrat at his stump, card only
             case "soon":    // camp: walk up to Rero Rero (not released) and press E
                 // whichever of the two starters is a friend here (the other is the one you play)
                 GameObject starter = GameObject.Find("Camp JK. Rolling");
                 if (starter == null) starter = GameObject.Find("Camp Mr. Hyde");
-                var npc = action == "talk" || action == "switch" ? starter : GameObject.Find(action == "hire" ? "Camp Hulk" : "Camp Rero Rero");
+                var npc = action == "talk" || action == "switch" ? starter
+                        : GameObject.Find(action == "hire" ? "Camp Hulk" : action == "elsa" ? "Camp Elsa" : action == "scrat" ? "Camp Scrat" : "Camp Rero Rero");
                 var me = FindFirstObjectByType<PlayerCharacter>();
                 if (npc != null && me != null)
                 {
@@ -202,7 +205,7 @@ public class ArtCaptureRunner : MonoBehaviour
                     var meBody = me.GetComponent<Rigidbody2D>();
                     if (meBody != null) meBody.position = by;
                     me.transform.position = by;
-                    if (action != "hire") new GameObject("Capture key").AddComponent<CaptureKey>().key =
+                    if (action == "talk" || action == "switch" || action == "soon") new GameObject("Capture key").AddComponent<CaptureKey>().key =
                         action == "switch" ? UnityEngine.InputSystem.Key.Enter : UnityEngine.InputSystem.Key.E;
                 }
                 break;
