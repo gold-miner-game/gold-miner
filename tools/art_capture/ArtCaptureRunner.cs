@@ -71,6 +71,9 @@ public class ArtCaptureRunner : MonoBehaviour
     {
         Directory.CreateDirectory(outDir);
         Application.runInBackground = true;
+        // Boot's own Start sends the game to the Menu in this first frame; let that load go first
+        yield return null;
+        yield return null;
         foreach (string raw in scenes)
         {
             string entry = raw.Trim();
@@ -161,6 +164,21 @@ public class ArtCaptureRunner : MonoBehaviour
                 if (hub != null && portal != null) hub.FocusPortal(portal);
                 break;
             case "walk": break;   // handled while saving frames
+            case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
+                var squares = FindObjectsByType<RedSquare>(FindObjectsSortMode.None);
+                var pc = FindFirstObjectByType<PlayerCharacter>();
+                if (squares.Length > 0 && pc != null)
+                {
+                    RedSquare near = squares[0];
+                    foreach (RedSquare s in squares)
+                        if ((s.transform.position - pc.transform.position).sqrMagnitude < (near.transform.position - pc.transform.position).sqrMagnitude) near = s;
+                    Vector2 spot = (Vector2)near.transform.position + Vector2.left * 3f;
+                    var rb = pc.GetComponent<Rigidbody2D>();
+                    if (rb != null) rb.position = spot;
+                    pc.transform.position = spot;
+                    near.WakeUp();
+                }
+                break;
             case "time": Debug.Log("ART_CAPTURE_TIME " + StoreView.GrantConsoleItem("Time Machine")); break;   // the console's good Time Machine
             case "shield": Debug.Log("ART_CAPTURE_SHIELD " + StoreView.GrantConsoleItem("Shield")); break;   // the console's good Shield
             case "confirm":

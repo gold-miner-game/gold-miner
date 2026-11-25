@@ -153,6 +153,7 @@ public abstract class RedEnemy : MonoBehaviour
     // --- Pushed back (the pig's attack) --------------------------------------------------------------
     Vector2 pushDir;
     float pushSpeed, pushUntil = -1f;
+    public bool BeingPushed => Time.time < pushUntil;   // read-only, for the art
 
     // Slide `distance` world units along `away` over `time` seconds, stopped by walls; it doesn't
     // chase meanwhile

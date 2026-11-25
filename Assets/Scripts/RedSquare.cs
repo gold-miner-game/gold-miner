@@ -26,10 +26,17 @@ public class RedSquare : RedEnemy
     Vector2 knockDir;
     float knockUntil = -1f, waitUntil = -1f;
 
+    // Read-only state for the art (PaperBrawler); nothing here changes how it plays
+    public bool Rammed => Time.time < knockUntil;          // the ram and its knock-back
+    public bool Recovering => Time.time < waitUntil;       // knock-back plus the wait before the next charge
+    public bool LastRamBlocked { get; private set; }       // the last ram bounced off a block
+    public Transform Target => target;
+
     protected override void Start()
     {
         base.Start();
         box = GetComponent<Collider2D>();
+        if (GetComponent<PaperBrawler>() == null) gameObject.AddComponent<PaperBrawler>();   // art only
     }
 
     void FixedUpdate()
@@ -71,6 +78,7 @@ public class RedSquare : RedEnemy
         knockDir = toMe;
         knockUntil = Time.time + knockTime;
         waitUntil = knockUntil + recover;
+        LastRamBlocked = player != null && !player.IsInvulnerable && player.IsBlocking;
 
         if (player != null && player.IsInvulnerable) return;   // a rolling cat: passes through
         if (player != null && player.IsBlocking)
