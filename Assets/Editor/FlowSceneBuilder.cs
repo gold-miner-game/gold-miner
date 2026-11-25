@@ -40,6 +40,8 @@ public static class FlowSceneBuilder
         ("survival",   NodeType.Survival, "level_survival",  "Survival",        0.50f, 0.890f, new[]{ "battle_04" }),
         ("battle_05",  NodeType.Battle,   "level_roam",      "Level 4",         0.82f, 0.890f, new[]{ "battle_04" }),
         ("battle_07",  NodeType.Battle,   "level_ring",      "Level 5",         0.82f, 0.950f, new[]{ "battle_05" }),
+        // Opens together with Level 2. Its portal is made from a green rock at runtime (MapHub.musicStoreAt)
+        ("music_store", NodeType.MusicStore, null,           "Music Store",     0.62f, 0.333f, new[]{ "battle_06" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]

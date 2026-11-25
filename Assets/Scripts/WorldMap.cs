@@ -11,6 +11,7 @@ public enum NodeType
     RolePick,   // the character picker; completed on leave
     Store,      // the shop (Zhan Li); completed on leave, re-enterable
     Survival,   // reserved for Butian's survival mode
+    MusicStore, // buy songs and pick one (MusicLibrary); opens on the world map itself, no scene change
 }
 
 // One icon on the map.

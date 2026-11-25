@@ -167,6 +167,8 @@ public class GameFlow : MonoBehaviour
     {
         if (node == null) return;
         if (node.type == NodeType.Store && (Map == null || !Map.IsUnlocked(node))) return;
+        // The music store has no scene: MapHub opens it on the map (MusicStorePanel)
+        if (node.type == NodeType.MusicStore) return;
         CurrentNode = node;
         winHandled = false;
         winAt = 0f;
