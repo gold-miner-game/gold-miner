@@ -26,8 +26,8 @@ Each hero has a home that suits them, painted in the keyframe's cut-paper style 
 | --- | --- | --- |
 | Mr. Hyde | stands in his mud wallow (hay bale, pink pillow) | unlocked |
 | JK. Rolling | sits on the cushion in his cardboard box bed (yarn ball) | unlocked |
-| Scrat | sits on top of his hollow stump, tail up (acorns) | not released: "Coming soon" |
-| Rero Rero | sits on the lily pads in his pond | not released: "Coming soon" |
+| Scrat | sits inside his hollow stump, face over the rim, tail rising out (acorns) | not released: "Coming soon" |
+| Rero Rero | stands on a big lotus leaf in the middle of his pond | not released: "Coming soon" |
 | Elsa | stands in her igloo's doorway | for hire, $3,000 |
 | Hulk | stands in his rocky cave's mouth | for hire, $1,500 |
 
@@ -35,7 +35,13 @@ Every hero lives **in** their home, not beside it. Each spot's `home_anchor` is 
 painting the hero stands, measured 0..1 from its bottom-left: the mud basin, the box's cushion, the
 stump's top, the lily pads, the igloo's door, the cave mouth. The painting is placed so that point
 lands on the hero, and `home_size` is the painting's width. Name tags go under whichever reaches
-lower, the hero or the home. Your own home says "Your home". The others are at theirs as friends: they sway on
+lower, the hero or the home. The anchors were measured from the paintings (a flood fill of the mud
+basin, the cushion, the stump's hollow, the lily leaf, the igloo door and the cave opening), not
+guessed. Each friend hangs from a pivot at the centre of its own drawing (the squirrel's tail left out), so
+it sits and turns about its middle. Three homes also have a **front** piece (`Home_*_Front`, the
+painting below a cut line), drawn over the hero, so the hero sits inside: JK. Rolling behind the
+box's front flap, Scrat inside his stump with his face over the rim and his tail rising out, and
+Hulk behind the rubble at his cave mouth. Your own home says "Your home". The others are at theirs as friends: they sway on
 the shared stop-motion beat and turn to face you. A hero for hire is a little dimmed, and an
 unreleased one dimmer still. Name tags and states sit under them on the usual felt tags.
 

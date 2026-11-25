@@ -5,7 +5,9 @@ Sources (Meshy image-to-image in the keyframe's cut-paper style, 1024 px, transp
     docs/images/camp/home_{pig,cat,squirrel,frog,penguin,rhino}.png  (each hero's home: mud wallow,
     box bed, hollow stump, lily pond, igloo, rocky cave)
 Output: Assets/Resources/Art/Camp/Campfire_{1,2,3}.png and Home_{Pig,Cat,Squirrel,Frog,Penguin,Rhino}.png,
-512 px canvases.
+512 px canvases, plus Home_{Cat,Squirrel,Rhino}_Front.png: the same painting kept only below a cut
+line (the box's front flap, the stump's front wall from its rim down, the rubble before the cave),
+drawn OVER the hero so they sit inside their home.
 The three fire frames are cropped with ONE shared box, so the stones and logs never jump between
 frames. Like the other set props, no paper margin: they lie on the floor, not stand on it as puppets.
 Usage: python tools/art/make_camp.py   (from the repo root)
@@ -40,6 +42,14 @@ def main():
     for name in ("pig", "cat", "squirrel", "frog", "penguin", "rhino"):
         im = clean(Image.open(SRC / f"home_{name}.png").convert("RGBA"))
         fit(im, im.getbbox()).save(OUT / f"Home_{name.capitalize()}.png")
+    # front pieces: keep the painting below the cut (0..1 from the bottom), drawn over the hero
+    for name, cut in (("Cat", 0.36), ("Squirrel", 0.755), ("Rhino", 0.30)):
+        im = Image.open(OUT / f"Home_{name}.png").convert("RGBA")
+        keep = Image.new("L", im.size, 0)
+        keep.paste(255, (0, int(im.height * (1 - cut)), im.width, im.height))
+        a = Image.composite(im.split()[3], Image.new("L", im.size, 0), keep)
+        im.putalpha(a)
+        im.save(OUT / f"Home_{name}_Front.png")
     print("wrote", sorted(p.name for p in OUT.glob("*.png")))
 
 if __name__ == "__main__":

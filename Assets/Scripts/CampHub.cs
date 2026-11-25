@@ -191,6 +191,10 @@ public class CampHub : MonoBehaviour
         {
             Vector2 homeAt = spot.at - (spot.homeAnchor - new Vector2(0.5f, 0.5f)) * spot.homeSize;
             Piece(Names[spot.index] + " Home", home, homeAt, spot.homeSize, -10);
+            // the home's front (the box's flap, the stump's front wall, the cave's rubble) drawn over the
+            // hero, so they sit inside it: over every hero part (prefab orders reach 20), under the tags (40)
+            Sprite front = ArtLibrary.Get(spot.home + "_Front");
+            if (front != null) Piece(Names[spot.index] + " Home front", front, homeAt, spot.homeSize, 30);
             tagY = Mathf.Min(tagY, homeAt.y - spot.at.y - spot.homeSize * 0.42f);
         }
         Shadow(spot.at + Vector2.down * 0.35f, 0.9f);
