@@ -60,7 +60,7 @@ MonoBehaviour:
     - store_1
   - id: survival
     type: 4
-    levelAsset: {fileID: 0}
+    levelAsset: {fileID: 4900000, guid: 0f3139ca37489e7b48c97274730cd90c, type: 3}
     displayName: Survival
     mapPosition: {x: 0.5, y: 0.89}
     prerequisites:

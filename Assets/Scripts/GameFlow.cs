@@ -207,8 +207,20 @@ public class GameFlow : MonoBehaviour
 
             case NodeType.Survival:
                 ApplyChosenCharacter();             // the real mode plays as whoever was picked
+                if (node.levelAsset != null)
+                {
+                    // Survival on a level's map (level_survival: the roam map, endless enemy waves):
+                    // played like a battle level, as whoever was picked; a lost run stays put (R retries)
+                    LevelLoader.ScriptedTutorial = false;
+                    LevelLoader.Requested = node.levelAsset;
+                    LevelLoader.WaitToAdvance = true;
+                    LevelLoader.AdvanceNow = false;
+                    flow = Flow.Game;
+                    SceneManager.LoadScene(LevelLayout.SceneFor(node.levelAsset));
+                    break;
+                }
                 flow = Flow.Survival;
-                SceneManager.LoadScene(SurvivalScene);
+                SceneManager.LoadScene(SurvivalScene);   // the old open-field Survival scene
                 break;
         }
     }

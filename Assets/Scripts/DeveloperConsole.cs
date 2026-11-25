@@ -268,7 +268,7 @@ public class DeveloperConsole : MonoBehaviour
         GUI.Label(new Rect(36, 142, 1200, 40), "> " + command + "_", style);
         GUI.Label(new Rect(28, 205, 1200, 210),
             "checkmode <True|False> — enable/disable Space pause/continue (default: FALSE).\n" +
-            "stopmotion <on|off> — the cast on the stop-motion clock (8 poses/s): movement, hooks, aim, rocking, puppet parts, gait, roll spin, Elsa breath (default: on); off runs them smooth. Effects, props and UI stay stop-motion.\n" +
+            "stopmotion <on|off> — the cast on the stop-motion clock (8 poses/s): movement, hooks, aim, rocking, puppet parts, gait, roll spin, Elsa breath (default: off); off runs them smooth. Effects, props and UI stay stop-motion.\n" +
             "money <amount> — add to the wallet (e.g. money 1000).\n" +
             "pass — win this level/tutorial and bank all remaining treasure.\n" +
             "good <item_name> — grant a free effect (e.g. good Time Machine). Tab completes a unique name.\n" +
