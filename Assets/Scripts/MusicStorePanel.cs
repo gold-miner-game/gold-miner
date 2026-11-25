@@ -101,7 +101,7 @@ public class MusicStorePanel : MonoBehaviour
         y += 34f;
 
         string picked = MusicLibrary.SelectedId;
-        Row(new Rect(x, y, w, 36f), picked == null ? "> Game music (each place's own song)" : "Game music (each place's own song)",
+        Row(new Rect(x, y, w - 20f, 36f), picked == null ? "> Game music (each place's own song)" : "Game music (each place's own song)",
             "", picked == null ? null : "Play", () => Pick(null));
         y += 42f;
 
