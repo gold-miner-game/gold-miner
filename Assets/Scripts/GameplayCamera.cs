@@ -79,8 +79,41 @@ public class GameplayCamera : MonoBehaviour
     void LateUpdate()
     {
         if (!Application.isPlaying) { FitInEditor(); return; }
+        transform.position -= shakeOffset;   // last frame's shake, so following and fitting see the real spot
+        shakeOffset = Vector3.zero;
         if (Screen.width != lastWidth || Screen.height != lastHeight) Fit();
         Track(false);
+        ApplyShake();
+    }
+
+    // A short shake of the view (HUDController calls it when a life is lost). Only the camera moves:
+    // nothing in the arena does, so gameplay is the same with or without it
+    public static void Shake(float duration = 0.15f, float amplitude = 0.14f)
+    {
+        Camera main = Camera.main;
+        if (main == null) return;
+        GameplayCamera fit = main.GetComponent<GameplayCamera>();
+        if (fit == null) return;
+        fit.shakeTime = fit.shakeLeft = duration;
+        fit.shakeAmplitude = amplitude;
+    }
+
+    private float shakeTime;
+    private float shakeLeft;
+    private float shakeAmplitude;   // world units at the start, easing to 0
+    private Vector3 shakeOffset;
+    // Its own random source, so a shake never changes the sequence gameplay draws from UnityEngine.Random
+    private readonly System.Random shakeRandom = new System.Random();
+
+    // Unscaled time (the round slows when the player stands still); holds while paused
+    void ApplyShake()
+    {
+        if (shakeLeft <= 0f || Time.timeScale == 0f) return;
+        shakeLeft = Mathf.Max(0f, shakeLeft - Time.unscaledDeltaTime);
+        float strength = shakeAmplitude * shakeLeft / Mathf.Max(0.0001f, shakeTime);
+        float angle = (float)shakeRandom.NextDouble() * Mathf.PI * 2f;
+        shakeOffset = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * strength;
+        transform.position += shakeOffset;
     }
 
     // Edit mode: the same split of a 16:9 Game view, without reading Screen (in the editor that
