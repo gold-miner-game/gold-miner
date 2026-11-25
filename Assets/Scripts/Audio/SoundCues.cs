@@ -65,10 +65,12 @@ public static class SoundCues
         C("skill_tongue", 0.6f, 0.06f, 0.1f, 1),
         C("skill_breath", 0.6f, 0.03f, 0.2f, 1),
         C("skill_charge", 0.7f, 0.03f, 0.2f, 1),
+        C("skill_ready", 0.45f, 0.02f, 0.5f, 1),   // K is usable again
 
         // --- enemies taking damage
         C("enemy_hit", 0.6f, 0.07f, 0.05f, 3),
         C("enemy_down", 0.65f, 0.05f, 0.05f, 2),
+        C("enemy_yowl", 0.6f, 0.08f, 0.15f, 2),
 
         // --- the round
         C("round_start", 0.55f, 0f, 1f, 1),

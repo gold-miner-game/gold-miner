@@ -17,17 +17,20 @@ public static class AudioSmokeTest
     static int checks;
     static int stage;
     static float stageAt;
-    static readonly string[] Tracks = { "title", "shop", "lair", "battle", "endless", "finale" };
-    // scene -> track it should play, checked by really loading the scene
+    static readonly string[] Tracks = { "under_the_dirt_map", "hog_wild_swing", "velvet_claws", "lantern_light_shuffle",
+                                        "evil_meowmeow", "hook_line_and_oinky" };
+    // scene -> what should play, checked by really loading the scenes in this order.
+    // "radio" = the same radio song as before (no change on scene loads); survival has its own song.
     static readonly (string scene, string track, bool ambience)[] Places =
     {
-        ("Menu", "title", false),
-        ("Store", "shop", false),
-        ("level_01", "battle", true),
-        ("level_survival", "endless", true),
-        ("level_08", "finale", true),
-        ("world_map", "lair", true),
+        ("Menu", "radio", false),
+        ("Store", "radio", false),
+        ("level_01", "radio", true),
+        ("level_survival", "hook_line_and_oinky", true),
+        ("level_08", "radio", true),
+        ("world_map", "radio", true),
     };
+    static string radioSong;
 
     public static void Run()
     {
@@ -58,14 +61,31 @@ public static class AudioSmokeTest
                 if (!loaded) { LevelLoader.Requested = null; SceneManager.LoadScene(Places[place].scene); loaded = true; stageAt = Time.realtimeSinceStartup; return; }
                 if (since < 2.5f) return;   // let the crossfade start and the scene settle
                 SoundDirector d = SoundDirector.Instance;
-                Check(d != null && d.CurrentTrack == Places[place].track,
-                      Places[place].scene + " plays '" + (d != null ? d.CurrentTrack : "-") + "', expected '" + Places[place].track + "'");
+                string expect = Places[place].track;
+                if (expect == "radio")
+                {
+                    if (radioSong == null) radioSong = d != null ? d.CurrentTrack : null;
+                    expect = radioSong;
+                    Check(Array.Exists(SoundDirector.Radio, s => s.file == expect), "radio song '" + expect + "' is not on the radio");
+                }
+                Check(d != null && d.CurrentTrack == expect,
+                      Places[place].scene + " plays '" + (d != null ? d.CurrentTrack : "-") + "', expected '" + expect + "'");
                 Check(d != null && d.MusicPlaying, Places[place].scene + ": music is not playing");
                 Check(d != null && (d.CurrentAmbience == "amb_mine") == Places[place].ambience,
                       Places[place].scene + ": ambience '" + (d != null ? d.CurrentAmbience : "-") + "'");
                 loaded = false; stage++; stageAt = Time.realtimeSinceStartup;
                 return;
             }
+            // The radio's skip: N moves to the next song, B comes back
+            string before = SoundDirector.Instance.CurrentTrack;
+            SoundDirector.NextSong();
+            Check(SoundDirector.Instance.CurrentTrack != before, "NextSong did not change the song");
+            SoundDirector.PreviousSong();
+            Check(SoundDirector.Instance.CurrentTrack == before, "PreviousSong did not come back");
+            // Every song has its own title
+            var titles = new HashSet<string>();
+            foreach (var song in SoundDirector.Radio) Check(titles.Add(song.title), "duplicate song title " + song.title);
+            Check(titles.Add(SoundDirector.SurvivalSong.title), "survival song shares a title");
             Finish();
         }
         catch (Exception e) { Debug.LogException(e); failures.Add(e.Message); Finish(); }

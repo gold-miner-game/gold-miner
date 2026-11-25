@@ -93,6 +93,7 @@ public class RedSquare : RedEnemy
             Vector2 surface = playerBody != null ? playerBody.ClosestPoint(body.position) : (Vector2)target.position;
             float width = playerBody != null ? playerBody.bounds.size.x : 1f;
             BlockFlash.Show(surface, toMe, width);
+            Sfx.Play("enemy_hit", body.position); Sfx.Play("enemy_yowl", body.position);   // sound: bounced off the block
             player.OnHookBlocked();
             return;
         }

@@ -14,7 +14,9 @@ using UnityEngine.SceneManagement;
 public static class AudioGameplayProbe
 {
     const string Pending = "AudioGameplayProbe.Pending";
-    static readonly (string scene, float seconds)[] Steps = { ("level_02", 40f), ("world_map", 12f), ("Menu", 4f) };
+    static readonly (string scene, float seconds)[] Steps = { ("level_02", 40f), ("level_roam", 30f), ("world_map", 12f), ("Menu", 4f) };
+    static readonly List<string> songs = new List<string>();
+    static float nextCharge;
     static readonly Dictionary<string, int> heard = new Dictionary<string, int>();
     static int step = -1;
     static float stepAt;
@@ -39,6 +41,7 @@ public static class AudioGameplayProbe
             }
             float t = Time.realtimeSinceStartup - stepAt;
             if (scene == "level_02") Nudge(t);
+            if (scene == "level_roam") Brawl(t);
             if (t < Steps[step].seconds) return;
             if (step + 1 < Steps.Length) { Next(); return; }
             Finish();
@@ -48,7 +51,9 @@ public static class AudioGameplayProbe
 
     static void Next()
     {
+        if (step >= 0 && SoundDirector.Instance != null) songs.Add(scene + "=" + SoundDirector.Instance.CurrentTrack);
         step++;
+        nextCharge = 0f;
         scene = Steps[step].scene;
         skillPressed = walkedToGold = false;
         LevelLoader.Requested = null;
@@ -79,11 +84,32 @@ public static class AudioGameplayProbe
         }
     }
 
+    // The roam level's Brawlers: stand next to the nearest one and use the skill whenever it is ready
+    static void Brawl(float t)
+    {
+        PlayerCharacter player = UnityEngine.Object.FindFirstObjectByType<PlayerCharacter>();
+        if (player == null || t < 3f || t < nextCharge) return;
+        nextCharge = t + 0.5f;
+        RedEnemy enemy = UnityEngine.Object.FindObjectsByType<RedEnemy>(FindObjectsSortMode.None)
+            .Where(e => e.isActiveAndEnabled).OrderBy(e => Vector2.Distance(e.transform.position, player.transform.position)).FirstOrDefault();
+        if (enemy != null)
+        {
+            Vector2 spot = (Vector2)enemy.transform.position + Vector2.left * 1.2f;
+            var body = player.GetComponent<Rigidbody2D>();
+            if (body != null) body.position = spot; else player.transform.position = spot;
+        }
+        if (player.SkillReadyIn <= 0f)
+            player.GetType().GetMethod("UseSkill", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.FlattenHierarchy)?.Invoke(player, null);
+    }
+
     static void Finish()
     {
+        if (SoundDirector.Instance != null) songs.Add(scene + "=" + SoundDirector.Instance.CurrentTrack);
+        Debug.Log("AUDIO_PROBE songs by scene: " + string.Join(", ", songs));
         SessionState.SetBool(Pending, false);
         foreach (var pair in heard.OrderBy(p => p.Key)) Debug.Log("AUDIO_PROBE heard " + pair.Key + " x" + pair.Value);
-        string[] core = { "hook_fire", "eat_munch", "round_start" };
+        string[] core = { "hook_fire", "eat_munch", "round_start", "skill_ready", "enemy_yowl" };
         string[] missing = core.Where(c => !heard.Keys.Any(k => k.EndsWith(":" + c))).ToArray();
         SoundDirector d = SoundDirector.Instance;
         Debug.Log("AUDIO_PROBE music now: " + (d != null ? d.CurrentTrack : "-") + ", cues heard: " + heard.Count);

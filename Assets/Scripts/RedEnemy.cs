@@ -161,6 +161,7 @@ public abstract class RedEnemy : MonoBehaviour
     public void PushBack(Vector2 away, float distance, float time)
     {
         if (away.sqrMagnitude < 0.0001f) return;
+        Sfx.Play("enemy_hit", transform.position); Sfx.Play("enemy_yowl", transform.position);   // sound: knocked back
         pushDir = away.normalized;
         pushSpeed = distance / Mathf.Max(0.01f, time);
         pushUntil = Time.time + time;

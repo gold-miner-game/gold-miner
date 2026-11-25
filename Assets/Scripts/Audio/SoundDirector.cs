@@ -11,8 +11,8 @@ using UnityEngine.UI;
 //   Sfx.Play("hook_grab", position)   a sound effect (SoundCues lists them all)
 //   Sfx.Ui("ui_click")                a menu sound
 //
-// Music: one track per place (Music), crossfaded on scene changes and looped with a crossfade so
-// the songs' endings never cut. Ambience: the mine's room tone under every level.
+// Music: a radio that plays the songs back to back across every scene, except survival,
+// which loops its own song. Songs crossfade, so endings never cut. Ambience: the mine's room tone.
 // Volumes: three sliders (music, sound effects, menus) plus master and mute, saved in PlayerPrefs.
 // The settings screen only needs SoundDirector.GetVolume / SetVolume / Muted (docs/audio.md).
 //
@@ -187,21 +187,40 @@ public class SoundDirector : MonoBehaviour
         return Mathf.Clamp((at.x - cam.transform.position.x) / half, -1f, 1f) * 0.35f;
     }
 
-    // --- music ---------------------------------------------------------------------------------------
-    // Track files in Resources/Audio/Music, already trimmed and levelled to the same loudness
-    public const string TitleTrack = "title";       // 01 Under the Dirt Map: the main menu
-    public const string ShopTrack = "shop";         // 01 jazz: store, character pick, card map
-    public const string LairTrack = "lair";         // 03 jazz: the evil cat's world map (hub)
-    public const string BattleTrack = "battle";     // 02 jazz: levels and tutorials
-    public const string EndlessTrack = "endless";   // 02: survival and roam (endless waves)
-    public const string FinaleTrack = "finale";     // 03: the last level
+    // --- music: the radio ------------------------------------------------------------------------------
+    // The game is fast, so the music doesn't change with every scene. One radio plays the songs back to
+    // back across the menu, map, store and levels, and keeps going through level changes and restarts.
+    // Choosing songs and showing what's playing is UI (another owner): it calls NextSong / PreviousSong /
+    // PlaySong and listens to SongChanged. See docs/audio-radio-ui-request.md.
+    // Survival is the exception: a run is long, so it gets its own song on loop, and the radio picks
+    // up where it left off afterwards.
+    // Files in Resources/Audio/Music, trimmed and levelled to the same loudness (-16 LUFS).
+    public sealed class Song
+    {
+        public readonly string file, title, style;
+        public Song(string file, string title, string style) { this.file = file; this.title = title; this.style = style; }
+    }
+
+    // Radio order: alternates calm and lively songs. Every song has its own name.
+    public static readonly Song[] Radio =
+    {
+        new Song("under_the_dirt_map", "Under the Dirt Map", "saloon jazz"),
+        new Song("hog_wild_swing", "Hog Wild Swing", "hot jazz"),
+        new Song("velvet_claws", "Velvet Claws", "villain big band"),
+        new Song("lantern_light_shuffle", "Lantern Light Shuffle", "noir jazz"),
+        new Song("evil_meowmeow", "Evil Meowmeow", "cabaret metal"),
+    };
+    public static readonly Song SurvivalSong = new Song("hook_line_and_oinky", "Hook, Line and Oinky", "surf rockabilly");
 
     const float MusicLevel = 0.8f;       // music under effects
     const float CrossfadeTime = 1.5f;
-    const float LoopOverlap = 3f;        // seconds of crossfade when a song wraps around
+    const float SongOverlap = 3f;        // seconds of crossfade between one song and the next
     AudioSource musicA, musicB, ambience;
     AudioSource musicNow;
-    string trackNow;
+    Song songNow;
+    bool inSurvival;
+    int radioIndex = -1;
+    float radioResumeAt;                 // where the radio song was when survival interrupted it
     float fadeStart = -1f;
     AudioSource fadingOut;
     float roundEndDip = 1f;              // the music sits lower on the result screen
@@ -211,23 +230,39 @@ public class SoundDirector : MonoBehaviour
     {
         AudioSource s = gameObject.AddComponent<AudioSource>();
         s.playOnAwake = false;
-        s.loop = false;   // looped by hand with a crossfade (Update)
+        s.loop = false;   // songs are chained by hand with a crossfade (UpdateMusic)
         s.ignoreListenerPause = true;
         s.volume = 0f;
         return s;
     }
 
-    public void PlayMusic(string track)
+    // --- radio controls for the UI ---------------------------------------------------------------
+    public static event System.Action<Song> SongChanged;   // a new song started (title for a now-playing tag)
+    public static int RadioIndex => instance != null ? instance.radioIndex : -1;
+    public static Song NowPlaying => instance != null ? instance.songNow : null;
+    public static void NextSong() { if (instance != null && !instance.inSurvival) instance.PlayRadio(instance.radioIndex + 1, true); }
+    public static void PreviousSong() { if (instance != null && !instance.inSurvival) instance.PlayRadio(instance.radioIndex - 1, true); }
+    public static void PlaySong(int index) { if (instance != null && !instance.inSurvival) instance.PlayRadio(index, true); }
+
+    void PlayRadio(int index, bool chosen)
     {
-        if (track == trackNow) return;
-        trackNow = track;
-        AudioClip clip = string.IsNullOrEmpty(track) ? null : Resources.Load<AudioClip>("Audio/Music/" + track);
-        StartMusic(clip, 0f);
+        radioIndex = ((index % Radio.Length) + Radio.Length) % Radio.Length;
+        PlayerPrefs.SetInt("sound.radio", radioIndex);   // the next session starts on the same song
+        StartSong(Radio[radioIndex], 0f);
+    }
+
+    void StartSong(Song song, float from)
+    {
+        songNow = song;
+        AudioClip clip = song == null ? null : Resources.Load<AudioClip>("Audio/Music/" + song.file);
+        StartMusic(clip, from);
+        SongChanged?.Invoke(song);
     }
 
     void StartMusic(AudioClip clip, float from)
     {
         AudioSource next = musicNow == musicA ? musicB : musicA;
+        if (fadingOut != null && fadingOut != musicNow) fadingOut.Stop();
         fadingOut = musicNow;
         musicNow = clip != null ? next : null;
         if (clip != null)
@@ -241,6 +276,26 @@ public class SoundDirector : MonoBehaviour
         fadeStart = Time.unscaledTime;
     }
 
+    // Called on every scene: only survival changes what plays
+    void SetMusicPlace(bool survival)
+    {
+        if (survival)
+        {
+            if (inSurvival) return;
+            inSurvival = true;
+            radioResumeAt = musicNow != null ? musicNow.time : 0f;
+            StartSong(SurvivalSong, 0f);
+            return;
+        }
+        if (inSurvival)
+        {
+            inSurvival = false;
+            StartSong(Radio[Mathf.Max(0, radioIndex)], radioResumeAt);   // the radio carries on
+            return;
+        }
+        if (radioIndex < 0) PlayRadio(PlayerPrefs.GetInt("sound.radio", 0), false);   // first scene
+    }
+
     public void SetRoundEndDip(float level) { roundEndDip = Mathf.Clamp01(level); }
 
     // For tests and debugging
@@ -250,7 +305,7 @@ public class SoundDirector : MonoBehaviour
         foreach (var pair in playing) if (pair.Value == id && pair.Key.isPlaying) return true;
         return false;
     }
-    public string CurrentTrack => trackNow;
+    public string CurrentTrack => songNow != null ? songNow.file : null;
     public bool MusicPlaying => musicNow != null && musicNow.isPlaying;
     public string CurrentAmbience => ambienceNow;
     public int VoicesPlaying { get { int n = 0; foreach (AudioSource s in pool) if (s.isPlaying) n++; return n; } }
@@ -268,16 +323,15 @@ public class SoundDirector : MonoBehaviour
             fadingOut.volume = bus * (1f - t);
             if (t >= 1f) { fadingOut.Stop(); fadingOut = null; }
         }
+        if (musicNow == null || musicNow.clip == null || fadingOut != null) return;
 
-        // Wrap a song round with an overlap, so its ending flows back into its start
-        if (musicNow != null && musicNow.clip != null && fadingOut == null
-            && musicNow.time >= musicNow.clip.length - LoopOverlap)
-            StartMusic(musicNow.clip, 0f);
-        // A hitch (or a background browser tab) can skip past that window and let the song end:
-        // start it again rather than fall silent
-        else if (musicNow != null && musicNow.clip != null && fadingOut == null && !musicNow.isPlaying
-                 && musicNow.clip.loadState == AudioDataLoadState.Loaded)
-            StartMusic(musicNow.clip, 0f);
+        // Near a song's end: the radio moves on to the next song; survival's song starts over
+        bool ending = musicNow.time >= musicNow.clip.length - SongOverlap;
+        // A hitch (or a background browser tab) can skip past that window and let the song end
+        bool stopped = !musicNow.isPlaying && musicNow.clip.loadState == AudioDataLoadState.Loaded;
+        if (!ending && !stopped) return;
+        if (inSurvival) StartSong(SurvivalSong, 0f);
+        else PlayRadio(radioIndex + 1, false);
     }
 
     // --- ambience: the mine under every level ------------------------------------------------------
@@ -353,23 +407,16 @@ public class SoundDirector : MonoBehaviour
     {
         string scene = SceneManager.GetActiveScene().name;
         string level = LevelLoader.Requested != null ? LevelLoader.Requested.name : scene;
-        bool round = GameManager.Instance != null;
-
         if (scene == GameFlow.BootScene) return;
-        if (scene == GameFlow.MenuScene) { PlayMusic(TitleTrack); PlayAmbience(null, 0f); return; }
-        if (scene == GameFlow.StoreScene || scene == GameFlow.RolePickScene || scene == GameFlow.MapScene
-            || scene == "RolePick")
-        { PlayMusic(ShopTrack); PlayAmbience(null, 0f); return; }
-        if (MapHub.Active != null || level.Contains("world_map") || level.Contains("maze"))
-        { PlayMusic(LairTrack); PlayAmbience("amb_mine", 0.18f); return; }
-        if (scene == GameFlow.SurvivalScene || level.Contains("survival") || level.Contains("roam"))
-        { PlayMusic(EndlessTrack); PlayAmbience("amb_mine", 0.22f); return; }
-        if (level.Contains("level_08"))
-        { PlayMusic(FinaleTrack); PlayAmbience("amb_mine", 0.22f); return; }
-        if (round || scene.StartsWith("level_") || scene == GameFlow.GameScene)
-        { PlayMusic(BattleTrack); PlayAmbience("amb_mine", 0.25f); return; }
-        PlayMusic(ShopTrack);
-        PlayAmbience(null, 0f);
+        bool survival = scene == GameFlow.SurvivalScene || level.Contains("survival");
+        SetMusicPlace(survival);
+
+        // The mine's room tone under every level; menus, the store and the pick screen are dry
+        bool menu = scene == GameFlow.MenuScene || scene == GameFlow.StoreScene || scene == GameFlow.RolePickScene
+                    || scene == GameFlow.MapScene || scene == "RolePick";
+        if (menu) PlayAmbience(null, 0f);
+        else if (MapHub.Active != null || level.Contains("world_map") || level.Contains("maze")) PlayAmbience("amb_mine", 0.18f);
+        else PlayAmbience("amb_mine", survival ? 0.22f : 0.25f);
     }
 }
 

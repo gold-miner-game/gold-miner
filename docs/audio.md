@@ -42,23 +42,30 @@ follows the same idea:
 - Import settings come from `Assets/Editor/AudioImportRules.cs`: effects are mono and decoded on load;
   music is streamed Vorbis.
 
-## Music map
+## Music: the radio
 
-| Place | Track (Resources/Audio/Music) | Song |
-|---|---|---|
-| Main menu | `title` | 01 Under the Dirt Map: saloon jazz, whistled melody |
-| Store, character pick, card map | `shop` | 01, jazz version: noir combo |
-| World map hub (the evil cat's lair) | `lair` | 03 Evil Meowmeow, jazz version: villain big band |
-| Levels and tutorials | `battle` | 02 Hook Line and Oinky, jazz version: hot jazz |
-| Survival and roam (endless waves) | `endless` | 02 Hook Line and Oinky: surf-rockabilly |
-| Level 8 (the last level) | `finale` | 03 Evil Meowmeow: cabaret metal |
+The game is fast, so the music doesn't follow the scenes. One **radio** plays the songs back to back
+through the menu, map, store and levels. It never restarts on a level change or a retry, and the next
+session starts on the same song. **Survival** is the only exception: a run is long, so it loops its own
+song, and the radio resumes where it stopped afterwards.
 
-- Songs crossfade on scene changes. A restart (R) keeps the song playing.
-- Each song wraps around with a 3-second crossfade, so its ending never cuts.
-- The music steps back to half volume while paused, and dips under the win/lose jingles and the
-  "target reached" jingle.
-- The source files were trimmed (start and end silence) and levelled to -16 LUFS. The untouched
-  originals are in `E:\Create with code\sound\elevenlabs\oinky_music` and in the `audio/music` branch history.
+| Radio order | Title (file in Resources/Audio/Music) | Style | Source song |
+|---|---|---|---|
+| 1 | Under the Dirt Map (`under_the_dirt_map`) | saloon jazz | 01 |
+| 2 | Hog Wild Swing (`hog_wild_swing`) | hot jazz | 02, jazz version |
+| 3 | Velvet Claws (`velvet_claws`) | villain big band | 03, jazz version |
+| 4 | Lantern Light Shuffle (`lantern_light_shuffle`) | noir jazz | 01, jazz version |
+| 5 | Evil Meowmeow (`evil_meowmeow`) | cabaret metal | 03 |
+| survival | Hook, Line and Oinky (`hook_line_and_oinky`) | surf rockabilly | 02 |
+
+- Every song has its own title. The jazz versions used to share their originals' names.
+- Songs crossfade into each other (3 s). The music steps back to half volume while paused, and dips
+  under the win/lose and "target reached" jingles.
+- Choosing songs and showing what's playing is UI work, requested in docs/audio-radio-ui-request.md. The
+  sound side exposes `SoundDirector.Radio`, `NextSong / PreviousSong / PlaySong`, `NowPlaying` and
+  `SongChanged`.
+- The sources were trimmed and levelled to -16 LUFS. The untouched originals are in
+  `E:\Create with code\sound\elevenlabs\oinky_music` and in the `audio/music` branch history.
 
 ## Ambience
 
@@ -84,6 +91,8 @@ level (louder in battles, softer on the world map) and stops in menus.
 | hit_impact + hurt_<character> | the player is hit (`player_hit`) |
 | shield_soak | the store shield absorbs a hit |
 | skill_block / roll / tail / tongue / breath / charge | K skill starts, per character |
+| skill_ready | the K skill's cooldown has run out (a soft marimba ding; not for hold skills) |
+| enemy_hit + enemy_yowl | a Brawler is knocked back: bounced off the pig's block, or shoved by the rhino's charge |
 | enemy_hit / enemy_down | a miner or walker takes damage / is destroyed |
 | round_start | a timed money round begins |
 | target_reached | the money goal is reached |

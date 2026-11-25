@@ -126,6 +126,7 @@ public class SoundWatcher : MonoBehaviour
     bool startRung, goalWasReached;
     int lastTick = -1;
     bool skillWasActive;
+    bool coolingDown;
     PlayerCharacter skillOwner;
 
     void Update()
@@ -175,10 +176,19 @@ public class SoundWatcher : MonoBehaviour
     void WatchSkill()
     {
         PlayerCharacter p = Player;
-        if (p != skillOwner) { skillOwner = p; skillWasActive = p != null && p.SkillActive; }
+        if (p != skillOwner) { skillOwner = p; skillWasActive = p != null && p.SkillActive; coolingDown = false; }
         if (p == null) return;
         bool active = p.SkillActive;
         if (active && !skillWasActive && PlayerCharacter.IsPlaying) Sfx.Play(SoundCues.Skill(p), p.transform.position);
         skillWasActive = active;
+
+        // The skill is ready again: a soft chime when a real cooldown (not a hold skill) runs out
+        float readyIn = p.HasSkill ? p.SkillReadyIn : 0f;
+        if (readyIn > 0.25f && p.SkillWait > 0.75f) coolingDown = true;   // a real cooldown is running
+        if (readyIn <= 0f && coolingDown)
+        {
+            coolingDown = false;
+            if (PlayerCharacter.IsPlaying) Sfx.Play("skill_ready", p.transform.position);
+        }
     }
 }
