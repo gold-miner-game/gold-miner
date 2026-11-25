@@ -49,3 +49,46 @@ The gold-collecting walker is the same burrowing cat in a gold-sand mound. It ha
 stitched dollar signs, a greedy grin and a burlap sack, a cousin of the Greedy Meowmeow.
 Poses: Dig/Walk (ducked, gold crumbs fly), Aim (eyes on the gold), Bank (hugs the nugget, sparkle eyes).
 Sources: `images/roam-enemies/gold_round_*.png`.
+
+## Needle Meowmeow: the sprint-stab cat (look and prefab built, gameplay not written)
+
+![needle sheet](images/roam-enemies/needle_design_sheet.png)
+
+A lean, long-legged felt fencer cat in a red bandit mask. Its rapier is a giant steel sewing needle on
+red thread, a weapon from the game's own felt-and-stitch world. It is drawn in side view, like the rhino
+and penguin heroes, and its lean outline is the opposite of the stocky brawler's, so the two read
+apart at a glance. Like the brawler, it has a cream cut-paper edge, but only on the solid body: thin
+thread and the needle stay bare.
+
+**Prefab:** `Assets/Prefabs/Enemy/NeedleMeowmeow.prefab`, built by
+`Tools > Gold Miner > Art > Build Needle Meowmeow Prefab` (`Assets/Editor/Art/NeedleMeowmeowPrefab.cs`).
+It is look only, with no collider, Rigidbody or gameplay script. The root holds `NeedleMeowmeowArt`:
+
+| Child | What |
+| --- | --- |
+| Body | SpriteRenderer with the pose pictures, drawn at 0.75 (prowl about 1.45 units nose to needle tip). The only part that flips and tilts, so a physics root can be added later |
+| Thread | world-space LineRenderer, twine texture, red: the thread the needle sews along a dash |
+| Telegraph | the wind-up's red running stitch (Fx/Stitch) along the sprint path, made at runtime |
+
+**How the gameplay script drives it** (it never moves the root):
+
+| Call | Picture |
+| --- | --- |
+| `Aim(dir)` | faces the sprint (flipX); the dash and stab tilt toward it, up to 35 degrees |
+| `SetPose(Prowl)` | stalking; bobs and leans on the shared stop-motion beat |
+| `SetPose(Windup)` + `telegraphLength` | low sprinter's crouch; a red stitch line marches out along the path. Set the length to the sprint distance |
+| `SetPose(Dash)` | flying horizontal lunge; red thread is sewn on the floor behind it |
+| `SetPose(Stab)` | full fencing lunge with a star burst at the needle tip: the hit frame |
+| `SetPose(Stuck)` | a miss: needle stuck in the floor, tangled thread, tugging. This is the player's opening |
+| `SetPose(Hit)` | thrown back, X eyes, needle flying loose |
+
+The sewn thread stays on the floor after the dash and fades over 1.2 s, in held steps. Attack poses
+change on the frame they are set; the bob and the marching stitches wait for the beat. **Preview
+Cycle** (Inspector) plays the whole attack in a loop for review. The capture action `world_map:needle`
+films it.
+
+Suggested gameplay hooks, for whoever writes it: telegraph about 0.9 s, dash about 0.35 s, stab
+0.35 s, stuck about 0.9 s as the punish window. These are only the timings the art was reviewed at;
+the real values are the gameplay owner's call. HookHealth will find the Body renderer for its hit blink.
+
+Sprites: `python tools/art/make_needle.py` (sources `images/roam-enemies/needle_*.png`).

@@ -164,6 +164,17 @@ public class ArtCaptureRunner : MonoBehaviour
                 if (hub != null && portal != null) hub.FocusPortal(portal);
                 break;
             case "walk": break;   // handled while saving frames
+            case "needle":   // the sprint-stab cat's look (no gameplay yet): its review cycle beside the player (film it on world_map: no hooks there)
+                var who = FindFirstObjectByType<PlayerCharacter>();
+                if (who != null)
+                {
+                    var cat = new GameObject("NeedleMeowmeow (capture)");
+                    cat.transform.position = who.transform.position + new Vector3(-2.2f, 1.6f, 0f);
+                    var needle = cat.AddComponent<NeedleMeowmeowArt>();
+                    needle.telegraphLength = 4.4f;
+                    needle.previewCycle = true;
+                }
+                break;
             case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
                 var squares = FindObjectsByType<RedSquare>(FindObjectsSortMode.None);
                 var pc = FindFirstObjectByType<PlayerCharacter>();
