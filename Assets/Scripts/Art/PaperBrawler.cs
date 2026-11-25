@@ -10,6 +10,7 @@ using UnityEngine;
 //   ram that lands .... Punch (glove thrust at you, speed strips), then Guard while it backs off
 //   ram blocked / shoved Bonk: dizzy, stars, headband over one eye, until it charges again
 // It faces the player (flipX), turning only on a new pose like a hand-moved puppet.
+// Frozen by Elsa it holds the pose and facing it was caught in until it thaws.
 [DisallowMultipleComponent]
 public class PaperBrawler : MonoBehaviour
 {
@@ -61,6 +62,9 @@ public class PaperBrawler : MonoBehaviour
     void LateUpdate()
     {
         if (Time.timeScale <= 0f) return;   // paused: a still photo
+        // Frozen by Elsa: held in the pose and facing it was caught in, like the frozen miner cats,
+        // until it thaws (its frost is drawn over this held picture by FrostBody2D)
+        if (square.IsFrozen) return;
 
         bool rammed = square.Rammed;
         if (rammed && !wasRammed && !square.LastRamBlocked) punchUntil = Time.time + punchHold;

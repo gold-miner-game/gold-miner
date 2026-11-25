@@ -20,6 +20,7 @@ The square's 1x1 box collider is unchanged; the figure is drawn about 1.5 world 
 | Wind-up | hunting and within 1.8 units of the player: crouched, glove cocked back | `Brawler_Windup` |
 | Punch | the frame a ram lands, held 0.3 s: glove thrust at the camera, paper speed strips | `Brawler_Punch` |
 | Bonk | the ram was blocked (Mr. Hyde's block), or it is shoved by the pig's attack: dizzy, stars | `Brawler_Bonk` |
+| (frozen) | Elsa's frost: holds whatever pose and facing it was caught in until it thaws; the frost draws over it | - |
 
 `PaperBrawler` swaps the square's own root sprite and its flipX, so it faces the player. Hits change the
 picture at once; every other change waits for the next stop-motion pose. HookHealth's hit blink and

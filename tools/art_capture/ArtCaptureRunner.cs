@@ -175,6 +175,10 @@ public class ArtCaptureRunner : MonoBehaviour
                     needle.previewCycle = true;
                 }
                 break;
+            case "brawlerfreeze":   // the brawler set-up, then real frost breathed on that square (FrostField2D.Expose, as Elsa's breath does)
+                Trigger("brawler");
+                new GameObject("Capture frost").AddComponent<CaptureFrost>();
+                break;
             case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
                 var squares = FindObjectsByType<RedSquare>(FindObjectsSortMode.None);
                 var pc = FindFirstObjectByType<PlayerCharacter>();
@@ -208,5 +212,28 @@ public class ArtCaptureRunner : MonoBehaviour
         File.WriteAllBytes(Path.Combine(outDir, name + ".png"), shot.EncodeToPNG());
         Destroy(shot);
         Debug.Log("ART_CAPTURE_SAVED " + name);
+    }
+}
+
+// Capture only: after a moment, breathes frost from the player onto the nearest Red Square for a
+// second (the same FrostField2D.Expose call Elsa's breath makes), to film a frozen enemy.
+public class CaptureFrost : MonoBehaviour
+{
+    float start;
+    void Start() { start = Time.time; }
+    void Update()
+    {
+        float t = Time.time - start;
+        if (t < 1.0f) return;
+        if (t > 2.0f) { Destroy(gameObject); return; }
+        var pc = FindFirstObjectByType<PlayerCharacter>();
+        if (pc == null) return;
+        RedSquare near = null;
+        foreach (RedSquare s in FindObjectsByType<RedSquare>(FindObjectsSortMode.None))
+            if (near == null || (s.transform.position - pc.transform.position).sqrMagnitude < (near.transform.position - pc.transform.position).sqrMagnitude) near = s;
+        if (near == null) return;
+        Vector2 from = pc.transform.position;
+        Vector2 to = near.transform.position;
+        FrostField2D.Expose(pc.transform, from, to - from, Vector2.Distance(from, to) + 1.5f, 30f);
     }
 }
