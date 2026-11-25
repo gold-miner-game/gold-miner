@@ -20,6 +20,8 @@ public class HubPortal : MonoBehaviour
     public string nodeId;
     [Tooltip("A rock in the wall until the node unlocks")]
     public bool hidden;
+    [Tooltip("Place the name above this portal instead of below it")]
+    public bool labelAbove;
     [Tooltip("The rock's colour while hidden: the walls around it")]
     public Color stoneColor = new Color(0.5f, 0.5f, 0.5f);
     [Tooltip("Seconds the rock takes to turn into the portal")]
@@ -95,6 +97,8 @@ public class HubPortal : MonoBehaviour
             label.sortingOrder = 5;
         }
         if (string.IsNullOrEmpty(label.text)) label.text = text;   // a name typed in the scene stays
+        HubPortal portal = go.GetComponent<HubPortal>();
+        if (portal != null && portal.labelAbove) label.transform.localPosition = new Vector3(0f, 0.95f, 0f);
         return hex;
     }
 

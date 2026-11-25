@@ -130,6 +130,7 @@ public static class HubSceneBaker
             HubPortal portal = go.AddComponent<HubPortal>();
             portal.nodeId = p.target;
             portal.hidden = p.hidden;
+            portal.labelAbove = p.labelAbove;
             portal.stoneColor = MapHub.WallColor(p.stone, grey);
             SpriteRenderer hex = HubPortal.Visuals(go, rockSprite != null ? rockSprite.sprite : null,
                                                    node != null ? node.displayName : p.target, out _);
