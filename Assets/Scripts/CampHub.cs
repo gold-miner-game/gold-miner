@@ -1,0 +1,517 @@
+using System.Collections;
+using System.Collections.Generic;
+using TMPro;
+using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
+
+// Owner: art lead (camp). The character camp: the world map's Pick Character node, replacing the old
+// Select ("WHO ARE U") screen. A "grid" level with "camp": 1 (Resources/Hub/camp.json) is loaded like
+// the world map (a maze level: no clock, no hooks, no run record, you walk as your picked character),
+// and LevelLoader adds this instead of MapHub. It lays out a lamplit clearing round a campfire where
+// the six heroes camp at their tents, and gives the place its functions:
+//   - walk up to a hero: their name and state show; [E] talks (a few lines each, in character)
+//   - [Enter] (or the card's button): unlocked -> play as them (the camp re-opens with you in their
+//     place); for sale (Elsa, Hulk) -> hire them with the wallet (CharacterUnlocks.TryPurchase);
+//     not released (Scrat, Rero Rero) -> visible and chatty, but "not ready to join yet"
+//   - the gate leads back to the map and completes the node, as picking did on the old screen
+// Picking keeps the old screen's rules: ChampionSpawner.Chosen, a fresh record that keeps store goods,
+// the save, analytics and the tutorial's RolePickOpen / CharacterPicked / Picked(i) events.
+public class CampHub : MonoBehaviour
+{
+    public static CampHub Active { get; private set; }
+    public const string CampLevelPath = "Hub/camp";
+
+    static readonly string[] Names = { "Mr. Hyde", "JK. Rolling", "Scrat", "Rero Rero", "Elsa", "Hulk" };
+    static readonly Color[] Colors =
+    {
+        new Color(0.95f, 0.55f, 0.65f), new Color(0.42f, 0.36f, 0.5f), new Color(0.68f, 0.45f, 0.24f),
+        new Color(0.36f, 0.68f, 0.32f), new Color(0.48f, 0.74f, 0.98f), new Color(0.8f, 0.28f, 0.22f),
+    };
+    static readonly string[][] Lines =
+    {
+        new[] { "Oink. The cats want our gold, but they never get past my block.",
+                "Hold [K] and I raise my block: their hooks bounce right off.",
+                "Once the rope trick is learned, [J] cuts a hook's rope clean through." },
+        new[] { "Mrrp. Some cats chase gold. I chase speed.",
+                "Press [K] and I roll. Nothing can hook a rolling cat.",
+                "Roll into a miner when its guard is down. It never sees me coming." },
+        new[] { "Acorns first, mine later. My nuts aren't buried yet.",
+                "This tail is iron. When I'm ready, hold [K] and nothing pulls me.",
+                "Not ready to join you yet. Ask me again another day." },
+        new[] { "Rero rero... the flies down here are huge.",
+                "My tongue reaches further than any hook. Soon, soon.",
+                "I'm not ready to join you yet. Rero." },
+        new[] { "Brr. Finally, someone who likes the cold.",
+                "Press [K] and I breathe frost. Hooks freeze in mid air, miners too.",
+                "Hire me and the mine goes very, very quiet." },
+        new[] { "HRMPH. Walls? What walls?",
+                "Press [K] and I charge. Rocks crumble, hooks bounce off my horn.",
+                "Hire me and I'll clear you a road through any rock." },
+    };
+
+    enum State { Current, Ready, ForSale, NotReady }
+
+    class Spot
+    {
+        public int index;
+        public Vector2 at;
+        public Transform npc;
+        public Vector3 npcScale;
+        public readonly List<SpriteRenderer> parts = new List<SpriteRenderer>();
+        public readonly List<Color> colors = new List<Color>();
+        public TextMeshPro name, status;
+        public int line = -1;
+        public State state;
+        public string home;
+    }
+
+    readonly List<Spot> spots = new List<Spot>();
+    PlayerCharacter player;
+    TextAsset source;
+    Transform root;
+    Vector2 gateAt;
+    bool gateArmed;
+    Spot near;
+    string said = "", note = "";
+    float saidUntil, noteUntil, openedAt;
+    bool leaving;
+    SpriteRenderer fire;
+    Sprite[] fireFrames;
+    GUIStyle titleStyle, bodyStyle, hintStyle;
+
+    // The hero the player switched to: the camp re-opens with them standing at their own tent
+    static int arriveAt = -1;
+    static float fadeIn;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    static void ResetStatics() { Active = null; arriveAt = -1; fadeIn = 0f; }
+
+    public static TextAsset CampLevel => Resources.Load<TextAsset>(CampLevelPath);
+
+    void Awake() { Active = this; }
+    void OnDestroy() { if (Active == this) Active = null; }
+
+    static int Current => ChampionSpawner.Chosen >= 0 ? ChampionSpawner.Chosen : ChampionSpawner.MrHyde;
+
+    // Called by LevelLoader.SetUpHub for a "camp" level, after the walls and the player are in place
+    public void Build(LevelData level, TextAsset levelFile, PlayerCharacter walker)
+    {
+        source = levelFile;
+        player = walker;
+        openedAt = Time.unscaledTime;
+        root = new GameObject("Camp").transform;
+        var data = source != null ? LevelJson.Parse(source.text) as Dictionary<string, object> : null;
+
+        // The camp walls never break: Hulk can try his charge here without wrecking the place
+        foreach (Rock rock in FindObjectsByType<Rock>(FindObjectsSortMode.None)) rock.hookPasses = true;
+
+        Vector2 fireAt = Cell(level, data, "camp_fire", new Vector2(10, 5));
+        gateAt = Cell(level, data, "camp_gate", new Vector2(1, 5));
+        BuildFire(fireAt);
+        BuildGate(gateAt);
+        if (data != null && data.TryGetValue("camp_props", out object props) && props is List<object> propList)
+            foreach (object o in propList)
+                if (o is Dictionary<string, object> p && p.TryGetValue("art", out object art) && art is string artName)
+                    Prop(artName, GridAt(level, p), p.TryGetValue("size", out object s) ? ToFloat(s) : 0.8f);
+
+        // Heroes keep their sizes relative to each other, as in battles (each prefab's own root scale),
+        // with Mr. Hyde at the camp's player size; the walker follows the same rule
+        float scale = level.TileSize * level.Param("player_scale", 0.9f) / HydeScale();
+        if (player != null) player.transform.localScale = PrefabScale(Current) * scale;
+        if (data != null && data.TryGetValue("camp_spots", out object list) && list is List<object> spotList)
+            foreach (object o in spotList)
+            {
+                if (!(o is Dictionary<string, object> d) || !d.TryGetValue("character", out object c)) continue;
+                var spot = new Spot { index = Mathf.RoundToInt(ToFloat(c)), at = GridAt(level, d),
+                                      home = d.TryGetValue("home", out object h) ? h as string : null };
+                if (spot.index < 0 || spot.index >= CharacterUnlocks.Count) continue;
+                BuildSpot(spot, fireAt, scale);
+                spots.Add(spot);
+            }
+
+        // A cave bigger than the screen: one screen in view, following the walker inside it (Level 4's camera)
+        float view = data != null && data.TryGetValue("camp_view", out object v) ? ToFloat(v) : 1f;
+        GameplayCamera.SetArenaSize(new Vector2(17.78f, 10f) * Mathf.Max(0.5f, view));
+        Vector2 size = level.MazeSize;
+        if (player != null) GameplayCamera.Follow(player.transform, new Rect(-size * 0.5f, size));
+
+        // Arrive by the gate, or at your own home after switching heroes
+        Vector2 arrive = level.pigStart;
+        Spot mine = spots.Find(s => s.index == arriveAt);
+        if (mine != null) arrive = mine.at + (fireAt - mine.at).normalized * 1.1f;
+        arriveAt = -1;
+        Place(player, arrive);
+        gateArmed = Vector2.Distance(arrive, gateAt) > 1.4f;
+
+        TutorialEvents.Fire(TutorialEvents.RolePickOpen);
+    }
+
+    // --- Building ------------------------------------------------------------------------------------
+
+    void BuildFire(Vector2 at)
+    {
+        var frames = new List<Sprite>();
+        for (int i = 1; i <= 3; i++) { Sprite s = ArtLibrary.Get("Camp/Campfire_" + i); if (s != null) frames.Add(s); }
+        fireFrames = frames.ToArray();
+        if (fireFrames.Length == 0) return;
+        fire = Piece("Campfire", fireFrames[0], at, 1.9f, 1);
+        Shadow(at, 1.6f);
+        PaperLamps.Lantern(fire.transform);   // a warm pool round the fire
+    }
+
+    void BuildGate(Vector2 at)
+    {
+        Sprite hatch = ArtLibrary.Get("Objects/ExitHatch");
+        if (hatch != null) Piece("Camp Gate", hatch, at, 1.1f, -30);
+        Label("Label Back to the Map", "Back to the Map", at + new Vector2(0.4f, 0.95f), 2.6f, Color.white);
+    }
+
+    void Prop(string art, Vector2 at, float size)
+    {
+        Sprite s = ArtLibrary.Get(art);
+        if (s == null) return;
+        SpriteRenderer sr = Piece(art.Substring(art.LastIndexOf('/') + 1), s, at, size, -20);
+        if (art.EndsWith("Lantern")) PaperLamps.Lantern(sr.transform);
+    }
+
+    void BuildSpot(Spot spot, Vector2 fireAt, float scale)
+    {
+        // Each hero's home, behind them (up the screen): a mud wallow, a box bed, a stump, a pond, an
+        // igloo, a rocky cave (Camp/Home_*), so the camp reads as six friends who live here
+        Sprite home = spot.home != null ? ArtLibrary.Get(spot.home) : null;
+        if (home != null)
+        {
+            Vector2 homeAt = spot.at + Vector2.up * 1.15f;
+            Piece(Names[spot.index] + " Home", home, homeAt, 2.7f, -10);
+            // a solid footprint: you walk round an igloo or a pond, not over it
+            var foot = new GameObject(Names[spot.index] + " Home footprint");
+            foot.transform.SetParent(root, false);
+            foot.transform.position = homeAt + Vector2.up * 0.1f;
+            foot.AddComponent<BoxCollider2D>().size = new Vector2(1.9f, 1.1f);
+        }
+        Shadow(spot.at + Vector2.down * 0.35f, 0.9f);
+
+        spot.state = StateOf(spot.index);
+        // the name tag and status under the hero, so the home behind them stays clear
+        spot.name = Label("Label " + Names[spot.index], Names[spot.index], spot.at + new Vector2(0f, -0.8f), 2.4f, Color.white);
+        spot.status = Label("Camp Status", "", spot.at + new Vector2(0f, -1.25f), 2.4f, ArtLibrary.Cream);
+        if (spot.state != State.Current) MakeNpc(spot, scale);
+        Restyle(spot);
+    }
+
+    static Vector3 PrefabScale(int index)
+    {
+        ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
+        GameObject prefab = spawner != null && index >= 0 && index < spawner.champions.Length ? spawner.champions[index] : null;
+        return prefab != null ? prefab.transform.localScale : Vector3.one;
+    }
+
+    static float HydeScale() => Mathf.Max(0.01f, PrefabScale(ChampionSpawner.MrHyde).x);
+
+    static State StateOf(int index)
+    {
+        if (index == Current) return State.Current;
+        if (CharacterUnlocks.IsUnlocked(index)) return State.Ready;
+        return CharacterUnlocks.Price(index) > 0 ? State.ForSale : State.NotReady;
+    }
+
+    // A hero standing at their tent: the playable prefab with everything but its look taken off
+    // before it ever wakes (no PlayerCharacter, physics or scripts), so nothing mistakes it for you
+    void MakeNpc(Spot spot, float scale)
+    {
+        ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
+        GameObject prefab = spawner != null && spot.index < spawner.champions.Length ? spawner.champions[spot.index] : null;
+        if (prefab == null) return;
+        var holder = new GameObject("Camp NPC holder");
+        holder.SetActive(false);
+        GameObject npc = Instantiate(prefab, holder.transform);
+        // Keep only pure look scripts: the squirrel's tail is posed every frame by SquirrelTailHeading
+        // (its standing-still pose; without it the tail stands at full length, a giant oval). It needs a
+        // Rigidbody2D, which stays with simulation off: no physics, and nothing here is a PlayerCharacter
+        foreach (MonoBehaviour m in npc.GetComponentsInChildren<MonoBehaviour>(true))
+            if (!(m is SquirrelTailHeading)) DestroyImmediate(m);
+        foreach (Joint2D j in npc.GetComponentsInChildren<Joint2D>(true)) DestroyImmediate(j);
+        foreach (Collider2D c in npc.GetComponentsInChildren<Collider2D>(true)) DestroyImmediate(c);
+        foreach (Rigidbody2D r in npc.GetComponentsInChildren<Rigidbody2D>(true))
+        {
+            if (r.GetComponent<SquirrelTailHeading>() != null) { r.simulated = false; continue; }
+            DestroyImmediate(r);
+        }
+        npc.name = "Camp " + Names[spot.index];
+        npc.transform.SetParent(root, false);
+        npc.transform.position = spot.at;
+        npc.transform.localScale = prefab.transform.localScale * scale;
+        Destroy(holder);
+        // a solid little body, so you walk round a friend instead of through them (no rigidbody: static)
+        var body = new GameObject("Camp NPC body");
+        body.transform.position = spot.at;
+        body.transform.SetParent(root, true);
+        body.AddComponent<CircleCollider2D>().radius = 0.3f;
+        spot.npc = npc.transform;
+        spot.npcScale = npc.transform.localScale;
+        foreach (SpriteRenderer sr in npc.GetComponentsInChildren<SpriteRenderer>(true)) { spot.parts.Add(sr); spot.colors.Add(sr.color); }
+    }
+
+    // Unlocked heroes in full colour; for hire a little dimmed; not released dimmer still
+    void Restyle(Spot spot)
+    {
+        float dim = spot.state == State.ForSale ? 0.62f : spot.state == State.NotReady ? 0.45f : 1f;
+        for (int i = 0; i < spot.parts.Count; i++)
+            if (spot.parts[i] != null)
+            {
+                Color c = spot.colors[i];
+                spot.parts[i].color = new Color(c.r * dim, c.g * dim, c.b * dim, c.a);
+            }
+        if (spot.status == null) return;
+        switch (spot.state)
+        {
+            case State.Current: spot.status.text = "Your home"; break;
+            case State.Ready: spot.status.text = ""; break;
+            case State.ForSale: spot.status.text = "For hire $" + CharacterUnlocks.Price(spot.index).ToString("N0"); break;
+            default: spot.status.text = "Coming soon"; break;
+        }
+        spot.status.gameObject.SetActive(spot.status.text != "");
+    }
+
+    // --- Each frame ----------------------------------------------------------------------------------
+
+    void Update()
+    {
+        if (player == null || leaving) return;
+        Vector2 me = player.transform.position;
+
+        // The fire flickers on the boil clock, like every other drawn flame
+        if (fire != null && fireFrames.Length > 0) fire.sprite = fireFrames[StopMotion.BoilFrame % fireFrames.Length];
+
+        // The heroes sway on the shared beat and turn to face you
+        int rock = StopMotion.Enabled ? StopMotion.Rock : 0;
+        foreach (Spot s in spots)
+        {
+            if (s.npc == null) continue;
+            bool left = me.x < s.at.x;
+            s.npc.localScale = new Vector3(Mathf.Abs(s.npcScale.x) * (left ? 1f : -1f), s.npcScale.y, s.npcScale.z);
+            s.npc.localRotation = Quaternion.Euler(0f, 0f, -rock * StopMotion.RockDegrees);
+        }
+
+        // The nearest hero within reach is the one you talk to
+        Spot best = null;
+        float bestD = 2.0f;   // heroes are battle-sized here: about a body and a half away
+        foreach (Spot s in spots)
+        {
+            if (s.state == State.Current) continue;
+            float d = Vector2.Distance(me, s.at);
+            if (d < bestD) { best = s; bestD = d; }
+        }
+        if (best != near) { near = best; said = ""; }
+
+        if (!gateArmed && Vector2.Distance(me, gateAt) > 1.4f) gateArmed = true;
+        if (gateArmed && Vector2.Distance(me, gateAt) < 0.7f) { StartCoroutine(Leave()); return; }
+
+        Keyboard k = Keyboard.current;
+        if (k == null || DeveloperConsole.CapturesInput || TutorialDialogue.Playing || near == null) return;
+        if (k.eKey.wasPressedThisFrame) Talk(near);
+        if (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame) Act(near);
+    }
+
+    void Talk(Spot s)
+    {
+        s.line = (s.line + 1) % Lines[s.index].Length;
+        said = Lines[s.index][s.line];
+        saidUntil = Time.unscaledTime + 6f;
+    }
+
+    void Act(Spot s)
+    {
+        switch (s.state)
+        {
+            case State.Ready: StartCoroutine(SwitchTo(s.index)); break;
+            case State.ForSale:
+                if (CharacterUnlocks.TryPurchase(s.index, out string message))
+                {
+                    s.state = State.Ready;
+                    Restyle(s);
+                    Note(Names[s.index] + " joins the camp! Press [Enter] to play as them.");
+                }
+                else Note(message);
+                break;
+            case State.NotReady:
+                Note(Names[s.index] + " is not ready to join yet.");
+                break;
+        }
+    }
+
+    void Note(string text) { note = text; noteUntil = Time.unscaledTime + 3.5f; }
+
+    // Play as another hero: the old screen's pick, then the camp re-opens with you at their tent
+    IEnumerator SwitchTo(int index)
+    {
+        leaving = true;
+        Pick(index);
+        yield return null;
+        while (TutorialDialogue.Playing) yield return null;
+        arriveAt = index;
+        fadeIn = 1f;
+        LevelLoader.ScriptedTutorial = true;
+        LevelLoader.Requested = source;
+        LevelLoader.WaitToAdvance = true;
+        LevelLoader.AdvanceNow = false;
+        SceneManager.LoadScene(LevelLayout.SceneFor(source));
+    }
+
+    static void Pick(int index)
+    {
+        ChampionSpawner.Chosen = index;
+        CrossLevelStatus.StartFreshKeepingGoods(ChampionSpawner.RecordType(index));
+        ProgressStore.SelectedCharacter = index.ToString();
+        PlayAnalytics.CharacterPicked(index, Active != null ? Time.unscaledTime - Active.openedAt : 0f);
+        TutorialEvents.Fire(TutorialEvents.CharacterPicked);
+        TutorialEvents.Fire(TutorialEvents.Picked(index));
+    }
+
+    // Through the gate: back to the map. Leaving counts as picking whoever you are, as the old screen did
+    IEnumerator Leave()
+    {
+        leaving = true;
+        if (!ProgressStore.HasPickedCharacter) Pick(Current);
+        yield return null;
+        while (TutorialDialogue.Playing) yield return null;
+        GameFlow flow = FindFirstObjectByType<GameFlow>();
+        if (flow != null && flow.CurrentNode != null && flow.CurrentNode.type == NodeType.RolePick) flow.CompleteCurrentNode();
+        else if (flow != null) flow.OpenMap();
+        else SceneManager.LoadScene("Menu");
+    }
+
+    // --- The talk card -------------------------------------------------------------------------------
+
+    void OnGUI()
+    {
+        if (DeveloperConsole.CapturesInput) return;
+        ScreenFrame.BeginGUI();
+        if (titleStyle == null)
+        {
+            titleStyle = new GUIStyle(GUI.skin.label) { fontSize = 26, alignment = TextAnchor.UpperLeft };
+            bodyStyle = new GUIStyle(GUI.skin.label) { fontSize = 21, wordWrap = true, alignment = TextAnchor.UpperLeft };
+            hintStyle = new GUIStyle(GUI.skin.label) { fontSize = 19, alignment = TextAnchor.MiddleCenter };
+            if (PaperType.Display != null) titleStyle.font = PaperType.Display;
+            if (PaperType.Body != null) { bodyStyle.font = PaperType.Body; hintStyle.font = PaperType.Body; }
+            titleStyle.normal.textColor = new Color(1f, 0.86f, 0.45f);
+            bodyStyle.normal.textColor = hintStyle.normal.textColor = ArtLibrary.Cream;
+        }
+        const float W = ScreenFrame.GuiWidth, H = ScreenFrame.GuiHeight;
+
+        if (near != null && !leaving)
+        {
+            // the card opens on the half of the screen away from the friend, so it never hides them
+            bool friendLow = FriendLow(near);
+            var card = new Rect(W / 2 - 330, friendLow ? 104 : H - 196, 660, 168);
+            GUI.Box(card, "");
+            GUI.Label(new Rect(card.x + 26, card.y + 16, 400, 34), Names[near.index], titleStyle);
+            string body = Time.unscaledTime < saidUntil && said != "" ? "\"" + said + "\"" : Blurb(near);
+            GUI.Label(new Rect(card.x + 26, card.y + 54, card.width - 52, 60), body, bodyStyle);
+
+            if (GUI.Button(new Rect(card.x + 26, card.y + 116, 170, 38), "[E] Talk")) Talk(near);
+            string act = near.state == State.Ready ? "[Enter] Play as " + Names[near.index]
+                       : near.state == State.ForSale ? "[Enter] Hire  $" + CharacterUnlocks.Price(near.index).ToString("N0")
+                       : "Not ready yet";
+            GUI.enabled = near.state != State.NotReady;
+            if (GUI.Button(new Rect(card.x + 212, card.y + 116, 300, 38), act)) Act(near);
+            GUI.enabled = true;
+        }
+        else if (!leaving)
+            GUI.Label(new Rect(0, H - 62, W, 30), "Walk up to a friend to talk or play as them.   The hatch leads back to the map.", hintStyle);
+
+        if (Time.unscaledTime < noteUntil)
+        {
+            float noteY = near != null && FriendLow(near) ? 284 : H - 252;
+            GUI.Box(new Rect(W / 2 - 300, noteY, 600, 44), "");
+            GUI.Label(new Rect(W / 2 - 300, noteY, 600, 44), note, hintStyle);
+        }
+
+        // A short fade after switching heroes, so the re-opened camp doesn't pop
+        if (fadeIn > 0f)
+        {
+            fadeIn = Mathf.Max(0f, fadeIn - Time.unscaledDeltaTime * 2.5f);
+            Color was = GUI.color;
+            GUI.color = new Color(0.08f, 0.06f, 0.05f, fadeIn);
+            GUI.DrawTexture(new Rect(0, 0, W, H), Texture2D.whiteTexture);
+            GUI.color = was;
+        }
+    }
+
+    // Is this friend in the lower half of the view (the camera follows the walker)
+    static bool FriendLow(Spot s)
+    {
+        Camera cam = Camera.main;
+        return cam != null ? cam.WorldToViewportPoint(s.at).y < 0.5f : s.at.y < 0f;
+    }
+
+    static string Blurb(Spot s)
+    {
+        switch (s.state)
+        {
+            case State.Ready: return "Ready to go down the mine with you.";
+            case State.ForSale: return "Will join you for $" + CharacterUnlocks.Price(s.index).ToString("N0") + " from your wallet.";
+            default: return "Still getting ready. You can chat, but they can't join yet.";
+        }
+    }
+
+    // --- Helpers -------------------------------------------------------------------------------------
+
+    SpriteRenderer Piece(string pieceName, Sprite art, Vector2 at, float size, int order)
+    {
+        var go = new GameObject(pieceName);
+        go.transform.SetParent(root, false);
+        go.transform.position = at;
+        float across = Mathf.Max(art.bounds.size.x, art.bounds.size.y);
+        go.transform.localScale = Vector3.one * (size / Mathf.Max(0.001f, across));
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = art;
+        sr.sortingOrder = order;
+        return sr;
+    }
+
+    SpriteRenderer Shadow(Vector2 at, float size)
+    {
+        Sprite soft = ArtLibrary.Get("Fx/SoftShadow");
+        if (soft == null) return new GameObject("No Shadow").AddComponent<SpriteRenderer>();
+        SpriteRenderer sr = Piece("Shadow", soft, at, size, -35);
+        sr.color = new Color(0f, 0f, 0f, 0.45f);
+        sr.transform.localScale = new Vector3(sr.transform.localScale.x, sr.transform.localScale.y * 0.45f, 1f);
+        return sr;
+    }
+
+    TextMeshPro Label(string objectName, string text, Vector2 at, float width, Color color)
+    {
+        var go = new GameObject(objectName);   // "Label..." gets PaperTags' felt tag under it
+        go.transform.SetParent(root, false);
+        go.transform.position = at;
+        var tmp = go.AddComponent<TextMeshPro>();
+        tmp.text = text;
+        tmp.fontSize = 2.6f;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = color;
+        tmp.rectTransform.sizeDelta = new Vector2(width, 0.6f);
+        tmp.sortingOrder = 40;
+        return tmp;
+    }
+
+    static void Place(PlayerCharacter who, Vector2 at)
+    {
+        if (who == null) return;
+        Rigidbody2D body = who.GetComponent<Rigidbody2D>();
+        if (body != null) { body.position = at; body.linearVelocity = Vector2.zero; }
+        who.transform.position = at;
+    }
+
+    static Vector2 Cell(LevelData level, Dictionary<string, object> data, string key, Vector2 fallback)
+    {
+        if (data != null && data.TryGetValue(key, out object v) && v is Dictionary<string, object> d) return GridAt(level, d);
+        return LevelData.GridToWorld(level, fallback.x, fallback.y);
+    }
+
+    static Vector2 GridAt(LevelData level, Dictionary<string, object> d)
+        => LevelData.GridToWorld(level, d.TryGetValue("x", out object x) ? ToFloat(x) : 0f, d.TryGetValue("y", out object y) ? ToFloat(y) : 0f);
+
+    static float ToFloat(object o) => o is double dd ? (float)dd : o is long l ? l : o is int i ? i : o is float f ? f : 0f;
+}
