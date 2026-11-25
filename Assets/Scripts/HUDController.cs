@@ -355,6 +355,9 @@ public class HUDController : MonoBehaviour
     const float DamageFlashTime = 0.45f;
     const float DamageFlashAlpha = 0.8f;
     const float TargetPulseTime = 0.6f;
+    const float GoalBannerWait = 0.8f;   // after the screen is free of tutorial steps and stories
+    const float BannerGap = 10f;         // between the top bar and the banner's notch
+    const float NotchHeight = 14f;
 
     private CanvasGroup banner;
     private TMP_Text bannerTitle;
@@ -366,16 +369,23 @@ public class HUDController : MonoBehaviour
     private RawImage damageFlash;
     private float damageLeft;
     private float targetPulseLeft;
+    private float cueQuietSince = -1f;   // unscaled: playing with no tutorial step or story on screen since then
 
     void UpdateRoundCues(GameManager gm)
     {
         float dt = IsPaused ? 0f : Time.unscaledDeltaTime;
+        // A tutorial step (callout, spotlight) or a story owns the screen: one message at a time
+        bool quiet = gm.IsPlaying && !IsPaused && !TutorialStep.AnyShowing && !TutorialDialogue.Playing;
+        if (!quiet) cueQuietSince = -1f;
+        else if (cueQuietSince < 0f) cueQuietSince = Time.unscaledTime;
+
         if (!goalBannerShown && GoalBannerAllowed(gm))
         {
             goalBannerShown = true;
+            targetPulseLeft = TargetPulseTime;   // the flag the banner points at swells with it
             string pink = "#" + ColorUtility.ToHtmlStringRGB(PopupTheme.pig);
             ShowBanner("Collect <color=" + pink + ">$" + gm.MoneyTarget.ToString("N0") + "</color> to win",
-                "Half of the level's gold, before time runs out", 2.6f);
+                "Reach the TARGET flag before time runs out", 2.6f);
         }
         if (announceTitle != null)
         {
@@ -388,11 +398,12 @@ public class HUDController : MonoBehaviour
     }
 
     // Once per level, a moment after it starts (GameManager totals the level's gold in Start). Not on
-    // the world map, in the tutorial, or while a story is being told
+    // the world map, in the tutorial, or while a story is being told. A level-start tutorial step
+    // (level_01's "Press J to cut", 0.3 s in) shows first: the goal comes a moment after it is gone
     bool GoalBannerAllowed(GameManager gm)
     {
         if (!gm.IsPlaying || !gm.UsesMoneyTarget || gm.MoneyTarget <= 0 || timerText == null) return false;
-        if (Time.timeSinceLevelLoad < 0.3f || IsPaused) return false;
+        if (cueQuietSince < 0f || Time.unscaledTime - cueQuietSince < GoalBannerWait) return false;
         if (flow != null && (flow.InHub || flow.InTutorialRun)) return false;
         if (LevelLoader.Tutorial || MazeRuntime.Active != null) return false;
         if (levelLoader != null && levelLoader.IsMazeLevel) return false;
@@ -425,28 +436,102 @@ public class HUDController : MonoBehaviour
         bannerTime = 0f;
         bannerHold = hold;
         banner.alpha = 0f;
+        PlaceBanner();
         banner.gameObject.SetActive(true);
         banner.transform.SetAsLastSibling();
         if (pausePopup != null) pausePopup.transform.SetAsLastSibling();
     }
 
-    // A rounded color/bg/panel card above the middle of the arena, title over a gray line
+    // Figma "Level start - Proposed 2": a slim color/bg/panel strip just under the top bar, centered
+    // on the TARGET flag with a notch pointing up at it, title over a gray line. Round messages always
+    // appear here, so they never cover the arena's middle where tutorial callouts and the player are
     void BuildBanner()
     {
         if (timerText == null || timerText.canvas == null) return;
         HUDTheme theme = PopupTheme;
         Color fill = theme.panel;
-        fill.a = 0.92f;
-        RectTransform card = PopupBox(timerText.canvas.transform, "RoundBanner", fill, new Vector2(760f, 120f),
-            new Vector2(0f, 140f));
+        fill.a = 0.94f;
+        RectTransform card = PopupBox(timerText.canvas.transform, "RoundBanner", fill, new Vector2(640f, 84f),
+            Vector2.zero);
+        card.pivot = new Vector2(0.5f, 1f);
         card.GetComponent<Image>().raycastTarget = false;
         banner = card.gameObject.AddComponent<CanvasGroup>();
         banner.blocksRaycasts = false;
         banner.interactable = false;
-        bannerTitle = PopupText(card, "Title", "", 40f, FontStyles.Bold, Color.white, new Vector2(0f, 18f));
+
+        var notch = new GameObject("Notch", typeof(RectTransform), typeof(Image)).GetComponent<Image>();
+        notch.transform.SetParent(card, false);
+        notch.sprite = NotchSprite();
+        notch.color = fill;
+        notch.raycastTarget = false;
+        notch.rectTransform.anchorMin = notch.rectTransform.anchorMax = new Vector2(0.5f, 1f);
+        notch.rectTransform.pivot = new Vector2(0.5f, 0f);
+        notch.rectTransform.sizeDelta = new Vector2(28f, NotchHeight);
+        notch.rectTransform.anchoredPosition = Vector2.zero;
+
+        bannerTitle = PopupText(card, "Title", "", 32f, FontStyles.Bold, Color.white, new Vector2(0f, 12f));
         bannerTitle.richText = true;
-        bannerSub = PopupText(card, "Sub", "", 20f, FontStyles.Normal, theme.title, new Vector2(0f, -30f));
+        bannerSub = PopupText(card, "Sub", "", 18f, FontStyles.Normal, theme.title, new Vector2(0f, -24f));
         banner.gameObject.SetActive(false);
+    }
+
+    // Each time it shows (the window may have been resized): the notch just under the top bar, the
+    // strip centered on the TARGET flag, kept inside the screen
+    void PlaceBanner()
+    {
+        RectTransform card = (RectTransform)banner.transform;
+        RectTransform canvasRect = card.parent as RectTransform;
+        if (canvasRect == null) return;
+        card.anchorMin = card.anchorMax = new Vector2(0.5f, 0.5f);
+        card.pivot = new Vector2(0.5f, 1f);
+
+        Rect area = canvasRect.rect;
+        float barBottom = area.yMax - area.height * HUDLayout.TopBarHeight;
+        RectTransform topBar = TopBarRect();
+        if (topBar != null)
+        {
+            var corners = new Vector3[4];
+            topBar.GetWorldCorners(corners);
+            barBottom = canvasRect.InverseTransformPoint(corners[0]).y;
+        }
+        float x = 0f;
+        if (targetMarker != null && targetMarker.gameObject.activeInHierarchy)
+            x = canvasRect.InverseTransformPoint(targetMarker.position).x;
+        float half = card.sizeDelta.x * 0.5f + 16f;
+        x = Mathf.Clamp(x, area.xMin + half, area.xMax - half);
+        // Anchored at the canvas center, so canvas-local points are anchored positions
+        Vector2 center = area.center;
+        card.anchoredPosition = new Vector2(x - center.x, barBottom - BannerGap - NotchHeight - center.y);
+    }
+
+    // The HUD's top bar (HUDBuilder names it TopBar; the timer sits somewhere inside it)
+    RectTransform TopBarRect()
+    {
+        for (Transform t = timerText != null ? timerText.transform : null; t != null; t = t.parent)
+            if (t.name == "TopBar") return t as RectTransform;
+        return timerText != null ? timerText.transform.parent as RectTransform : null;
+    }
+
+    // An upward triangle, white so the Image color tints it. Named, so PaperUI leaves it flat
+    static Sprite notchSprite;
+    static Sprite NotchSprite()
+    {
+        if (notchSprite != null) return notchSprite;
+        const int w = 32, h = 16;
+        var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < h; y++)
+        {
+            float halfWidth = w * 0.5f * (1f - (y + 0.5f) / h);
+            for (int x = 0; x < w; x++)
+            {
+                float alpha = Mathf.Clamp01(halfWidth - Mathf.Abs(x + 0.5f - w * 0.5f) + 0.5f);
+                tex.SetPixel(x, y, new Color(1f, 1f, 1f, alpha));
+            }
+        }
+        tex.Apply();
+        notchSprite = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0f), 100f);
+        notchSprite.name = "BannerNotch";
+        return notchSprite;
     }
 
     // Fade and grow in, hold, fade out. Gone at once when the round ends (the end card takes over)
@@ -454,6 +539,8 @@ public class HUDController : MonoBehaviour
     {
         if (banner == null || !banner.gameObject.activeSelf) return;
         if (!gm.IsPlaying) { banner.gameObject.SetActive(false); return; }
+        // A tutorial step came up: the message waits unseen, then plays from its fade-in once it's gone
+        if (TutorialStep.AnyShowing) { bannerTime = 0f; banner.alpha = 0f; return; }
 
         bannerTime += dt;
         float alpha;

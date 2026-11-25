@@ -938,7 +938,18 @@ public class TutorialDialogue : MonoBehaviour
         panel.anchorMin = panel.anchorMax = new Vector2(0f, AtTop ? 1f : 0f);
         panel.pivot = new Vector2(0.5f, AtTop ? 1f : 0f);
         panel.sizeDelta = new Vector2(Mathf.Max(300f, right - left), BoxHeight);
-        panel.anchoredPosition = new Vector2((left + right) * 0.5f, AtTop ? -BoxBottom : BoxBottom);
+        panel.anchoredPosition = new Vector2((left + right) * 0.5f, AtTop ? -(BoxBottom + TopInset()) : BoxBottom);
+    }
+
+    // Box Position Top: how far the HUD's top bar (and the letterbox above the 16:9 frame) reaches
+    // down this canvas, so the box and its pictures hang below the bar instead of covering it. The
+    // canvas scales with Expand, so the 16:9 frame is LayoutWidth x LayoutHeight in its middle
+    float TopInset()
+    {
+        if (!AtTop || Screen.width <= 0 || Screen.height <= 0) return 0f;
+        float scale = Mathf.Min(Screen.width / LayoutWidth, Screen.height / LayoutHeight);
+        float canvasHeight = Screen.height / scale;
+        return (canvasHeight - LayoutHeight) * 0.5f + LayoutHeight * HUDLayout.TopBarHeight;
     }
 
     // A picture at `x`, `y` up from the bottom edge to its feet; with the box at the top, the
@@ -946,7 +957,7 @@ public class TutorialDialogue : MonoBehaviour
     void Place(RectTransform portrait, float x, float y)
     {
         portrait.anchorMin = portrait.anchorMax = new Vector2(0f, AtTop ? 1f : 0f);
-        portrait.anchoredPosition = new Vector2(x, AtTop ? -(y + portrait.sizeDelta.y) : y);
+        portrait.anchoredPosition = new Vector2(x, AtTop ? -(y + TopInset() + portrait.sizeDelta.y) : y);
     }
 
     const float BoxBottom = 30f, BoxHeight = 230f;
