@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: Cold breath
   skillDuration: 1.5
   afterEffectDuration: 0.5
-  skillCooldown: 12
+  skillCooldown: 6
   skillMouthHalfArc: 25
   coldBreathPrefab: {fileID: 9019960530556216743, guid: 14e3bed818c8a5d4698d98dc2d3cba66, type: 3}
   breathLength: 4.572

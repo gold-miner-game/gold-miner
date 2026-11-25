@@ -111,6 +111,12 @@ public static class GeometricCharactersBuilder
         collider.offset = penguin ? Vector2.zero : new Vector2(.01f, -.06f);
         PlayerCharacter controller = penguin ? (PlayerCharacter)root.AddComponent<PenguinController>() : root.AddComponent<RhinoController>();
         controller.body = body;
+        if (!penguin)
+        {
+            // Match the other characters' on-screen size. Collider and artwork scale together.
+            root.transform.localScale = new Vector3(.7f, .7f, 1f);
+            controller.digestLabelHeight = .78f;
+        }
         if (penguin) root.AddComponent<ElsaMouthPose>();
         if (controller is PenguinController elsa)
         {

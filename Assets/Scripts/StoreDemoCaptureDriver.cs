@@ -738,7 +738,7 @@ public class StoreDemoCaptureDriver : MonoBehaviour
             var skill = ((PenguinController)player).SkillSlot.ActiveSkill as ElsaColdBreathSkill;
             valid &= firstMinerFreezeAt >= demoSkillAt && firstHookFreezeAt >= demoSkillAt;
             valid &= skillObserved && breathObserved && frostObserved && gm.Lives == 3 && demoSkillUses == 1
-                && skill != null && Mathf.Approximately(skill.skillCooldown, 12f)
+                && skill != null && Mathf.Approximately(skill.skillCooldown, 6f)
                 && Mathf.Approximately(FrostField2D.FrostDuration, 5f)
                 && miner != null && miner.hook.ShotCount > 0 && miner.IsFrozen && miner.hook.IsFrozen;
         }

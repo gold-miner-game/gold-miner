@@ -7,7 +7,7 @@ public class ColdBreathSkillDefinition : CharacterSkillDefinition
     [Min(.01f)] public float skillDuration = 1.5f;
     [Tooltip("Visual particles after the cast; movement and cooldown are already released.")]
     [Min(0f)] public float afterEffectDuration = .5f;
-    [Min(0f)] public float skillCooldown = 12f;
+    [Min(0f)] public float skillCooldown = 6f;
     [Range(0f, 110f)] public float skillMouthHalfArc = 25f;
     public ColdBreathFlipbook2D coldBreathPrefab;
     [Min(.01f)] public float breathLength = 4.572f;
