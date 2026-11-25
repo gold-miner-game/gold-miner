@@ -30,7 +30,9 @@ public static class ElsaSkillPlayTest
     {
         var go = new GameObject("Elsa rope cut"); objects.Add(go);
         var hook = go.AddComponent<Hook>();
-        hook.BeginExtended(new Vector2(-2,0), Vector2.right, 5f, 4f, Color.yellow);
+        Physics2D.SyncTransforms();
+        Vector2 centre = elsa.GetComponent<Collider2D>().bounds.center;
+        hook.BeginExtended(centre + Vector2.left * 2f, Vector2.right, 5f, 4f, Color.yellow);
         Physics2D.SyncTransforms();
         Check(elsa.TryCutRopes() && hook.Defended, "J rope cut works independently of Elsa K state");
     }
@@ -69,7 +71,8 @@ public static class ElsaSkillPlayTest
                 "ready Elsa has congealed ice and her resting mouth pose");
             go.GetComponent<Rigidbody2D>().linearVelocity = Vector2.right * 5f;
             K(elsa);
-            Check(go.GetComponent<Rigidbody2D>().linearVelocity == Vector2.zero, "casting immediately stops existing movement");
+            Check(go.GetComponent<Rigidbody2D>().linearVelocity == Vector2.right * 5f, "casting preserves existing momentum");
+            Check(Skill(elsa).skillCooldown == 5f && !Skill(elsa).BlocksMovement, "Elsa uses a five-second cooldown without movement lock");
             Check(Skill(elsa).IsCasting && elsa.SkillActive && !elsa.IsBlocking, "K starts Elsa's own skill");
             // Exercise the actual physics movement path while the skill is active.
             var physicsBody = go.GetComponent<Rigidbody2D>();
@@ -84,13 +87,13 @@ public static class ElsaSkillPlayTest
                     typeof(PlayerCharacter).GetMethod("FixedUpdate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(elsa, null);
                     Vector2 at = physicsBody.position;
                     Physics2D.Simulate(Time.fixedDeltaTime);
-                    Check(Vector2.Distance(physicsBody.position, at) < .0001f && physicsBody.linearVelocity == Vector2.zero && Skill(elsa).IsCasting,
-                        "Cold Breath blocks movement input in every direction");
+                    Check(Vector2.Dot(physicsBody.position - at, direction) > .001f && Skill(elsa).IsCasting,
+                        "Cold Breath allows physical movement in every direction");
                 }
-                Vector2 pinned = physicsBody.position;
+                Vector2 beforeImpulse = physicsBody.position;
                 physicsBody.AddForce(Vector2.one * 200f, ForceMode2D.Impulse);
                 Physics2D.Simulate(Time.fixedDeltaTime);
-                Check(Vector2.Distance(pinned, physicsBody.position) < .0001f, "casting position is pinned against external physics impulses");
+                Check(Vector2.Distance(beforeImpulse, physicsBody.position) > .001f, "casting does not freeze physics position");
             }
             finally
             {
@@ -116,12 +119,11 @@ public static class ElsaSkillPlayTest
             Skill(elsa).matchMouthToBreath = false;
             Skill(elsa).skillMouthHalfArc = 32f; Call(elsa, "UpdateSkillPose");
             Check(pose.mouthHalfArc == 32f, "active mouth half-arc can be tuned live");
-            Quaternion castingFacing = elsa.visualRoot.localRotation;
-            Vector3 castingScale = elsa.visualRoot.localScale;
+            elsa.nearbyTurnDelay = 0f;
             typeof(PlayerCharacter).GetProperty("MoveInput").SetValue(elsa, Vector2.up);
             Call(elsa, "LateUpdate");
-            Check(Quaternion.Angle(elsa.visualRoot.localRotation, castingFacing) < .01f && elsa.visualRoot.localScale == castingScale && pose.mouthHalfArc == 32f,
-                "casting keeps Elsa's facing fixed while her mouth animates");
+            Check(Vector2.Dot(elsa.visualRoot.TransformVector(Vector3.left).normalized, Vector2.up) > .999f && pose.mouthHalfArc == 32f,
+                "casting allows Elsa to turn while her mouth animates");
             Check(elsa.flipCost == .5f && elsa.rotationCostPer45 == 1f, "facing weights match the requested costs");
             // Isolate pose-cost checks from the separately tested tap/hold heading delay.
             elsa.nearbyTurnDelay = 0f;
@@ -183,13 +185,15 @@ public static class ElsaSkillPlayTest
             Check(elsa.visualRoot.localScale == lastFacing && Quaternion.Angle(lastRotation, elsa.visualRoot.localRotation) < .01f,
                 "idle preserves Elsa's chosen facing");
             Cut(elsa);
+            PlayerCharacter.CooldownScale = 3f;
             Set(elsa, "castStarted", Time.time - Skill(elsa).skillDuration - .1f); Call(elsa, "Update");
             Check(!Skill(elsa).IsCasting && Mathf.Abs(elsa.SkillReadyIn - (Skill(elsa).skillCooldown - .1f)) < .01f,
-                "cooldown starts at the major wave end, excluding trailing particles");
+                "cooldown starts at wave end and ignores the level's triple cooldown multiplier");
+            PlayerCharacter.CooldownScale = 1f;
             typeof(PlayerCharacter).GetProperty("MoveInput").SetValue(elsa, Vector2.right);
             typeof(PlayerCharacter).GetMethod("FixedUpdate", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(elsa, null);
-            Check(physicsBody.linearVelocity.x > 0f, "movement resumes as soon as casting ends, during cooldown");
-            Check(physicsBody.constraints == RigidbodyConstraints2D.FreezeRotation, "cast end restores original physics constraints");
+            Check(physicsBody.linearVelocity.x > 0f, "movement continues normally during cooldown");
+            Check(physicsBody.constraints == RigidbodyConstraints2D.FreezeRotation, "cast end preserves original physics constraints");
             physicsBody.linearVelocity = Vector2.zero;
             typeof(PlayerCharacter).GetProperty("MoveInput").SetValue(elsa, Vector2.zero);
             Check(!pose.ice.activeSelf && pose.mouthHalfArc == 0f, "cooldown closes the mouth and keeps ice absent");
@@ -234,14 +238,14 @@ public static class ElsaSkillPlayTest
             GameManager.Instance = null; K(elsa); elsa.enabled = false;
             Check(!Skill(elsa).IsCasting && pose.ice.activeSelf && pose.mouthHalfArc == 0f,
                 "disabling Elsa cannot leave her mouth stuck open");
-            Check(physicsBody.constraints == RigidbodyConstraints2D.FreezeRotation, "disabling Elsa releases the casting position lock");
+            Check(physicsBody.constraints == RigidbodyConstraints2D.FreezeRotation, "disabling Elsa preserves original physics constraints");
             Debug.Log("ELSA_SKILL_PLAY_PASS: " + checks + " mouth, ice, cooldown, input, movement and lifecycle checks.");
         }
         catch (Exception error) { Debug.LogException(error); exit = 1; }
         finally
         {
             foreach (var go in objects) if (go != null) UnityEngine.Object.DestroyImmediate(go);
-            objects.Clear(); Time.timeScale = 1f; GameManager.Instance = null;
+            objects.Clear(); Time.timeScale = 1f; GameManager.Instance = null; PlayerCharacter.CooldownScale = 1f;
             if (hadTuning) PlayerPrefs.SetString("gm.settings.elsa.v1",tuning); else PlayerPrefs.DeleteKey("gm.settings.elsa.v1");
             if (hadChoice) PlayerPrefs.SetString("gm.skill.elsa",choice); else PlayerPrefs.DeleteKey("gm.skill.elsa");
             PlayerPrefs.Save();

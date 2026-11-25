@@ -571,8 +571,8 @@ public class LevelLoader : MonoBehaviour
     // turn up out of the player's sight: at least "wave_spawn_min" away, behind wall rocks or beyond
     // the pack's sight range, and join the pack at once. Eaten gold comes back elsewhere after
     // "gold_respawn" seconds (Survival's mix: small to diamonds, now and then a Life), so there is
-    // always new money. Every Life lost ends the run there: the gold eaten is paid into the wallet like
-    // any level's, and the time survived is kept as the best survival time (the main menu shows it).
+    // always new money. Every Life lost ends the run there: failed runs pay no gold,
+    // and the time survived is kept as the best survival time (the main menu shows it).
 
     public bool Waves => Roam && level.Param("waves", 0f) > 0.5f;
 
@@ -668,7 +668,7 @@ public class LevelLoader : MonoBehaviour
     }
 
     // The run is over: the best survival time (SurvivalLoader's, which the main menu shows). The gold
-    // is paid by SettleWallet like any level's
+    // is settled by SettleWallet like any level's, with no payout on failure.
     void RecordRun(GameManager gm)
     {
         runRecorded = true;
@@ -1689,7 +1689,7 @@ public class LevelLoader : MonoBehaviour
         }
     }
 
-    // Every finished level pays its collected gold, including tutorials, losses and replays.
+    // Won levels pay their collected gold, including tutorials and replays. Losses pay nothing.
     // Maze gold is credited on pickup, so it must not be banked again here.
     void SettleWallet(GameManager gm)
     {

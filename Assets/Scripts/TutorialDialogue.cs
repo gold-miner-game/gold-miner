@@ -397,7 +397,7 @@ public class TutorialDialogue : MonoBehaviour
         rect.SetParent(parent, false);
         rect.sizeDelta = new Vector2(0f, 88f);
         Image bg = go.GetComponent<Image>();
-        bg.color = new Color(0.95f, 0.72f, 0.18f, 1f);
+        bg.color = new Color(0.18f, 0.15f, 0.12f, 1f);
         Outline outline = go.GetComponent<Outline>();
         outline.effectColor = new Color(1f, 0.95f, 0.55f, 1f);
         outline.effectDistance = new Vector2(4f, -4f);
@@ -412,7 +412,7 @@ public class TutorialDialogue : MonoBehaviour
         TMP_Text text = Text(rect, "Label", Vector2.zero, Vector2.zero, 32f, FontStyles.Bold);
         text.alignment = TextAlignmentOptions.Center;
         text.text = label;
-        text.color = new Color(0.12f, 0.08f, 0.02f);
+        text.color = new Color(1f, 0.94f, 0.76f, 1f);
         RectTransform tr = text.rectTransform;
         tr.anchorMin = Vector2.zero;
         tr.anchorMax = Vector2.one;

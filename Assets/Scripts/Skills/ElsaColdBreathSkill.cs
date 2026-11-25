@@ -4,10 +4,10 @@ using UnityEngine;
 [DefaultExecutionOrder(100)]
 public class ElsaColdBreathSkill : CharacterSkill
 {
-    [Tooltip("Active main wave only. Movement unlocks and cooldown begins when this ends.")]
+    [Tooltip("Active main wave only. Elsa can move and turn; cooldown begins when this ends.")]
     [Min(.01f)] public float skillDuration;
     [Min(0f)] public float skillCooldown;
-    float ScaledCooldown => skillCooldown * PlayerCharacter.CooldownScale;   // the level can lengthen it (skill_cooldown_scale)
+    float Cooldown => Mathf.Max(0f, skillCooldown); // Elsa deliberately ignores level cooldown multipliers.
     [Range(0f,110f)] public float skillMouthHalfArc;
     [Tooltip("Visual-only particle fade after the active cast; does not block movement or apply frost.")]
     [Min(0f)] public float afterEffectDuration = .5f;
@@ -20,17 +20,14 @@ public class ElsaColdBreathSkill : CharacterSkill
     bool afterPlaying;
     float afterStarted;
     float castStarted, readyAt;
-    Rigidbody2D castingBody;
-    RigidbodyConstraints2D previousConstraints;
-    bool movementLocked;
     public ColdBreathFlipbook2D BreathEffect => breath;
     public bool IsCasting => casting && Time.time - castStarted < Mathf.Max(.01f, skillDuration);
     public override bool IsActive => IsCasting;
-    public override bool BlocksMovement => IsCasting;
+    public override bool BlocksMovement => false;
     public override float ReadyIn => IsCasting
-        ? Mathf.Max(0f, skillDuration - (Time.time - castStarted)) + Mathf.Max(0f, ScaledCooldown)
+        ? Mathf.Max(0f, skillDuration - (Time.time - castStarted)) + Cooldown
         : Mathf.Max(0f, readyAt - Time.time);
-    public override float Wait => Mathf.Max(.01f, skillDuration) + Mathf.Max(0f, ScaledCooldown);
+    public override float Wait => Mathf.Max(.01f, skillDuration) + Cooldown;
 
     public override void Initialize(PlayerCharacter owner, CharacterSkillDefinition definition)
     {
@@ -57,7 +54,6 @@ public class ElsaColdBreathSkill : CharacterSkill
     {
         if (Owner == null || !Owner.isActiveAndEnabled || !PlayerCharacter.IsPlaying || casting || Time.time < readyAt) return false;
         castStarted = Time.time; casting = true; afterPlaying = false;
-        LockMovement();
         UpdateSkillPose(); return true;
     }
     void FinishCast()
@@ -67,7 +63,7 @@ public class ElsaColdBreathSkill : CharacterSkill
         afterPlaying = breath != null && afterEffectDuration > 0f;
         // Leave the remaining particles at the cast location as Elsa walks away.
         if (breath != null) breath.transform.SetParent(null, true);
-        UnlockMovement(); readyAt = afterStarted + Mathf.Max(0f, ScaledCooldown); UpdateSkillPose();
+        readyAt = afterStarted + Cooldown; UpdateSkillPose();
     }
     public void UpdateSkillPose()
     {
@@ -123,41 +119,20 @@ public class ElsaColdBreathSkill : CharacterSkill
     }
     public override void Cancel()
     {
-        casting = false; afterPlaying = false; UnlockMovement(); readyAt = 0f; UpdateSkillPose();
+        casting = false; afterPlaying = false; readyAt = 0f; UpdateSkillPose();
     }
     public override void Unequip()
     {
-        casting = false; afterPlaying = false; UnlockMovement(); readyAt = 0f;
+        casting = false; afterPlaying = false; readyAt = 0f;
         if (mouthPose != null) mouthPose.SetPose(false,0f);
         DestroyBreath();
     }
     void OnDisable() { Cancel(); }
-    void LockMovement()
-    {
-        if (movementLocked || Owner == null) return;
-        castingBody = Owner.GetComponent<Rigidbody2D>();
-        if (castingBody == null) return;
-        previousConstraints = castingBody.constraints;
-        movementLocked = true;
-        castingBody.linearVelocity = Vector2.zero;
-        castingBody.constraints |= RigidbodyConstraints2D.FreezePosition;
-    }
-    void UnlockMovement()
-    {
-        if (!movementLocked) return;
-        if (castingBody != null)
-        {
-            castingBody.linearVelocity = Vector2.zero;
-            castingBody.constraints = (castingBody.constraints & ~RigidbodyConstraints2D.FreezePosition)
-                | (previousConstraints & RigidbodyConstraints2D.FreezePosition);
-        }
-        movementLocked = false;
-    }
     void DestroyBreath()
     {
         if (breath == null) return;
         GameObject effect = breath.gameObject; breath = null; effect.SetActive(false);
         if (Application.isPlaying) Destroy(effect); else DestroyImmediate(effect);
     }
-    void OnDestroy() { UnlockMovement(); DestroyBreath(); }
+    void OnDestroy() { DestroyBreath(); }
 }

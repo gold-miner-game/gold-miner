@@ -28,11 +28,13 @@ public class RhinoController : PlayerCharacter
     public SpriteRenderer largeHorn;
     [Tooltip("Extra distance ahead of the next physics step to smash a rock before colliding.")]
     [Min(0f)] public float smashReach = .08f;
-    [Tooltip("a in total break time - a * impact speed. Default: 0.6 / (5 + 12 * 0.8 * 0.75) = 3/61, giving instant breaks after charging for 0.6s from normal movement speed 5. 0 disables the reduction.")]
+    [Tooltip("Legacy serialized setting. K now breaks ordinary rocks immediately inside its guard sector.")]
     [Min(0f)] public float rockBreakSpeedFactor = 3f / 61f;
 
     public bool IsCharging => charging && Time.time - chargeStarted < Mathf.Max(.01f, skillDuration);
     public Vector2 ChargeVelocity => chargeVelocity;
+    public Vector2 ChargeDirection => chargeVelocity.sqrMagnitude > .0001f ? chargeVelocity.normalized : chargeHeading;
+    HulkChargeGuard chargeGuard;
     public override bool HasSkill => true;
     public override string SkillName => "charge";
     public override bool SkillActive => IsCharging;
@@ -97,6 +99,9 @@ public class RhinoController : PlayerCharacter
         }
         artworkReady = true;
         base.Awake();
+        chargeGuard = GetComponent<HulkChargeGuard>();
+        if (chargeGuard == null) chargeGuard = gameObject.AddComponent<HulkChargeGuard>();
+        chargeGuard.Initialize(this);
         BuildChargeTint();
     }
 
@@ -117,6 +122,7 @@ public class RhinoController : PlayerCharacter
         chargeStarted = Time.time;
         charging = true;
         FaceDirection(chargeHeading);
+        chargeGuard.BeginCharge();
         UpdateChargeArtwork();
     }
 
@@ -157,7 +163,7 @@ public class RhinoController : PlayerCharacter
             if (smashHits[i].collider == null || smashHits[i].distance > stopAt + .001f) continue;
             Rock rock = smashHits[i].collider.GetComponentInParent<Rock>();
             if (rock != null && Vector2.Dot((Vector2)rock.transform.position - Body.worldCenterOfMass, forward) > 0f)
-                rock.Smash(chargeVelocity.magnitude, rockBreakSpeedFactor);
+                chargeGuard.TrySmashRock(rock);
         }
     }
 
@@ -255,6 +261,7 @@ public class RhinoController : PlayerCharacter
         if (charging && startCooldown) readyAt = Time.time + Mathf.Max(0f, ScaledCooldown);
         if (!startCooldown) readyAt = 0f;
         charging = false;
+        if (chargeGuard != null) chargeGuard.EndCharge();
         chargeVelocity = Vector2.zero;
         UpdateChargeArtwork();
     }

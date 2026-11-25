@@ -13,6 +13,7 @@ public abstract class RedEnemy : MonoBehaviour
 
     public Transform target;   // the player
     public bool Hunting { get; private set; }
+    public bool IsFrozen => FrostField2D.IsFrozen(transform);
 
     protected Rigidbody2D body;
     readonly RaycastHit2D[] hits = new RaycastHit2D[8];
@@ -50,7 +51,7 @@ public abstract class RedEnemy : MonoBehaviour
     {
         distance = 0f;
         GameManager gm = GameManager.Instance;
-        if (target == null || body == null || gm == null || !gm.IsPlaying) return false;
+        if (target == null || body == null || gm == null || !gm.IsPlaying || IsFrozen) return false;
         if (InPack) EnemyPack.Tick(target);
         distance = Vector2.Distance(body.position, target.position);
         if (!Hunting && distance <= wakeRange) Hunting = true;
@@ -169,6 +170,11 @@ public abstract class RedEnemy : MonoBehaviour
     // True while being pushed (and moves it): FixedUpdate does nothing else then
     protected bool Pushed()
     {
+        if (IsFrozen)
+        {
+            if (body != null) body.linearVelocity = Vector2.zero;
+            return true;
+        }
         if (body == null || Time.time >= pushUntil) return false;
         float step = pushSpeed * Time.fixedDeltaTime;
         if (Blocked(pushDir, step + 0.05f)) { pushUntil = -1f; return false; }

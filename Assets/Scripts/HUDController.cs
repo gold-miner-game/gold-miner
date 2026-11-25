@@ -1774,7 +1774,7 @@ public class HUDController : MonoBehaviour
         if (levelLoader != null && levelLoader.Waves)
         {
             Row(30f, (card, y) => endRecord = PopupText(card, "Record", gm.NewRecordLine, 24f, FontStyles.Bold, theme.pig, new Vector2(0f, y)));
-            Row(24f, (card, y) => PopupText(card, "Banked", "$" + gm.PlayerMoney.ToString("N0") + " to your wallet", 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
+            Row(24f, (card, y) => PopupText(card, "Banked", won ? "$" + gm.PlayerMoney.ToString("N0") + " to your wallet" : "No gold banked (round lost)", 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
         }
         if (gm.MinerMoney > 0)
             Row(24f, (card, y) => PopupText(card, "Miner", "Miner $" + gm.MinerMoney.ToString("N0"), 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));

@@ -35,9 +35,21 @@ public static class WalletAndMovementSmokeTest
             Require(first.BankLevelEarnings() == 500 && record.getWallet() == 600, "full collected gold is credited, not the margin");
             Require(first.BankLevelEarnings() == 0 && record.getWallet() == 600, "same round cannot pay twice");
             Require(Round(objects, 500, 0, true).BankLevelEarnings() == 500, "replaying for the same earnings pays again");
-            Require(Round(objects, 100, 500, false).BankLevelEarnings() == 100, "a loss still banks collected gold");
+            GameManager lost = Round(objects, 100, 500, false);
+            Require(lost.BankLevelEarnings() == 0 && record.getWallet() == 1100, "a loss does not bank collected gold or deduct existing savings");
+            Require(lost.BankLevelEarnings() == 0 && record.getWallet() == 1100, "returning to map cannot pay a lost round later");
+            GameManager died = Round(objects, 900, 0, false);
+            Set(died, "PlayerDied", true);
+            Require(died.BankLevelEarnings() == 0 && record.getWallet() == 1100, "dying does not pay even when the player collected more than the miner");
+
+            var survivalHost = new GameObject("Survival settlement test"); objects.Add(survivalHost);
+            var survival = survivalHost.AddComponent<SurvivalLoader>();
+            typeof(SurvivalLoader).GetField("gm", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(survival, Round(objects, 750, 0, false));
+            typeof(SurvivalLoader).GetField("bestTime", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(survival, float.MaxValue);
+            typeof(SurvivalLoader).GetMethod("EndRun", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(survival, null);
+            Require(record.getWallet() == 1100, "survival death also discards this run's gold");
             Require(Round(objects, 0, 0, false).BankLevelEarnings() == 0, "empty rounds do not add money");
-            Require(record.getWallet() == 1200 && PlayerPrefs.GetInt("gm.wallet") == 1200, "wallet total is persisted");
+            Require(record.getWallet() == 1100 && PlayerPrefs.GetInt("gm.wallet") == 1100, "wallet total is persisted");
 
             InputSystem.settings.backgroundBehavior = InputSettings.BackgroundBehavior.IgnoreFocus;
             InputSystem.settings.editorInputBehaviorInPlayMode = InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
@@ -57,7 +69,7 @@ public static class WalletAndMovementSmokeTest
                 CheckInput(player, read, keyboard, Vector2.zero, Key.A, Key.RightArrow);
                 CheckInput(player, read, keyboard, new Vector2(1f, 1f), Key.D, Key.UpArrow);
             }
-            Debug.Log("WALLET_MOVEMENT_PASS: full earnings, replay and loss credits, no double payment, persistence, and arrow/WASD input on all six characters.");
+            Debug.Log("WALLET_MOVEMENT_PASS: winning earnings, replay credits, no loss or survival-death payouts, no double payment, persistence, and arrow/WASD input on all six characters.");
         }
         catch (Exception error)
         {
