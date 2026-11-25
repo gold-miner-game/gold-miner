@@ -39,6 +39,7 @@ public static class FlowSceneBuilder
         ("battle_04",  NodeType.Battle,   "level_04",        "Level 3",         0.50f, 0.780f, new[]{ "store_1" }),
         ("survival",   NodeType.Survival, "level_survival",  "Survival",        0.50f, 0.890f, new[]{ "battle_04" }),
         ("battle_05",  NodeType.Battle,   "level_roam",      "Level 4",         0.82f, 0.890f, new[]{ "battle_04" }),
+        ("battle_07",  NodeType.Battle,   "level_ring",      "Level 5",         0.82f, 0.950f, new[]{ "battle_05" }),
     };
 
     [MenuItem("Tools/Gold Miner/Build Flow Scenes")]

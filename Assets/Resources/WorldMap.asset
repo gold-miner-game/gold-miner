@@ -72,3 +72,10 @@ MonoBehaviour:
     mapPosition: {x: 0.82, y: 0.89}
     prerequisites:
     - battle_04
+  - id: battle_07
+    type: 1
+    levelAsset: {fileID: 4900000, guid: f9e7eef138e475332e0763c89ab0504c, type: 3}
+    displayName: Level 5
+    mapPosition: {x: 0.82, y: 0.95}
+    prerequisites:
+    - battle_05

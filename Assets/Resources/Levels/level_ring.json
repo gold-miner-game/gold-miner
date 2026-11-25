@@ -1,0 +1,183 @@
+{
+  "_comment": "Level 5. The player starts shut inside a ring of wall stones, with three small gold. The rest of the gold and every miner sit outside the ring. wall_rocks: a hook stops on the ring and does not break it. Only Hulk's charge smashes a stone, and that gap is wide enough to walk out.",
+  "guide": "The stones have you shut in. Only Hulk can smash them. Only a little gold is in here. The rest of the gold, and the miners, are outside.",
+  "pig_start": [
+    0.0,
+    0.0
+  ],
+  "hooks": [
+    [
+      -6.6,
+      2.8
+    ],
+    [
+      6.2,
+      2.8
+    ],
+    [
+      -6.2,
+      -3.2
+    ],
+    [
+      4.6,
+      -3.6
+    ]
+  ],
+  "items": [
+    {
+      "type": "Rock",
+      "x": 0.0,
+      "y": -3.0,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": 1.5,
+      "y": -2.598,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": 2.598,
+      "y": -1.5,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": 3.0,
+      "y": 0.0,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": 2.598,
+      "y": 1.5,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": 1.5,
+      "y": 2.598,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": 0.0,
+      "y": 3.0,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": -1.5,
+      "y": 2.598,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": -2.598,
+      "y": 1.5,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": -3.0,
+      "y": 0.0,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": -2.598,
+      "y": -1.5,
+      "scale": 1.75
+    },
+    {
+      "type": "Rock",
+      "x": -1.5,
+      "y": -2.598,
+      "scale": 1.75
+    },
+    {
+      "type": "Gold_Small",
+      "x": -0.7,
+      "y": 0.45
+    },
+    {
+      "type": "Gold_Small",
+      "x": 0.75,
+      "y": 0.25
+    },
+    {
+      "type": "Gold_Small",
+      "x": 0.05,
+      "y": -0.8
+    },
+    {
+      "type": "Gold_Large",
+      "x": -4.8,
+      "y": 1.6
+    },
+    {
+      "type": "Gold_Large",
+      "x": 5.2,
+      "y": -1.5
+    },
+    {
+      "type": "Gold_Large",
+      "x": 6.6,
+      "y": -2.4
+    },
+    {
+      "type": "Gold_Medium",
+      "x": -5.4,
+      "y": -1.6
+    },
+    {
+      "type": "Gold_Medium",
+      "x": 3.8,
+      "y": 3.6
+    },
+    {
+      "type": "Gold_Medium",
+      "x": -2.6,
+      "y": 4.1
+    },
+    {
+      "type": "Gold_Small",
+      "x": -7.0,
+      "y": 0.4
+    },
+    {
+      "type": "Gold_Small",
+      "x": 7.0,
+      "y": 0.8
+    }
+  ],
+  "params": {
+    "pig_speed": 5.2,
+    "digest_time": 0.4,
+    "digest_per_value": 0.025,
+    "digest_max": 2.5,
+    "hook_extend": 8.0,
+    "hook_retract": 5.0,
+    "overshoot": 0.4,
+    "start_delay": 1.2,
+    "telegraph_min": 0.7,
+    "telegraph_max": 1.1,
+    "cooldown": 0.7,
+    "min_treasure_shots": 2,
+    "max_treasure_shots": 4,
+    "round_time": 100.0,
+    "starting_lives": 3,
+    "invincible_time": 1.0,
+    "hook_kills": true,
+    "yellow_hits": true,
+    "compete": 1,
+    "hole_size": 0.72,
+    "wall_rocks": true
+  },
+  "skills": {
+    "block": true,
+    "block_duration": 1.5,
+    "block_cooldown": 0.25
+  }
+}
