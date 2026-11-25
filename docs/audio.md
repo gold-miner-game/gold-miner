@@ -49,23 +49,30 @@ through the menu, map, store and levels. It never restarts on a level change or 
 session starts on the same song. **Survival** is the only exception: a run is long, so it loops its own
 song, and the radio resumes where it stopped afterwards.
 
-| Radio order | Title (file in Resources/Audio/Music) | Style | Source song |
+| Radio order | Title (file in Resources/Audio/Music) | Style | Store price |
 |---|---|---|---|
-| 1 | Under the Dirt Map (`under_the_dirt_map`) | saloon jazz | 01 |
-| 2 | Hog Wild Swing (`hog_wild_swing`) | hot jazz | 02, jazz version |
-| 3 | Velvet Claws (`velvet_claws`) | villain big band | 03, jazz version |
-| 4 | Lantern Light Shuffle (`lantern_light_shuffle`) | noir jazz | 01, jazz version |
-| 5 | Evil Meowmeow (`evil_meowmeow`) | cabaret metal | 03 |
-| survival | Hook, Line and Oinky (`hook_line_and_oinky`) | surf rockabilly | 02 |
+| 1 | Under the Dirt Map (`under_the_dirt_map`) | saloon jazz | free |
+| 2 | Hog Wild Swing (`hog_wild_swing`) | hot jazz | free |
+| 3 | Tumbleweed Tunnels (`tumbleweed_tunnels`) | desert western | 1250 |
+| 4 | Velvet Claws (`velvet_claws`) | villain big band | 1250 |
+| 5 | Lucky Strike Polka (`lucky_strike_polka`) | oompah polka | 1500 |
+| 6 | Lantern Light Shuffle (`lantern_light_shuffle`) | noir jazz | 1500 |
+| 7 | Dig It Disco (`dig_it_disco`) | funk disco | 2000 |
+| 8 | Nine Lives Tango (`nine_lives_tango`) | villain tango | 2000 |
+| 9 | Evil Meowmeow (`evil_meowmeow`) | cabaret metal | 2250 |
+| 10 / survival | Hook, Line and Oinky (`hook_line_and_oinky`) | surf rockabilly | 2250 |
+
+Songs 1, 2, 4, 6, 9 and 10 come from the first six songs (the `audio/music` branch). Songs 3, 5, 7 and 8 are
+instrumentals made in the second pass (ElevenLabs Music v2.5, 2:30 each, 2,250 credits each; flow "Gold
+Miner - music pass 2"). Their untouched originals are in `E:\Create with code\sound\elevenlabs\oinky_music_pass2`.
 
 - Every song has its own title. The jazz versions used to share their originals' names.
 - Songs crossfade into each other (3 s). The music steps back to half volume while paused, and dips
   under the win/lose and "target reached" jingles.
 - **The music store** (world map, docs/music-store.md) is wired in. Its catalogue
-  (`Resources/Music/music_store.json`) lists all six songs. The three radio starters are free (price 0), so
-  buying them only lets you pin them. Lantern Light Shuffle costs 300; Evil Meowmeow and Hook, Line and
-  Oinky cost 450 each.
-  - Songs the player bought **join the radio**. Without any purchases the radio plays the three free songs.
+  (`Resources/Music/music_store.json`) lists all ten songs at the prices above. Only the first two are free;
+  buying a free song only lets you pin it.
+  - Songs the player bought **join the radio**. Without any purchases the radio plays the two free songs.
   - A song **picked** in the store (`MusicLibrary.SelectedId`) plays on loop everywhere, **survival included**,
     because the player chose it. Picking "the game's music" resumes the radio where it stopped.
 - A now-playing tag (and optional next/back controls) is UI work, requested in

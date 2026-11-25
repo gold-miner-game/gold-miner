@@ -3,9 +3,13 @@
   "songs": [
     { "id": "under_the_dirt_map",    "title": "Under the Dirt Map (saloon jazz)",        "price": 0 },
     { "id": "hog_wild_swing",        "title": "Hog Wild Swing (hot jazz)",               "price": 0 },
-    { "id": "velvet_claws",          "title": "Velvet Claws (villain big band)",         "price": 0 },
-    { "id": "lantern_light_shuffle", "title": "Lantern Light Shuffle (noir jazz)",       "price": 300 },
-    { "id": "evil_meowmeow",         "title": "Evil Meowmeow (cabaret metal)",           "price": 450 },
-    { "id": "hook_line_and_oinky",   "title": "Hook, Line and Oinky (surf rockabilly)",  "price": 450 }
+    { "id": "tumbleweed_tunnels",    "title": "Tumbleweed Tunnels (desert western)",     "price": 1250 },
+    { "id": "velvet_claws",          "title": "Velvet Claws (villain big band)",         "price": 1250 },
+    { "id": "lucky_strike_polka",    "title": "Lucky Strike Polka (oompah polka)",       "price": 1500 },
+    { "id": "lantern_light_shuffle", "title": "Lantern Light Shuffle (noir jazz)",       "price": 1500 },
+    { "id": "dig_it_disco",          "title": "Dig It Disco (funk disco)",               "price": 2000 },
+    { "id": "nine_lives_tango",      "title": "Nine Lives Tango (villain tango)",        "price": 2000 },
+    { "id": "evil_meowmeow",         "title": "Evil Meowmeow (cabaret metal)",           "price": 2250 },
+    { "id": "hook_line_and_oinky",   "title": "Hook, Line and Oinky (surf rockabilly)",  "price": 2250 }
   ]
 }

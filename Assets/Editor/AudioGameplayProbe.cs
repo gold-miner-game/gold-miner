@@ -22,6 +22,7 @@ public static class AudioGameplayProbe
     static float stepAt;
     static bool skillPressed, walkedToGold;
     static string scene;
+    static string character = "?";
 
     public static void Run() { SessionState.SetBool(Pending, true); EditorApplication.EnterPlaymode(); }
 
@@ -89,6 +90,7 @@ public static class AudioGameplayProbe
     {
         PlayerCharacter player = UnityEngine.Object.FindFirstObjectByType<PlayerCharacter>();
         if (player == null || t < 3f || t < nextCharge) return;
+        character = SoundCues.Voice(player);
         nextCharge = t + 0.5f;
         RedEnemy enemy = UnityEngine.Object.FindObjectsByType<RedEnemy>(FindObjectsSortMode.None)
             .Where(e => e.isActiveAndEnabled).OrderBy(e => Vector2.Distance(e.transform.position, player.transform.position)).FirstOrDefault();
@@ -109,7 +111,10 @@ public static class AudioGameplayProbe
         Debug.Log("AUDIO_PROBE songs by scene: " + string.Join(", ", songs));
         SessionState.SetBool(Pending, false);
         foreach (var pair in heard.OrderBy(p => p.Key)) Debug.Log("AUDIO_PROBE heard " + pair.Key + " x" + pair.Value);
-        string[] core = { "hook_fire", "eat_munch", "round_start", "skill_ready", "enemy_yowl" };
+        // Only the pig's block and the rhino's charge knock Brawlers back (the cat rolls through them)
+        var core = new List<string> { "hook_fire", "eat_munch", "round_start", "skill_ready" };
+        if (character == "pig" || character == "rhino") core.Add("enemy_yowl");
+        Debug.Log("AUDIO_PROBE character in the roam level: " + character);
         string[] missing = core.Where(c => !heard.Keys.Any(k => k.EndsWith(":" + c))).ToArray();
         SoundDirector d = SoundDirector.Instance;
         Debug.Log("AUDIO_PROBE music now: " + (d != null ? d.CurrentTrack : "-") + ", cues heard: " + heard.Count);

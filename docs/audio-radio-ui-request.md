@@ -9,16 +9,8 @@ another, through the menu, map, store and levels, and keeps playing through leve
 **Survival** is the exception: a run is long, so it loops its own song ("Hook, Line and Oinky"), and the
 radio resumes where it stopped when the player leaves survival. The chosen song is saved between sessions.
 
-Every song has its own title:
-
-| # | Title | Style |
-|---|---|---|
-| 0 | Under the Dirt Map | saloon jazz |
-| 1 | Hog Wild Swing | hot jazz |
-| 2 | Velvet Claws | villain big band |
-| 3 | Lantern Light Shuffle | noir jazz |
-| 4 | Evil Meowmeow | cabaret metal |
-| survival (joins the radio once bought) | Hook, Line and Oinky | surf rockabilly |
+Every song has its own title; the ten songs, styles and prices are listed in docs/audio.md ("Music: the
+radio"). The radio plays the free songs plus the ones bought in the music store.
 
 ## What the player needs (UI, please build)
 

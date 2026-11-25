@@ -17,7 +17,8 @@ public static class AudioSmokeTest
     static int checks;
     static int stage;
     static float stageAt;
-    static readonly string[] Tracks = { "under_the_dirt_map", "hog_wild_swing", "velvet_claws", "lantern_light_shuffle",
+    static readonly string[] Tracks = { "under_the_dirt_map", "hog_wild_swing", "tumbleweed_tunnels", "velvet_claws",
+                                        "lucky_strike_polka", "lantern_light_shuffle", "dig_it_disco", "nine_lives_tango",
                                         "evil_meowmeow", "hook_line_and_oinky" };
     // scene -> what should play, checked by really loading the scenes in this order.
     // "radio" = the same radio song as before (no change on scene loads); survival has its own song.
@@ -160,11 +161,11 @@ public static class AudioSmokeTest
                   "store song '" + item.id + "' is not a music track");
         Check(Array.TrueForAll(SoundDirector.AllSongs, s => MusicLibrary.Find(s.file) != null), "a song is missing from the store");
         int freeCount = SoundDirector.Radio.Length;
-        Check(freeCount == 3, "radio before buying has " + freeCount + " songs, expected 3");
+        Check(freeCount == 2, "radio before buying has " + freeCount + " songs, expected 2");
 
         CrossLevelStatus wallet = CrossLevelStatus.Ensure();
         int before = wallet.getWallet();
-        wallet.addWallet(2000);
+        wallet.addWallet(10000);
         Check(MusicLibrary.Buy("lantern_light_shuffle", wallet) == MusicLibrary.BuyResult.Bought, "could not buy a song");
         Check(SoundDirector.Radio.Length == freeCount + 1, "a bought song did not join the radio");
         string radioSongNow = d.CurrentTrack;

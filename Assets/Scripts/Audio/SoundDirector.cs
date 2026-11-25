@@ -206,13 +206,17 @@ public class SoundDirector : MonoBehaviour
 
     public static readonly Song SurvivalSong = new Song("hook_line_and_oinky", "Hook, Line and Oinky", "surf rockabilly");
 
-    // Every song, in radio order (alternating calm and lively). Every song has its own name.
+    // Every song (10), in radio order (alternating calm and lively). Every song has its own name.
     public static readonly Song[] AllSongs =
     {
         new Song("under_the_dirt_map", "Under the Dirt Map", "saloon jazz"),
         new Song("hog_wild_swing", "Hog Wild Swing", "hot jazz"),
+        new Song("tumbleweed_tunnels", "Tumbleweed Tunnels", "desert western"),
         new Song("velvet_claws", "Velvet Claws", "villain big band"),
+        new Song("lucky_strike_polka", "Lucky Strike Polka", "oompah polka"),
         new Song("lantern_light_shuffle", "Lantern Light Shuffle", "noir jazz"),
+        new Song("dig_it_disco", "Dig It Disco", "funk disco"),
+        new Song("nine_lives_tango", "Nine Lives Tango", "villain tango"),
         new Song("evil_meowmeow", "Evil Meowmeow", "cabaret metal"),
         SurvivalSong,
     };
