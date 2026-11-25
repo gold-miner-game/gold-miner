@@ -21,8 +21,8 @@ songs they own (or the game's own music). This branch has the logic only: no art
 ## Data: `MusicLibrary`
 
 - Catalogue: `Assets/Resources/Music/music_store.json`, a list of `{ id, title, price }`.
-  `id` is meant to be the track name in `Resources/Audio/Music`. The current list and prices are
-  placeholders for the sound owner to replace.
+  `id` is the track name in `Resources/Audio/Music`. The sound owner set the list and prices: all six
+  songs, the three radio starters free, the rest 300 to 450 (see docs/audio.md, "Music: the radio").
 - `Buy(id)` pays `price` once from the run wallet (`CrossLevelStatus`, the Store's wallet). Results:
   `Bought`, `AlreadyOwned`, `NotEnoughGold`, `UnknownSong`, `NoWallet`.
 - `Select(id)` picks an owned song; `Select(null)` goes back to the game's own music.

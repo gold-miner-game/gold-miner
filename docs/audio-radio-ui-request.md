@@ -18,9 +18,13 @@ Every song has its own title:
 | 2 | Velvet Claws | villain big band |
 | 3 | Lantern Light Shuffle | noir jazz |
 | 4 | Evil Meowmeow | cabaret metal |
-| survival only | Hook, Line and Oinky | surf rockabilly |
+| survival (joins the radio once bought) | Hook, Line and Oinky | surf rockabilly |
 
 ## What the player needs (UI, please build)
+
+Update: the world map's **music store** now does the picking (buy, then pick a song, or pick "the
+game's music" for the radio), and it's wired to the sound. What's still open is item 2, plus item 1
+only if you want quick skipping outside the store.
 
 1. **Pick a song.** Next and previous buttons, and optionally a list of the five radio songs, in the pause
    popup and the main menu. Optional keyboard shortcut: N for next, B for back. Those keys are free; check

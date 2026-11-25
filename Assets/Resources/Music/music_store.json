@@ -1,11 +1,11 @@
 {
-  "_comment": "The music store's songs (MusicLibrary). id = the file name in Resources/Audio/Music, the sound system's track name. Placeholder list and prices: the sound owner sets the real ones.",
+  "_comment": "The music store's songs (MusicLibrary). Owner: Claude (sound). id = the file name in Resources/Audio/Music. Price 0 = free: already on the radio, buy only to pin it. Bought songs join the radio; a picked song plays everywhere. See docs/audio.md.",
   "songs": [
-    { "id": "title",   "title": "Under the Dirt Map",               "price": 100 },
-    { "id": "shop",    "title": "Under the Dirt Map (noir combo)",  "price": 100 },
-    { "id": "lair",    "title": "Evil Meowmeow (big band)",         "price": 100 },
-    { "id": "battle",  "title": "Hook Line and Oinky (hot jazz)",   "price": 100 },
-    { "id": "endless", "title": "Hook Line and Oinky (surf)",       "price": 100 },
-    { "id": "finale",  "title": "Evil Meowmeow (cabaret metal)",    "price": 100 }
+    { "id": "under_the_dirt_map",    "title": "Under the Dirt Map (saloon jazz)",        "price": 0 },
+    { "id": "hog_wild_swing",        "title": "Hog Wild Swing (hot jazz)",               "price": 0 },
+    { "id": "velvet_claws",          "title": "Velvet Claws (villain big band)",         "price": 0 },
+    { "id": "lantern_light_shuffle", "title": "Lantern Light Shuffle (noir jazz)",       "price": 300 },
+    { "id": "evil_meowmeow",         "title": "Evil Meowmeow (cabaret metal)",           "price": 450 },
+    { "id": "hook_line_and_oinky",   "title": "Hook, Line and Oinky (surf rockabilly)",  "price": 450 }
   ]
 }

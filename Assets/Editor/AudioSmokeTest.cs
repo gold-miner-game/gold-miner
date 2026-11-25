@@ -82,6 +82,7 @@ public static class AudioSmokeTest
             Check(SoundDirector.Instance.CurrentTrack != before, "NextSong did not change the song");
             SoundDirector.PreviousSong();
             Check(SoundDirector.Instance.CurrentTrack == before, "PreviousSong did not come back");
+            StoreChecks();
             // Every song has its own title
             var titles = new HashSet<string>();
             foreach (var song in SoundDirector.Radio) Check(titles.Add(song.title), "duplicate song title " + song.title);
@@ -92,8 +93,15 @@ public static class AudioSmokeTest
     }
     static bool loaded;
 
+    static string savedOwned, savedPick;
+
     static void StaticChecks()
     {
+        // Start from "no songs bought, nothing picked"; the player's own save comes back at the end
+        savedOwned = PlayerPrefs.GetString(MusicLibrary.OwnedKey, null);
+        savedPick = PlayerPrefs.GetString(MusicLibrary.SelectedKey, null);
+        MusicLibrary.ResetSave();
+        MusicLibrary.Load(Resources.Load<TextAsset>(MusicLibrary.CatalogueResource));
         SoundDirector director = SoundDirector.Instance;
         Check(director != null, "SoundDirector did not create itself");
 
@@ -143,6 +151,43 @@ public static class AudioSmokeTest
         SoundDirector.Muted = muted;
     }
 
+    // The music store: every catalogue song is a real track, bought songs join the radio, a pick plays
+    static void StoreChecks()
+    {
+        SoundDirector d = SoundDirector.Instance;
+        foreach (MusicLibrary.Song item in MusicLibrary.Songs)
+            Check(SoundDirector.FindSong(item.id) != null && Resources.Load<AudioClip>("Audio/Music/" + item.id) != null,
+                  "store song '" + item.id + "' is not a music track");
+        Check(Array.TrueForAll(SoundDirector.AllSongs, s => MusicLibrary.Find(s.file) != null), "a song is missing from the store");
+        int freeCount = SoundDirector.Radio.Length;
+        Check(freeCount == 3, "radio before buying has " + freeCount + " songs, expected 3");
+
+        CrossLevelStatus wallet = CrossLevelStatus.Ensure();
+        int before = wallet.getWallet();
+        wallet.addWallet(2000);
+        Check(MusicLibrary.Buy("lantern_light_shuffle", wallet) == MusicLibrary.BuyResult.Bought, "could not buy a song");
+        Check(SoundDirector.Radio.Length == freeCount + 1, "a bought song did not join the radio");
+        string radioSongNow = d.CurrentTrack;
+
+        Check(MusicLibrary.Buy("evil_meowmeow", wallet) == MusicLibrary.BuyResult.Bought, "could not buy the second song");
+        MusicLibrary.Select("evil_meowmeow");
+        Check(d.CurrentTrack == "evil_meowmeow", "the picked song is not playing: " + d.CurrentTrack);
+        SoundDirector.NextSong();
+        Check(d.CurrentTrack == "evil_meowmeow", "skipping must not override the pick");
+        MusicLibrary.Select(null);
+        Check(d.CurrentTrack == radioSongNow, "clearing the pick did not resume the radio song '" + radioSongNow + "': " + d.CurrentTrack);
+
+        wallet.addWallet(before - wallet.getWallet());   // the wallet as it was
+        MusicLibrary.ResetSave();
+    }
+
+    static void RestoreMusicSave()
+    {
+        if (string.IsNullOrEmpty(savedOwned)) PlayerPrefs.DeleteKey(MusicLibrary.OwnedKey); else PlayerPrefs.SetString(MusicLibrary.OwnedKey, savedOwned);
+        if (string.IsNullOrEmpty(savedPick)) PlayerPrefs.DeleteKey(MusicLibrary.SelectedKey); else PlayerPrefs.SetString(MusicLibrary.SelectedKey, savedPick);
+        PlayerPrefs.Save();
+    }
+
     static float Loudness(AudioClip clip)
     {
         if (clip.loadType == AudioClipLoadType.Streaming) return 1f;
@@ -156,6 +201,7 @@ public static class AudioSmokeTest
 
     static void Finish()
     {
+        RestoreMusicSave();
         SessionState.SetBool(Pending, false);
         if (failures.Count == 0) Debug.Log("AUDIO_SMOKE_PASS: " + checks + " checks");
         else Debug.LogError("AUDIO_SMOKE_FAIL: " + failures.Count + " of " + checks + " checks failed");

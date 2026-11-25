@@ -11,7 +11,7 @@ using UnityEngine.UI;
 //   Sfx.Play("hook_grab", position)   a sound effect (SoundCues lists them all)
 //   Sfx.Ui("ui_click")                a menu sound
 //
-// Music: a radio that plays the songs back to back across every scene, except survival,
+// Music: a radio that plays the songs back to back across every scene (plus the music store's pick), except survival,
 // which loops its own song. Songs crossfade, so endings never cut. Ambience: the mine's room tone.
 // Volumes: three sliders (music, sound effects, menus) plus master and mute, saved in PlayerPrefs.
 // The settings screen only needs SoundDirector.GetVolume / SetVolume / Muted (docs/audio.md).
@@ -101,11 +101,13 @@ public class SoundDirector : MonoBehaviour
         ambience.playOnAwake = false;
         ambience.loop = true;
         SceneManager.sceneLoaded += OnSceneLoaded;
+        MusicLibrary.Changed += OnMusicPicked;   // the music store's pick
     }
 
     void OnDestroy()
     {
         SceneManager.sceneLoaded -= OnSceneLoaded;
+        MusicLibrary.Changed -= OnMusicPicked;
         if (instance == this) instance = null;
     }
 
@@ -187,30 +189,45 @@ public class SoundDirector : MonoBehaviour
         return Mathf.Clamp((at.x - cam.transform.position.x) / half, -1f, 1f) * 0.35f;
     }
 
-    // --- music: the radio ------------------------------------------------------------------------------
-    // The game is fast, so the music doesn't change with every scene. One radio plays the songs back to
-    // back across the menu, map, store and levels, and keeps going through level changes and restarts.
-    // Choosing songs and showing what's playing is UI (another owner): it calls NextSong / PreviousSong /
-    // PlaySong and listens to SongChanged. See docs/audio-radio-ui-request.md.
-    // Survival is the exception: a run is long, so it gets its own song on loop, and the radio picks
-    // up where it left off afterwards.
-    // Files in Resources/Audio/Music, trimmed and levelled to the same loudness (-16 LUFS).
+    // --- music: the radio and the music store --------------------------------------------------------
+    // The game is fast, so the music doesn't change with every scene. One radio plays songs back to back
+    // across the menu, map, store and levels, and keeps going through level changes and restarts.
+    //   - The radio plays the free songs plus every song the player bought in the music store
+    //     (MusicLibrary, Resources/Music/music_store.json; price 0 = free).
+    //   - A song picked in the music store (MusicLibrary.SelectedId) plays on loop everywhere, survival
+    //     included: the player chose it. Picking "the game's music" again resumes the radio.
+    //   - Otherwise survival loops its own song (a run is long), and the radio resumes afterwards.
+    // Songs crossfade, so endings never cut. Files in Resources/Audio/Music, levelled to -16 LUFS.
     public sealed class Song
     {
         public readonly string file, title, style;
         public Song(string file, string title, string style) { this.file = file; this.title = title; this.style = style; }
     }
 
-    // Radio order: alternates calm and lively songs. Every song has its own name.
-    public static readonly Song[] Radio =
+    public static readonly Song SurvivalSong = new Song("hook_line_and_oinky", "Hook, Line and Oinky", "surf rockabilly");
+
+    // Every song, in radio order (alternating calm and lively). Every song has its own name.
+    public static readonly Song[] AllSongs =
     {
         new Song("under_the_dirt_map", "Under the Dirt Map", "saloon jazz"),
         new Song("hog_wild_swing", "Hog Wild Swing", "hot jazz"),
         new Song("velvet_claws", "Velvet Claws", "villain big band"),
         new Song("lantern_light_shuffle", "Lantern Light Shuffle", "noir jazz"),
         new Song("evil_meowmeow", "Evil Meowmeow", "cabaret metal"),
+        SurvivalSong,
     };
-    public static readonly Song SurvivalSong = new Song("hook_line_and_oinky", "Hook, Line and Oinky", "surf rockabilly");
+
+    // On the radio: free (not sold, or price 0) or bought
+    public static bool OnRadio(Song song)
+    {
+        if (song == null) return false;
+        MusicLibrary.Song item = MusicLibrary.Find(song.file);
+        return item == null || item.price <= 0 || MusicLibrary.IsOwned(song.file);
+    }
+    public static Song[] Radio => System.Array.FindAll(AllSongs, OnRadio);
+    public static Song FindSong(string file) => System.Array.Find(AllSongs, s => s.file == file);
+
+    enum MusicMode { None, Radio, Survival, Picked }
 
     const float MusicLevel = 0.8f;       // music under effects
     const float CrossfadeTime = 1.5f;
@@ -218,9 +235,10 @@ public class SoundDirector : MonoBehaviour
     AudioSource musicA, musicB, ambience;
     AudioSource musicNow;
     Song songNow;
-    bool inSurvival;
-    int radioIndex = -1;
-    float radioResumeAt;                 // where the radio song was when survival interrupted it
+    MusicMode mode = MusicMode.None;
+    bool survivalPlace;
+    int radioIndex = -1;                 // into AllSongs
+    float radioResumeAt;                 // where the radio song was when survival or a pick interrupted it
     float fadeStart = -1f;
     AudioSource fadingOut;
     float roundEndDip = 1f;              // the music sits lower on the result screen
@@ -236,19 +254,34 @@ public class SoundDirector : MonoBehaviour
         return s;
     }
 
-    // --- radio controls for the UI ---------------------------------------------------------------
+    // --- controls for the UI (the music store already drives the pick through MusicLibrary) --------
     public static event System.Action<Song> SongChanged;   // a new song started (title for a now-playing tag)
-    public static int RadioIndex => instance != null ? instance.radioIndex : -1;
     public static Song NowPlaying => instance != null ? instance.songNow : null;
-    public static void NextSong() { if (instance != null && !instance.inSurvival) instance.PlayRadio(instance.radioIndex + 1, true); }
-    public static void PreviousSong() { if (instance != null && !instance.inSurvival) instance.PlayRadio(instance.radioIndex - 1, true); }
-    public static void PlaySong(int index) { if (instance != null && !instance.inSurvival) instance.PlayRadio(index, true); }
-
-    void PlayRadio(int index, bool chosen)
+    public static int RadioIndex => instance != null && instance.radioIndex >= 0
+        ? System.Array.IndexOf(Radio, AllSongs[instance.radioIndex]) : -1;
+    public static void NextSong() { if (instance != null && instance.mode == MusicMode.Radio) instance.PlayRadio(instance.radioIndex + 1, 1); }
+    public static void PreviousSong() { if (instance != null && instance.mode == MusicMode.Radio) instance.PlayRadio(instance.radioIndex - 1, -1); }
+    public static void PlaySong(int radioListIndex)
     {
-        radioIndex = ((index % Radio.Length) + Radio.Length) % Radio.Length;
-        PlayerPrefs.SetInt("sound.radio", radioIndex);   // the next session starts on the same song
-        StartSong(Radio[radioIndex], 0f);
+        Song[] radio = Radio;
+        if (instance == null || instance.mode != MusicMode.Radio || radioListIndex < 0 || radioListIndex >= radio.Length) return;
+        instance.PlayRadio(System.Array.IndexOf(AllSongs, radio[radioListIndex]), 0);
+    }
+
+    // Start the radio on AllSongs[index], or the nearest song on the radio going `step` (0 = forward)
+    void PlayRadio(int index, int step)
+    {
+        int n = AllSongs.Length, dir = step < 0 ? -1 : 1;
+        for (int i = 0; i < n; i++)
+        {
+            int k = (((index + dir * i) % n) + n) % n;
+            if (!OnRadio(AllSongs[k])) continue;
+            radioIndex = k;
+            PlayerPrefs.SetInt("sound.radio", k);   // the next session starts on the same song
+            mode = MusicMode.Radio;
+            StartSong(AllSongs[k], 0f);
+            return;
+        }
     }
 
     void StartSong(Song song, float from)
@@ -279,22 +312,40 @@ public class SoundDirector : MonoBehaviour
     // Called on every scene: only survival changes what plays
     void SetMusicPlace(bool survival)
     {
-        if (survival)
+        survivalPlace = survival;
+        RefreshMusic();
+    }
+
+    // Decide what should play: the store pick, else survival's song, else the radio
+    void RefreshMusic()
+    {
+        Song pick = FindSong(MusicLibrary.SelectedId);
+        if (pick != null)
         {
-            if (inSurvival) return;
-            inSurvival = true;
-            radioResumeAt = musicNow != null ? musicNow.time : 0f;
+            if (mode == MusicMode.Radio && musicNow != null) radioResumeAt = musicNow.time;
+            mode = MusicMode.Picked;
+            if (songNow != pick) StartSong(pick, 0f);
+            return;
+        }
+        if (survivalPlace)
+        {
+            if (mode == MusicMode.Survival) return;
+            if (mode == MusicMode.Radio && musicNow != null) radioResumeAt = musicNow.time;
+            mode = MusicMode.Survival;
             StartSong(SurvivalSong, 0f);
             return;
         }
-        if (inSurvival)
+        if (mode == MusicMode.Radio && songNow != null) return;
+        if (radioIndex >= 0 && OnRadio(AllSongs[radioIndex]))
         {
-            inSurvival = false;
-            StartSong(Radio[Mathf.Max(0, radioIndex)], radioResumeAt);   // the radio carries on
+            mode = MusicMode.Radio;
+            StartSong(AllSongs[radioIndex], radioResumeAt);   // the radio carries on where it stopped
             return;
         }
-        if (radioIndex < 0) PlayRadio(PlayerPrefs.GetInt("sound.radio", 0), false);   // first scene
+        PlayRadio(PlayerPrefs.GetInt("sound.radio", 0), 0);   // first scene of the session
     }
+
+    void OnMusicPicked(string id) { if (mode != MusicMode.None) RefreshMusic(); }
 
     public void SetRoundEndDip(float level) { roundEndDip = Mathf.Clamp01(level); }
 
@@ -325,13 +376,13 @@ public class SoundDirector : MonoBehaviour
         }
         if (musicNow == null || musicNow.clip == null || fadingOut != null) return;
 
-        // Near a song's end: the radio moves on to the next song; survival's song starts over
+        // Near a song's end: the radio moves on; a picked song or survival's song starts over
         bool ending = musicNow.time >= musicNow.clip.length - SongOverlap;
         // A hitch (or a background browser tab) can skip past that window and let the song end
         bool stopped = !musicNow.isPlaying && musicNow.clip.loadState == AudioDataLoadState.Loaded;
         if (!ending && !stopped) return;
-        if (inSurvival) StartSong(SurvivalSong, 0f);
-        else PlayRadio(radioIndex + 1, false);
+        if (mode == MusicMode.Radio) PlayRadio(radioIndex + 1, 1);
+        else StartSong(songNow, 0f);
     }
 
     // --- ambience: the mine under every level ------------------------------------------------------

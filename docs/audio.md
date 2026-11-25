@@ -61,9 +61,16 @@ song, and the radio resumes where it stopped afterwards.
 - Every song has its own title. The jazz versions used to share their originals' names.
 - Songs crossfade into each other (3 s). The music steps back to half volume while paused, and dips
   under the win/lose and "target reached" jingles.
-- Choosing songs and showing what's playing is UI work, requested in docs/audio-radio-ui-request.md. The
-  sound side exposes `SoundDirector.Radio`, `NextSong / PreviousSong / PlaySong`, `NowPlaying` and
-  `SongChanged`.
+- **The music store** (world map, docs/music-store.md) is wired in. Its catalogue
+  (`Resources/Music/music_store.json`) lists all six songs. The three radio starters are free (price 0), so
+  buying them only lets you pin them. Lantern Light Shuffle costs 300; Evil Meowmeow and Hook, Line and
+  Oinky cost 450 each.
+  - Songs the player bought **join the radio**. Without any purchases the radio plays the three free songs.
+  - A song **picked** in the store (`MusicLibrary.SelectedId`) plays on loop everywhere, **survival included**,
+    because the player chose it. Picking "the game's music" resumes the radio where it stopped.
+- A now-playing tag (and optional next/back controls) is UI work, requested in
+  docs/audio-radio-ui-request.md. The sound side exposes `SoundDirector.Radio`, `NextSong / PreviousSong /
+  PlaySong`, `NowPlaying` and `SongChanged`.
 - The sources were trimmed and levelled to -16 LUFS. The untouched originals are in
   `E:\Create with code\sound\elevenlabs\oinky_music` and in the `audio/music` branch history.
 
