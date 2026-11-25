@@ -1,0 +1,11 @@
+{
+  "_comment": "The music store's songs (MusicLibrary). id = the file name in Resources/Audio/Music, the sound system's track name. Placeholder list and prices: the sound owner sets the real ones.",
+  "songs": [
+    { "id": "title",   "title": "Under the Dirt Map",               "price": 100 },
+    { "id": "shop",    "title": "Under the Dirt Map (noir combo)",  "price": 100 },
+    { "id": "lair",    "title": "Evil Meowmeow (big band)",         "price": 100 },
+    { "id": "battle",  "title": "Hook Line and Oinky (hot jazz)",   "price": 100 },
+    { "id": "endless", "title": "Hook Line and Oinky (surf)",       "price": 100 },
+    { "id": "finale",  "title": "Evil Meowmeow (cabaret metal)",    "price": 100 }
+  ]
+}

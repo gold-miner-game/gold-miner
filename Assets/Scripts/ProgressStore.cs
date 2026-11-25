@@ -177,6 +177,7 @@ public static class ProgressStore
         // The stories and steps that play only the first time (TutorialStep Only First Time) play again
         TutorialStep.ResetSeen();
         CrossLevelStatus.ClearSavedWallet();
+        MusicLibrary.ResetSave();
         MazeHubState.Clear();
     }
 }

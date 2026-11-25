@@ -52,6 +52,12 @@ public class MapHub : MonoBehaviour
 
     [Tooltip("Where a player caught by a miner's hook on the map comes back: in front of this node's portal")]
     public string reviveAt = "role_pick";
+
+    public const string MusicStoreId = "music_store";
+    [Tooltip("The green rock that becomes the Music Store portal (world position; the nearest green rock " +
+             "within half a tile is used). Default: the lower tooth just right of Level 2")]
+    public Vector2 musicStoreAt = MusicStoreDefaultAt;
+    public static readonly Vector2 MusicStoreDefaultAt = new Vector2(0.525f, -2.94f);
     float hintUntil;
     GUIStyle hintStyle;
 
@@ -161,6 +167,11 @@ public class MapHub : MonoBehaviour
         // Portals: the scene's, else one per grid portal
         var all = new List<HubPortal>();
         if (baked != null) all.AddRange(baked.GetComponentsInChildren<HubPortal>());
+        if (baked != null && !all.Exists(p => p.nodeId == MusicStoreId))
+        {
+            HubPortal music = PortalFromGreenRock(baked, MusicStoreId, musicStoreAt, tile);
+            if (music != null) all.Add(music);
+        }
         else
             foreach (LevelData.Portal p in level.portals)
             {
@@ -223,6 +234,46 @@ public class MapHub : MonoBehaviour
         if (baked != null) HideRetiredModes(baked);
         if (baked != null) LetHooksThroughGreen(baked);
         MapRockDamage.Bind(this, baked);
+    }
+
+    // A node without a portal in the baked map takes the place of one of its green rocks: the rock is
+    // switched off and a hidden portal (a green rock itself until the node unlocks) stands in its spot.
+    // Used for the Music Store, so the world map scene needs no edit.
+    public static HubPortal PortalFromGreenRock(Transform baked, string nodeId, Vector2 near, float tile)
+    {
+        Rock best = null;
+        float bestDistance = tile * 0.5f;
+        foreach (Rock rock in baked.GetComponentsInChildren<Rock>())
+        {
+            if (rock.GetComponentInParent<HubPortal>() != null || !IsGreen(rock)) continue;
+            float distance = Vector2.Distance(rock.transform.position, near);
+            if (distance <= bestDistance) { best = rock; bestDistance = distance; }
+        }
+        if (best == null)
+        {
+            Debug.LogWarning("MapHub: no green rock near " + near + " for the '" + nodeId + "' portal");
+            return null;
+        }
+
+        Transform portals = baked.Find("Portals");
+        var go = new GameObject("Portal_" + nodeId);
+        go.transform.SetParent(portals != null ? portals : baked, false);
+        go.transform.position = best.transform.position;
+        go.layer = best.gameObject.layer;
+        HubPortal portal = go.AddComponent<HubPortal>();
+        portal.nodeId = nodeId;
+        portal.hidden = true;   // Init draws it like the other portals: a green stone until it opens
+        best.gameObject.SetActive(false);
+        return portal;
+    }
+
+    static bool IsGreen(Rock rock)
+    {
+        if (rock.hookPasses) return true;
+        SpriteRenderer sprite = rock.GetComponent<SpriteRenderer>();
+        if (sprite == null) return false;
+        Color c = sprite.color;
+        return Mathf.Abs(c.r - GreenRock.r) < 0.05f && Mathf.Abs(c.g - GreenRock.g) < 0.05f && Mathf.Abs(c.b - GreenRock.b) < 0.05f;
     }
 
     // Green rocks (levels not disclosed yet) are no obstacle to a hook. The bake marks them already;
@@ -331,6 +382,8 @@ public class MapHub : MonoBehaviour
 
     public void Enter(HubPortal portal)
     {
+        // The music store opens right here on the map; the player stays on its portal
+        if (portal.Node.type == NodeType.MusicStore) { MusicStorePanel.Show(portal.Node, transform); return; }
         lastPortal = portal.Node.id;
         GameFlow.Instance.EnterNode(portal.Node);
     }

@@ -79,3 +79,10 @@ MonoBehaviour:
     mapPosition: {x: 0.82, y: 0.95}
     prerequisites:
     - battle_05
+  - id: music_store
+    type: 5
+    levelAsset: {fileID: 0}
+    displayName: Music Store
+    mapPosition: {x: 0.62, y: 0.333}
+    prerequisites:
+    - battle_06
