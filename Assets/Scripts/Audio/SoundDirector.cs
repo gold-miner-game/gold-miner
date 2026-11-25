@@ -155,6 +155,7 @@ public class SoundDirector : MonoBehaviour
         source.Play();
         playing[source] = id;
         lastPlayed[id] = now;
+        Played?.Invoke(id);
 
         if (cue.duck > 0f)
         {
@@ -243,6 +244,7 @@ public class SoundDirector : MonoBehaviour
     public void SetRoundEndDip(float level) { roundEndDip = Mathf.Clamp01(level); }
 
     // For tests and debugging
+    public static event System.Action<string> Played;   // every cue that actually started
     public bool CuePlaying(string id)
     {
         foreach (var pair in playing) if (pair.Value == id && pair.Key.isPlaying) return true;

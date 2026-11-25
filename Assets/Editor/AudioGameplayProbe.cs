@@ -1,0 +1,94 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+// Owner: Claude (sound director)
+// Proves the sounds come from real gameplay, not from a test calling them: loads real levels, lets the
+// miners play, nudges the player like a person would (a K press, walking onto gold), and lists every
+// cue the game itself triggered.
+//   Unity -batchmode -projectPath <project> -executeMethod AudioGameplayProbe.Run -logFile <log>
+// Prints AUDIO_PROBE lines; exit 0 when the core gameplay cues were heard.
+public static class AudioGameplayProbe
+{
+    const string Pending = "AudioGameplayProbe.Pending";
+    static readonly (string scene, float seconds)[] Steps = { ("level_02", 40f), ("world_map", 12f), ("Menu", 4f) };
+    static readonly Dictionary<string, int> heard = new Dictionary<string, int>();
+    static int step = -1;
+    static float stepAt;
+    static bool skillPressed, walkedToGold;
+    static string scene;
+
+    public static void Run() { SessionState.SetBool(Pending, true); EditorApplication.EnterPlaymode(); }
+
+    [InitializeOnLoadMethod]
+    static void Resume() { EditorApplication.update += Poll; }
+
+    static void Poll()
+    {
+        if (!EditorApplication.isPlaying || EditorApplication.isCompiling || !SessionState.GetBool(Pending, false)) return;
+        try
+        {
+            if (step < 0)
+            {
+                SoundDirector.Played += id => { string k = scene + ":" + id; heard[k] = heard.TryGetValue(k, out int n) ? n + 1 : 1; };
+                Next();
+                return;
+            }
+            float t = Time.realtimeSinceStartup - stepAt;
+            if (scene == "level_02") Nudge(t);
+            if (t < Steps[step].seconds) return;
+            if (step + 1 < Steps.Length) { Next(); return; }
+            Finish();
+        }
+        catch (Exception e) { Debug.LogException(e); Finish(); }
+    }
+
+    static void Next()
+    {
+        step++;
+        scene = Steps[step].scene;
+        skillPressed = walkedToGold = false;
+        LevelLoader.Requested = null;
+        SceneManager.LoadScene(scene);
+        stepAt = Time.realtimeSinceStartup;
+    }
+
+    // What a player would do: press K once, then walk onto a piece of gold
+    static void Nudge(float t)
+    {
+        PlayerCharacter player = UnityEngine.Object.FindFirstObjectByType<PlayerCharacter>();
+        if (player == null) return;
+        if (!skillPressed && t > 6f)
+        {
+            skillPressed = true;
+            player.GetType().GetMethod("UseSkill", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.FlattenHierarchy)?.Invoke(player, null);
+        }
+        if (!walkedToGold && t > 10f && Treasure.Active.Count > 0)
+        {
+            walkedToGold = true;
+            Treasure gold = Treasure.Active.FirstOrDefault(x => x != null);
+            if (gold != null)
+            {
+                var body = player.GetComponent<Rigidbody2D>();
+                if (body != null) body.position = gold.transform.position; else player.transform.position = gold.transform.position;
+            }
+        }
+    }
+
+    static void Finish()
+    {
+        SessionState.SetBool(Pending, false);
+        foreach (var pair in heard.OrderBy(p => p.Key)) Debug.Log("AUDIO_PROBE heard " + pair.Key + " x" + pair.Value);
+        string[] core = { "hook_fire", "eat_munch", "round_start" };
+        string[] missing = core.Where(c => !heard.Keys.Any(k => k.EndsWith(":" + c))).ToArray();
+        SoundDirector d = SoundDirector.Instance;
+        Debug.Log("AUDIO_PROBE music now: " + (d != null ? d.CurrentTrack : "-") + ", cues heard: " + heard.Count);
+        if (missing.Length == 0) Debug.Log("AUDIO_PROBE_PASS");
+        else Debug.LogError("AUDIO_PROBE_FAIL missing " + string.Join(", ", missing));
+        EditorApplication.Exit(missing.Length == 0 ? 0 : 1);
+    }
+}
