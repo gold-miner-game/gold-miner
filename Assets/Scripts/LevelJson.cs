@@ -102,7 +102,7 @@ public class LevelData
     public int EntryCredit;
 
     // Grid maze (the world-map hub)
-    public struct Portal { public string target; public Vector2 position; public bool hidden; public char stone; }
+    public struct Portal { public string target; public Vector2 position; public bool hidden; public bool labelAbove; public char stone; }
     public struct ColoredWall { public Vector2 position; public char color; }   // R red, Y yellow, G green
     public struct Label { public string text; public Vector2 position; }
     public struct OneWay { public Vector2 position; public Vector2 dir; }
@@ -193,6 +193,7 @@ public class LevelData
                     target = target,
                     position = GridToWorld(level, x, y),
                     hidden = p.TryGetValue("hidden", out object h) && h is bool hb && hb,
+                    labelAbove = p.TryGetValue("label_above", out object above) && above is bool ab && ab,
                     stone = p.TryGetValue("stone", out object st) && st is string s && s.Length > 0 ? s[0] : WallAround(rows, x, y),
                 });
             }

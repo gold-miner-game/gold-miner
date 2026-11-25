@@ -12,7 +12,7 @@
     "wall_rocks": true,
 
     "pig_speed": 5.5,
-    "skill_cooldown_scale": 3.0,
+    "skill_cooldown_scale": 1.0,
     "enemy_hp_bars": 0,
     "digest_time": 0.4,
     "digest_per_value": 0.025,

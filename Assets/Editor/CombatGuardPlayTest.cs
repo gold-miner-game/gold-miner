@@ -77,19 +77,28 @@ public static class CombatGuardPlayTest
         Check(guard.IsGuarding && Mathf.Abs(guard.Radius - .75f) < .001f, "Guard starts at K activation, collider-sized");
         Check(hulk.skillDuration == .8f && hulk.skillCooldown == 5f, "Charge keeps 0.8 seconds and five-second base cooldown");
         foreach (float angle in new[] { -29f, 0f, 29f })
-            Check(guard.Contains(Quaternion.Euler(0,0,angle) * Vector2.right * .7f), "Inside front 60-degree sector");
+            Check(guard.ContainsAttack(Quaternion.Euler(0,0,angle) * Vector2.right * .7f), "Attack stays inside front 60-degree sector");
         foreach (float angle in new[] { -31f, 31f, 90f, 180f })
-            Check(!guard.Contains(Quaternion.Euler(0,0,angle) * Vector2.right * .7f), "Outside front sector remains exposed");
+            Check(!guard.ContainsAttack(Quaternion.Euler(0,0,angle) * Vector2.right * .7f), "Attack excludes sides and rear");
+        for (int angle = 0; angle < 360; angle += 15)
+            Check(guard.Contains(Quaternion.Euler(0,0,angle) * Vector2.right * .7f), "Shield protects every direction");
         Check(!guard.Contains(new Vector2(.76f,0)), "Radius boundary excludes points beyond range");
         host.transform.localScale = Vector3.one * .7f; Physics2D.SyncTransforms();
         Check(Mathf.Abs(guard.Radius - .525f) < .001f, "Guard scales with body collider");
         host.transform.localScale = Vector3.one; Physics2D.SyncTransforms();
         Call(guard, "LateUpdate");
-        var line = host.transform.Find("Hulk 60 degree guard").GetComponent<LineRenderer>();
-        Check(line.enabled && line.loop && line.positionCount == 26, "Visible sector has both radial edges and arc");
-        Check(Vector2.Distance(line.GetPosition(1), guard.Centre) - guard.Radius < .001f
-            && Mathf.Abs(Vector2.SignedAngle(guard.Forward, (Vector2)line.GetPosition(1) - guard.Centre) + 30f) < .01f,
-            "Visible boundary uses the same radius and half-angle as protection");
+        var line = host.transform.Find("Hulk 360 degree shield").GetComponent<LineRenderer>();
+        var attackLine = host.transform.Find("Hulk 60 degree attack").GetComponent<LineRenderer>();
+        Check(line.enabled && line.loop && line.positionCount == 64, "Shield has a complete visible circumference");
+        for (int i = 0; i < line.positionCount; i++)
+            Check(Mathf.Abs(Vector2.Distance(line.GetPosition(i),guard.Centre)-guard.Radius)<.001f, "Shield outline matches protection radius");
+        Check(attackLine.enabled && attackLine.loop && attackLine.positionCount == 26
+            && Mathf.Abs(Vector2.SignedAngle(guard.Forward,(Vector2)attackLine.GetPosition(1)-guard.Centre)+30f)<.01f,
+            "Separate attack outline displays only the front 60 degrees");
+        Set(hulk,"chargeVelocity",Vector2.left * 5f);
+        Check(guard.ContainsAttack(Vector2.left*.7f) && !guard.ContainsAttack(Vector2.right*.7f)
+            && guard.Contains(Vector2.right*.7f), "Turning rotates the attack but preserves all-around protection");
+        Set(hulk,"chargeVelocity",Vector2.zero);
 
         var hook = Make("Incoming guard test hook", Vector2.zero).AddComponent<Hook>();
         hook.BeginExtended(new Vector2(3,0), Vector2.left, 5f, 2.4f, Color.red);
@@ -110,7 +119,15 @@ public static class CombatGuardPlayTest
         var rear = Make("Rear hook", Vector2.zero).AddComponent<Hook>();
         rear.BeginExtended(new Vector2(-3,0), Vector2.right, 5f, 2.4f, Color.red);
         rear.ApplyHit(hulk);
-        Check(!rear.Defended && gm.Lives == lives - 1, "Rear remains vulnerable to hooks");
+        Check(rear.Defended && gm.Lives == lives, "Rear claws are repelled without HP loss");
+        var side = Make("Side hook",Vector2.zero).AddComponent<Hook>();
+        side.BeginExtended(new Vector2(0,3),Vector2.down,5f,2.4f,Color.red);
+        Call(side,"HandlePlayer",hulk,host.GetComponent<Collider2D>());
+        Check(side.Defended && gm.Lives==lives, "Side claws are blocked at the normal damage entry");
+        var outside = Make("Outside shield hook",Vector2.zero).AddComponent<Hook>();
+        outside.BeginExtended(new Vector2(-3,0),Vector2.right,5f,1.8f,Color.red);
+        outside.ApplyHit(hulk);
+        Check(!outside.Defended && gm.Lives==lives-1, "Protection does not extend beyond the displayed radius");
 
         var treasureGo = Make("Carried guard treasure", new Vector2(.65f,0));
         treasureGo.AddComponent<CircleCollider2D>();
@@ -131,8 +148,12 @@ public static class CombatGuardPlayTest
         fixedHole.SetActive(false);
 
         var enemy = Enemy(new Vector2(.65f,0), host.transform); Physics2D.SyncTransforms();
-        lives = gm.Lives; Call(enemy,"Ram");
+        lives = gm.Lives;
+        int flashes = UnityEngine.Object.FindObjectsByType<BlockFlash>(FindObjectsSortMode.None).Length;
+        Call(enemy,"Ram");
         Check(gm.Lives == lives && enemy.LastRamBlocked, "Contact damage entry guards before HP loss");
+        Check(UnityEngine.Object.FindObjectsByType<BlockFlash>(FindObjectsSortMode.None).Length==flashes+1,
+            "Mobile-enemy repel shows the shield impact effect just like claw blocks");
         var pushSpeed = typeof(RedEnemy).GetField("pushSpeed", Hidden);
         var pushUntil = typeof(RedEnemy).GetField("pushUntil", Hidden);
         Check(Mathf.Abs((float)pushSpeed.GetValue(enemy) - 10f) < .001f
@@ -140,8 +161,10 @@ public static class CombatGuardPlayTest
             "Knockback is two units over 0.2 seconds");
         pushUntil.SetValue(enemy, Time.time + .1f); Call(enemy,"Ram");
         Check(Mathf.Abs((float)pushUntil.GetValue(enemy) - Time.time - .1f) < .001f, "Same enemy is repelled only once per charge");
+        Check(UnityEngine.Object.FindObjectsByType<BlockFlash>(FindObjectsSortMode.None).Length==flashes+1,
+            "Repeated contact does not spam shield impact effects");
         enemy.transform.position = new Vector2(-.65f,0); Physics2D.SyncTransforms(); Call(enemy,"Ram");
-        Check(gm.Lives == lives - 1, "Rear contact attack still damages Hulk");
+        Check(gm.Lives == lives && enemy.LastRamBlocked, "Rear contact attack is protected too");
         enemy.gameObject.SetActive(false);
 
         var displaced = Enemy(new Vector2(10,10), host.transform);
@@ -200,8 +223,8 @@ public static class CombatGuardPlayTest
         var occluded = Stone(new Vector2(.65f,0)); Physics2D.SyncTransforms();
         Check(!guard.TrySmashRock(occluded), "Sector cannot break rocks through a nearer solid wall");
         Set(hulk,"chargeStarted", Time.time - .81f); Call(guard,"LateUpdate");
-        Check(!guard.IsGuarding && !line.enabled && !guard.Contains(Vector2.right * .5f),
-            "Protection and outline expire together at charge end");
+        Check(!guard.IsGuarding && !line.enabled && !attackLine.enabled && !guard.Contains(Vector2.right * .5f),
+            "Protection and both outlines expire together at charge end");
         var prefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Prefabs/Teams/Rhino.prefab");
         var real = UnityEngine.Object.Instantiate(prefab); objects.Add(real); real.transform.position = new Vector2(20,20);
         Physics2D.SyncTransforms(); Call(real.GetComponent<RhinoController>(),"UseSkill");

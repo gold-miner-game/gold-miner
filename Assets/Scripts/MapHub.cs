@@ -170,6 +170,7 @@ public class MapHub : MonoBehaviour
                 HubPortal portal = go.AddComponent<HubPortal>();
                 portal.nodeId = p.target;
                 portal.hidden = p.hidden;
+                portal.labelAbove = p.labelAbove;
                 portal.stoneColor = WallColor(p.stone, wallColor);
                 all.Add(portal);
             }

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Source-aware defence: the front 60 degrees only, never global invulnerability.
+// Circular protection and a separate front 60-degree rock-breaking sector.
 [DefaultExecutionOrder(200)]
 [DisallowMultipleComponent]
 public sealed class HulkChargeGuard : MonoBehaviour
@@ -9,6 +9,7 @@ public sealed class HulkChargeGuard : MonoBehaviour
     public const float Arc = 60f;
     public const float RadiusScale = .75f;
     const int ArcSteps = 24;
+    const int ShieldSteps = 64;
     static readonly List<HulkChargeGuard> active = new List<HulkChargeGuard>();
     readonly HashSet<RedEnemy> pushed = new HashSet<RedEnemy>();
     readonly List<Collider2D> overlaps = new List<Collider2D>();
@@ -16,8 +17,10 @@ public sealed class HulkChargeGuard : MonoBehaviour
     RhinoController owner;
     Collider2D body;
     LineRenderer outline;
+    LineRenderer attackOutline;
     Material outlineMaterial;
-    readonly Vector3[] outlinePoints = new Vector3[ArcSteps + 2];
+    readonly Vector3[] outlinePoints = new Vector3[ShieldSteps];
+    readonly Vector3[] attackPoints = new Vector3[ArcSteps + 2];
 
     public bool IsGuarding => Application.isPlaying && isActiveAndEnabled && owner != null
         && owner.IsCharging && PlayerCharacter.IsPlaying;
@@ -31,8 +34,12 @@ public sealed class HulkChargeGuard : MonoBehaviour
     void OnEnable() { if (!active.Contains(this)) active.Add(this); }
     void OnDisable() { active.Remove(this); EndCharge(); }
     public void Initialize(RhinoController character) { owner = character; body = character.GetComponent<Collider2D>(); }
-    public void BeginCharge() { pushed.Clear(); Tick(); }
-    public void EndCharge() { if (outline != null) outline.enabled = false; }
+    public void BeginCharge() { pushed.Clear(); Tick(); UpdateOutline(); }
+    public void EndCharge()
+    {
+        if (outline != null) outline.enabled = false;
+        if (attackOutline != null) attackOutline.enabled = false;
+    }
     void Update() { Tick(); }
     void FixedUpdate() { Tick(); }
     void LateUpdate() { UpdateOutline(); }
@@ -40,7 +47,7 @@ public sealed class HulkChargeGuard : MonoBehaviour
     Vector2 ArcPoint(float angle) => Centre + (Vector2)(Quaternion.Euler(0, 0, angle) * Forward) * Radius;
 
     // Closest point on the finite sector, including both radial edges and its arc.
-    public Vector2 ClosestPoint(Vector2 point)
+    public Vector2 ClosestAttackPoint(Vector2 point)
     {
         Vector2 delta = point - Centre;
         if (delta.sqrMagnitude < 1e-10f) return Centre;
@@ -50,7 +57,10 @@ public sealed class HulkChargeGuard : MonoBehaviour
     }
 
     public bool Contains(Vector2 point, float padding = 0f)
-        => IsGuarding && (point - ClosestPoint(point)).sqrMagnitude <= padding * padding + 1e-8f;
+        => IsGuarding && (point - Centre).sqrMagnitude <= (Radius + padding) * (Radius + padding) + 1e-8f;
+
+    public bool ContainsAttack(Vector2 point)
+        => IsGuarding && (point - ClosestAttackPoint(point)).sqrMagnitude <= 1e-8f;
 
     static float PointSegment(Vector2 p, Vector2 a, Vector2 b)
     {
@@ -58,37 +68,11 @@ public sealed class HulkChargeGuard : MonoBehaviour
         float t = ab.sqrMagnitude > 1e-10f ? Mathf.Clamp01(Vector2.Dot(p - a, ab) / ab.sqrMagnitude) : 0f;
         return (p - (a + t * ab)).sqrMagnitude;
     }
-    static float Cross(Vector2 a, Vector2 b) => a.x * b.y - a.y * b.x;
-    static float SegmentDistance(Vector2 a, Vector2 b, Vector2 c, Vector2 d)
-    {
-        Vector2 ab = b - a, cd = d - c;
-        float det = Cross(ab, cd);
-        if (Mathf.Abs(det) > 1e-8f)
-        {
-            float t = Cross(c - a, cd) / det, u = Cross(c - a, ab) / det;
-            if (t >= 0f && t <= 1f && u >= 0f && u <= 1f) return 0f;
-        }
-        return Mathf.Min(Mathf.Min(PointSegment(a, c, d), PointSegment(b, c, d)),
-            Mathf.Min(PointSegment(c, a, b), PointSegment(d, a, b)));
-    }
-
-    // A swept claw cannot skip a small sector between render frames.
+    // Exact swept-circle protection, including side and rear approaches.
     public bool Intercepts(Vector2 from, Vector2 to, float padding)
     {
-        if (!IsGuarding) return false;
-        if (Contains(from, padding) || Contains(to, padding)) return true;
-        float limit = padding * padding + 1e-8f;
-        Vector2 first = ArcPoint(-Arc * .5f), last = ArcPoint(Arc * .5f);
-        if (SegmentDistance(from, to, Centre, first) <= limit
-            || SegmentDistance(from, to, Centre, last) <= limit) return true;
-        Vector2 previous = first;
-        for (int i = 1; i <= ArcSteps; i++)
-        {
-            Vector2 next = ArcPoint(Mathf.Lerp(-Arc * .5f, Arc * .5f, i / (float)ArcSteps));
-            if (SegmentDistance(from, to, previous, next) <= limit) return true;
-            previous = next;
-        }
-        return false;
+        float radius = Radius + padding;
+        return IsGuarding && PointSegment(Centre, from, to) <= radius * radius + 1e-8f;
     }
 
     public bool TryDeflect(Hook hook, Vector2 from, Vector2 to)
@@ -110,15 +94,17 @@ public sealed class HulkChargeGuard : MonoBehaviour
         return false;
     }
 
-    bool Touches(Collider2D target)
+    bool Touches(Collider2D target, bool attack = false)
     {
         if (target == null || !target.enabled || !IsGuarding) return false;
         Vector2 point = target.ClosestPoint(Centre);
-        if (Contains(point) && ClearTo(point, target)) return true;
-        for (int i = 0; i <= ArcSteps; i++)
+        if ((attack ? ContainsAttack(point) : Contains(point)) && ClearTo(point, target)) return true;
+        int steps = attack ? ArcSteps : ShieldSteps;
+        float arc = attack ? Arc : 360f;
+        for (int i = 0; i <= steps; i++)
         {
-            point = target.ClosestPoint(ArcPoint(Mathf.Lerp(-Arc * .5f, Arc * .5f, i / (float)ArcSteps)));
-            if (Contains(point) && ClearTo(point, target)) return true;
+            point = target.ClosestPoint(ArcPoint(Mathf.Lerp(-arc * .5f, arc * .5f, i / (float)steps)));
+            if ((attack ? ContainsAttack(point) : Contains(point)) && ClearTo(point, target)) return true;
         }
         return false;
     }
@@ -144,7 +130,10 @@ public sealed class HulkChargeGuard : MonoBehaviour
         // be displaced rather than consuming its knockback timer while stationary.
         if (enemy.IsFrozen) FrostField2D.BreakIce(enemy.transform);
         Vector2 away = enemy.Position - Centre;
-        enemy.PushBack(away.sqrMagnitude > .0001f ? away.normalized : Forward, 2f, .2f);
+        Vector2 direction = away.sqrMagnitude > .0001f ? away.normalized : Forward;
+        enemy.PushBack(direction, 2f, .2f);
+        // Mobile-enemy blocks need the same visible feedback as deflected claws.
+        BlockFlash.Show(Centre + direction * Radius, direction, Radius * .6f);
     }
     public static bool TryBlockEnemy(PlayerCharacter player, RedEnemy enemy)
     {
@@ -155,7 +144,7 @@ public sealed class HulkChargeGuard : MonoBehaviour
     }
     public bool TrySmashRock(Rock rock)
     {
-        if (rock == null || rock.RhinoProof || !Touches(rock.GetComponent<Collider2D>())) return false;
+        if (rock == null || rock.RhinoProof || !Touches(rock.GetComponent<Collider2D>(), true)) return false;
         if (rock.IsFrozen) FrostField2D.BreakIce(rock.transform);
         return rock.SmashImmediately();
     }
@@ -179,26 +168,42 @@ public sealed class HulkChargeGuard : MonoBehaviour
         if (!IsGuarding) { EndCharge(); return; }
         if (outline == null)
         {
-            var go = new GameObject("Hulk 60 degree guard"); go.transform.SetParent(transform, false);
-            outline = go.AddComponent<LineRenderer>();
             outlineMaterial = new Material(Shader.Find("Sprites/Default"));
-            outline.sharedMaterial = outlineMaterial;
-            outline.useWorldSpace = true; outline.loop = true;
-            outline.positionCount = outlinePoints.Length;
-            outline.startColor = outline.endColor = new Color(1f, .8f, .7f, .7f);
-            outline.sortingLayerID = owner.body != null ? owner.body.sortingLayerID : 0;
-            outline.sortingOrder = 30010;
+            outline = MakeOutline("Hulk 360 degree shield", new Color(.65f, .93f, 1f, .9f), ShieldSteps, 30010);
+            attackOutline = MakeOutline("Hulk 60 degree attack", new Color(1f, .8f, .5f, .95f), attackPoints.Length, 30011);
         }
-        outline.enabled = true;
-        outline.startWidth = outline.endWidth = Mathf.Max(.008f, Radius * .025f);
-        outlinePoints[0] = Centre;
+        outline.enabled = attackOutline.enabled = true;
+        // Preserve legibility in the following camera without expanding gameplay range.
+        Camera camera = Camera.main;
+        float pixel = camera != null && camera.orthographic ? 2f * camera.orthographicSize / Mathf.Max(1, camera.pixelHeight) : 0f;
+        outline.startWidth = outline.endWidth = Mathf.Max(Radius * .035f, pixel * 2f);
+        attackOutline.startWidth = attackOutline.endWidth = Mathf.Max(Radius * .025f, pixel * 1.5f);
+        for (int i = 0; i < ShieldSteps; i++) outlinePoints[i] = ArcPoint(i * 360f / ShieldSteps);
+        attackPoints[0] = Centre;
         for (int i = 0; i <= ArcSteps; i++)
-            outlinePoints[i + 1] = ArcPoint(Mathf.Lerp(-Arc * .5f, Arc * .5f, i / (float)ArcSteps));
+            attackPoints[i + 1] = ArcPoint(Mathf.Lerp(-Arc * .5f, Arc * .5f, i / (float)ArcSteps));
         outline.SetPositions(outlinePoints);
+        attackOutline.SetPositions(attackPoints);
+    }
+    LineRenderer MakeOutline(string name, Color color, int points, int order)
+    {
+        var go = new GameObject(name); go.transform.SetParent(transform, false);
+        // These range indicators are not physical objects that Elsa can freeze.
+        go.AddComponent<FrostIgnore2D>();
+        var line = go.AddComponent<LineRenderer>();
+        line.sharedMaterial = outlineMaterial;
+        line.useWorldSpace = true; line.loop = true;
+        line.positionCount = points;
+        line.startColor = line.endColor = color;
+        line.sortingLayerID = owner.body != null ? owner.body.sortingLayerID : 0;
+        line.sortingOrder = order;
+        return line;
     }
     void OnDestroy()
     {
         active.Remove(this);
+        if (outline != null) Destroy(outline.gameObject);
+        if (attackOutline != null) Destroy(attackOutline.gameObject);
         if (outlineMaterial != null) Destroy(outlineMaterial);
     }
 }
