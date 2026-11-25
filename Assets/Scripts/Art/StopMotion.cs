@@ -9,7 +9,7 @@ public static class StopMotion
     public const float Pose = 8f;   // action poses a second
     public const float Boil = 6f;   // line-boil / held-wobble poses a second
 
-    static bool enabled = true;
+    static bool enabled = false;   // off by default; the console turns it on (stopmotion on)
     public static bool Enabled
     {
         get => enabled;
@@ -24,7 +24,7 @@ public static class StopMotion
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    static void ResetStatics() { enabled = true; beatClock = lastUnscaled = gameTimeAtBeat = 0f; beat = boil = 0; tickedFrame = -1; }
+    static void ResetStatics() { enabled = false; beatClock = lastUnscaled = gameTimeAtBeat = 0f; beat = boil = 0; tickedFrame = -1; }
 
     // ONE beat for every stop-motion picture, so movement, eyes, rock, roll and pips change on the same frames
     // (two clocks drifted out of phase after any pause or slow-down: eyes changed between the body's steps).

@@ -327,6 +327,7 @@ public class LevelLoader : MonoBehaviour
         if (Attack) SetUpAttack();
         if (Survival) SetUpSurvival();
         if (Roam) SetUpRoam();
+        if (Waves) SetUpWaves();
         if (Compete) SetUpCompete();
         if (level.Param("wall_rocks", 0f) > 0.5f) SealWallRocks();
 
@@ -559,6 +560,128 @@ public class LevelLoader : MonoBehaviour
                                  + RoundName + " / " + SquareName + " / " + GoldRoundName + ")");
                 break;
         }
+    }
+
+    // --- Roam survival ("waves": 1) ---------------------------------------------------------------------
+    // Survival on the roam map: no clock and no money goal; the run lasts until the last Life. The
+    // scene's Enemies are the start; then the enemies come in WAVES: the first after "wave_first"
+    // seconds, then every "wave_every" seconds (times "wave_every_scale" per wave, down to
+    // "wave_every_min"). Wave n brings "wave_size" + "wave_growth" x (n - 1) enemies, "wave_round_share"
+    // of them Red Rounds, the rest Red Squares, as long as fewer than "max_enemies" are alive. They
+    // turn up out of the player's sight: at least "wave_spawn_min" away, behind wall rocks or beyond
+    // the pack's sight range, and join the pack at once. Eaten gold comes back elsewhere after
+    // "gold_respawn" seconds (Survival's mix: small to diamonds, now and then a Life), so there is
+    // always new money. Every Life lost ends the run there: the gold eaten is paid into the wallet like
+    // any level's, and the time survived is kept as the best survival time (the main menu shows it).
+
+    public bool Waves => Roam && level.Param("waves", 0f) > 0.5f;
+
+    int wave;
+    float nextWaveAt;
+    bool runRecorded;
+
+    void SetUpWaves()
+    {
+        wave = 0;
+        runRecorded = false;
+        nextWaveAt = level.Param("wave_first", 15f);
+        goldTarget = 0;   // counted on the first update, once the scene's gold is out
+        nextGoldAt = -1f;
+    }
+
+    void UpdateWaves()
+    {
+        GameManager gm = GameManager.Instance;
+        if (!Waves || gm == null || player == null) return;
+        if (!gm.IsPlaying)
+        {
+            if (!runRecorded && gm.TimeSurvived > 0f) RecordRun(gm);
+            return;
+        }
+        runRecorded = false;
+        if (goldTarget == 0) goldTarget = Treasure.Active.Count;
+
+        float elapsed = gm.TimeElapsed;
+        if (elapsed >= nextWaveAt)
+        {
+            SpawnWave();
+            float every = level.Param("wave_every", 25f) * Mathf.Pow(level.Param("wave_every_scale", 0.92f), wave - 1);
+            nextWaveAt = elapsed + Mathf.Max(level.Param("wave_every_min", 10f), every);
+        }
+
+        // New money: eaten gold turns up again somewhere else, a piece at a time
+        if (goldTarget > 0 && Treasure.Active.Count < goldTarget)
+        {
+            if (nextGoldAt < 0f) nextGoldAt = Time.time + level.Param("gold_respawn", 3f);
+            else if (Time.time >= nextGoldAt && FreeSpot(player.transform.position, 4f, 40f, 1.2f, out Vector2 spot))
+            {
+                Spawn(new List<LevelData.Item> { new LevelData.Item { type = PickGold(), position = spot } });
+                nextGoldAt = -1f;
+            }
+        }
+    }
+
+    int AliveEnemies()
+    {
+        int alive = 0;
+        foreach (RedEnemy e in RedEnemy.All) if (e != null && e.InPack && e.isActiveAndEnabled) alive++;
+        return alive;
+    }
+
+    void SpawnWave()
+    {
+        wave++;
+        int room = Mathf.RoundToInt(level.Param("max_enemies", 16f)) - AliveEnemies();
+        int count = Mathf.Min(room, Mathf.RoundToInt(level.Param("wave_size", 2f) + level.Param("wave_growth", 1f) * (wave - 1)));
+        float roundShare = level.Param("wave_round_share", 0.35f);
+        int spawned = 0;
+        for (int i = 0; i < count; i++)
+        {
+            if (!HiddenSpot(out Vector2 at)) break;
+            bool round = Random.value < roundShare;
+            if (round ? AddRound(at) : AddSquare(at)) { enemies++; spawned++; }
+        }
+        // They know the hunt is on: straight into the pack
+        foreach (RedEnemy e in RedEnemy.All) if (e != null && e.InPack && !e.Hunting) e.WakeUp();
+        if (spawned > 0)
+            HUDController.Announce("Wave " + wave, spawned + " more " + (spawned == 1 ? "enemy is" : "enemies are") + " coming", 2f);
+    }
+
+    // A spot the player can't see: open ground, at least "wave_spawn_min" from them, and behind a wall
+    // rock or beyond the pack's sight range; not on top of another enemy
+    bool HiddenSpot(out Vector2 spot)
+    {
+        Vector2 me = player.transform.position;
+        float min = level.Param("wave_spawn_min", 12f);
+        for (int attempt = 0; attempt < 20; attempt++)
+        {
+            if (!FreeSpot(me, min, 40f, 2f, out spot)) continue;
+            bool seen = Vector2.Distance(spot, me) <= EnemyPack.SightRange && EnemyPathfinder.Clear(spot, me, 0.05f);
+            if (seen) continue;
+            bool crowded = false;
+            foreach (RedEnemy e in RedEnemy.All)
+                if (e != null && (e.Position - spot).sqrMagnitude < 4f) { crowded = true; break; }
+            if (!crowded) return true;
+        }
+        spot = Vector2.zero;
+        return false;
+    }
+
+    // The run is over: the best survival time (SurvivalLoader's, which the main menu shows). The gold
+    // is paid by SettleWallet like any level's
+    void RecordRun(GameManager gm)
+    {
+        runRecorded = true;
+        float best = PlayerPrefs.GetFloat(SurvivalLoader.BestTimeKey, 0f);
+        int s = Mathf.FloorToInt(gm.TimeSurvived);
+        string time = (s / 60) + ":" + (s % 60).ToString("00");
+        if (gm.TimeSurvived > best)
+        {
+            PlayerPrefs.SetFloat(SurvivalLoader.BestTimeKey, gm.TimeSurvived);
+            PlayerPrefs.Save();
+            gm.SetNewRecordLine("New best: " + time + " survived, wave " + wave);
+        }
+        else gm.SetNewRecordLine("Survived " + time + ", wave " + wave);
     }
 
     bool AddGoldRound(Vector2 at)
@@ -1380,10 +1503,11 @@ public class LevelLoader : MonoBehaviour
     {
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm == null) return;
-        gm.endless = level.IsMaze || Attack;   // the hub: no clock, nothing ends it; attack: clearing the sector ends it
+        gm.endless = level.IsMaze || Attack || Waves;   // the hub: no clock, nothing ends it; attack: clearing the sector ends it
         gm.timeUpWins = Survival;   // survival: last until the clock runs out
         gm.roundTime = level.Param("round_time", gm.roundTime);
         if (level.stages.Count > 0) gm.EndWhenTreasureGone = false;
+        if (Waves) gm.EndWhenTreasureGone = false;   // the gold keeps coming back
         if (Tutorial)
         {
             // Goods stay armed while walking on the world map.
@@ -1414,6 +1538,7 @@ public class LevelLoader : MonoBehaviour
         UpdateGoal();
         UpdateAttack();
         UpdateSurvival();
+        UpdateWaves();
         UpdateAdvance();
         UpdateGuideFade();
 

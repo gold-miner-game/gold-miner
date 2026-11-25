@@ -37,7 +37,7 @@ public static class FlowSceneBuilder
         ("battle_06",  NodeType.Battle,   "level_01",        "Level 1",         0.82f, 0.555f, new[]{ ProgressStore.TutorialDoneId }),
         ("battle_02",  NodeType.Battle,   "level_02",        "Level 2",         0.50f, 0.666f, new[]{ "battle_06" }),
         ("battle_04",  NodeType.Battle,   "level_04",        "Level 3",         0.50f, 0.780f, new[]{ "store_1" }),
-        ("survival",   NodeType.Survival, null,              "Survival",        0.50f, 0.890f, new[]{ "battle_04" }),
+        ("survival",   NodeType.Survival, "level_survival",  "Survival",        0.50f, 0.890f, new[]{ "battle_04" }),
         ("battle_05",  NodeType.Battle,   "level_roam",      "Level 4",         0.82f, 0.890f, new[]{ "battle_04" }),
     };
 

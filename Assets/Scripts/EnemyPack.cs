@@ -8,22 +8,26 @@ using UnityEngine;
 //
 //   1. A walking-distance map from the player round the wall rocks (EnemyPathfinder.DistanceField)
 //      gives each enemy its true distance to the player.
-//   2. THE CIRCLE: Block Radius round the player, one slot per Red Square outside it, evenly
-//      spaced, one slot straight ahead of the player's run (cutting off where they are going).
-//      The squares take the slots in the order they already stand round the player, so their
-//      paths never cross, and keep Spacing apart on the way (no bunching up).
-//   3. PREDICTION (cyan, BLOCKER): a square outside the circle does not chase. It walks to its
-//      slot round where the player WILL be by the time it gets there: its walking time moves the
-//      player on along their (smoothed) run, up to Predict seconds ahead.
-//   4. GREEDY (orange, CLOSER): a square within Greedy Radius of the player (a bit wider than the
-//      circle) goes for the player itself, a little ahead of their run, and keeps at it until the
-//      player is Let Go further off. With the slots all round, the player runs into the circle somewhere.
+//   2. THE NET (attack; Fang et al. 2020, the "fishing" strategy): the player is faster than every
+//      enemy, so chasing never works. Seen from the player, an enemy with speed ratio L covers the
+//      angle 2 asin(L + reach / distance) (its Apollonius circle: the points it gets to first), and
+//      the player can only get out through the gaps between those angles. Walls cover directions
+//      too. Each Red Square (cyan, BLOCKER) moves round the player to even out the gaps on its two
+//      sides, so the largest gaps close first, never backing off (at most Net Radius out). Once no
+//      gap is left the net is CLOSED and they SQUEEZE (orange): Squeeze Step further in each replan,
+//      stopping the moment a gap opens. When they can't close it in the open, the gap is left on the
+//      side of the nearest wall (HERDING), so the player's way out leads into the walls.
+//   3. PREDICTION: every spot is round where the player WILL be by the time the enemy gets there:
+//      its walking time moves the player on along their (smoothed) run, up to Predict seconds ahead.
+//      On the way the squares keep Spacing apart (no bunching up).
+//   4. RAM (orange, CLOSER): a square within Ram Range of the player (Greedy Radius once the net is
+//      closed) goes for the player itself, and keeps at it until they are Let Go further off.
 //   5. SHOOTERS (magenta): each Red Round walks to a spot Shoot Radius from the player with a
 //      clear line to them, at least 45 degrees round from the other Rounds, so their shots come
 //      in from different sides (crossfire). Their hooks lead the player (PackLeadAimer).
-//   6. ATTACK OR DEFEND, by the KILL CHANCE (Expectation): the share of the player's ways out
-//      (the open slices of the escape ring) some enemy can reach no later than the player can.
-//      At Attack Enter or more the pack ATTACKS: every enemy that can cut off a way out hunts
+//   6. ATTACK OR DEFEND, by the KILL CHANCE: the share of directions round the player the net of
+//      the enemies within Engage Range (and the walls) covers. At Attack Enter or more (Pounce Bonus
+//      less while the player's K skill is cooling down) the pack ATTACKS: everyone within Engage Range hunts
 //      (2-5 above). Below Attack Leave it DEFENDS. In between it keeps what it was doing, so it
 //      doesn't flip to and fro. The nearest Min Attackers, and anyone the player is within Greedy
 //      Radius of, attack either way. Every other enemy is a DEFENDER (green): it holds a POST on the
@@ -93,7 +97,7 @@ public static class EnemyPack
         if (!Enabled || playerBody == null) return;
         MapAnalysis.DrawGizmos();
         string state = !everSeen ? "  UNSEEN (holding)"
-            : PlayerVisible ? (Attacking ? "  ATTACK" : "  DEFEND")
+            : PlayerVisible ? (Attacking ? (NetClosed ? "  NET CLOSED: SQUEEZE" : "  ATTACK: CLOSING THE NET") : "  DEFEND")
             : SinceSeen <= LostAfter ? "  just lost"
             : SinceSeen < SearchTime ? "  SEARCH" : "  LOST (defending)";
         UnityEditor.Handles.color = Color.white;
@@ -113,7 +117,7 @@ public static class EnemyPack
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics()
     {
-        Enabled = false; orders.Clear(); tickedAt = -1f; replanAt = 0f; seenPlayer = false; velocity = Vector2.zero; haveBase = false; attacking.Clear(); posts.Clear(); KillChance = 0f; Attacking = false;
+        Enabled = false; orders.Clear(); tickedAt = -1f; replanAt = 0f; seenPlayer = false; velocity = Vector2.zero; attacking.Clear(); NetClosed = false; posts.Clear(); KillChance = 0f; Attacking = false;
         started = false; everSeen = false; seenAt = -999f; PlayerVisible = false; searched.Clear(); lastKnownChecked = false;
     }
 
@@ -146,6 +150,13 @@ public static class EnemyPack
         SearchTime = level.Param("pack_search_time", SearchTime);
         SearchRadius = level.Param("pack_search_radius", SearchRadius);
         ShootMemory = level.Param("pack_shoot_memory", ShootMemory);
+        NetRadius = level.Param("pack_net_radius", NetRadius);
+        SqueezeStep = level.Param("pack_squeeze_step", SqueezeStep);
+        RamRange = level.Param("pack_ram_range", RamRange);
+        ContactReach = level.Param("pack_contact_reach", ContactReach);
+        RoundReach = level.Param("pack_round_reach", RoundReach);
+        EngageRange = level.Param("pack_engage_range", EngageRange);
+        PounceBonus = level.Param("pack_pounce_bonus", PounceBonus);
         MapAnalysis.Configure(level);
     }
 
@@ -324,14 +335,18 @@ public static class EnemyPack
         }
         lastKnownChecked = false;
 
-        // How likely the pack is to get the player now, and so: attack, or defend the gold
-        var covers = new Dictionary<RedEnemy, int>();
-        KillChance = Expectation(p, field, all, covers);
+        // How closed the net round the player could be (the enemies within Engage Range, and the walls):
+        // the kill chance. Attack when it is high enough; a player whose skill is cooling down (no
+        // block, roll or charge to save them) is attacked sooner (Pounce Bonus)
+        var engaged = new List<Member>();
+        foreach (Member m in all) if (m.d <= EngageRange) engaged.Add(m);
+        KillChance = NetCoverage(p, field, engaged, null);
+        float enter = AttackEnter - (PlayerExposed ? PounceBonus : 0f);
         if (Attacking && KillChance < AttackLeave) Attacking = false;
-        else if (!Attacking && KillChance >= AttackEnter) Attacking = true;
+        else if (!Attacking && KillChance >= enter) Attacking = true;
 
         // Who attacks: the nearest Min Attackers always (they keep the pressure on), anyone the player
-        // is right by, and while attacking every enemy that can cut off a way out. Everyone else defends
+        // is right by, and while attacking everyone within Engage Range. Everyone else defends
         var squares = new List<Member>();
         var rounds = new List<Member>();
         var defenders = new List<Member>();
@@ -340,16 +355,19 @@ public static class EnemyPack
             Member m = all[i];
             bool attack = i < MinAttackers
                 || Vector2.Distance(m.e.Position, p) <= GreedyRadius
-                || (Attacking && covers.TryGetValue(m.e, out int c) && c > 0);
+                || (Attacking && m.d <= EngageRange);
             if (!attack) defenders.Add(m);
             else if (m.e is RedRound) rounds.Add(m);
             else squares.Add(m);
         }
 
         PlanDefence(p, field, defenders);
-        PlanSquares(p, field, squares);
         PlanRounds(p, field, rounds);
+        PlanNet(p, field, squares, rounds);
     }
+
+    // The player can't save themselves right now: their K skill (block, roll, charge, ...) is cooling down
+    static bool PlayerExposed => playerBody != null && playerBody.HasSkill && !playerBody.SkillActive && playerBody.SkillReadyIn > 0f;
 
     // --- Search: where the player was last seen ----------------------------------------------------------
 
@@ -439,41 +457,169 @@ public static class EnemyPack
             if (!placed[i]) orders[holders[i].e] = new Order { goal = holders[i].e.Position, role = Role.Guard };
     }
 
-    // --- The kill chance --------------------------------------------------------------------------------
+    // --- The net: surround, then squeeze (Fang et al. 2020, "Cooperative pursuit with multi-pursuer and
+    // one faster free-moving evader"; the "fishing" strategy) -------------------------------------------
+    //
+    // The player is faster than every enemy, so no enemy can catch them by chasing. An enemy with speed
+    // ratio L (its speed over the player's) reaches first only the points of its APOLLONIUS CIRCLE,
+    // which, seen from the player, always spans the same angle: 2 asin(L), however far off it is.
+    // Catching on contact widens it as it closes in: 2 asin(L + reach / distance). The player gets out
+    // through any gap between those angles; with no gap left (walls count as covered directions) the
+    // net is CLOSED and there is no way out. So the pack:
+    //   1. ENCIRCLES: each Red Square moves round the player to even out the gaps on its two sides
+    //      (aiming for the middle between its neighbours' edges), which closes the largest gaps first.
+    //      Walls and the Red Rounds' spots are fixed neighbours. A square never steps back: out of the
+    //      net it holds at most Net Radius from the player, nearer if it already is.
+    //   2. SQUEEZES once the net is closed: everyone steps Squeeze Step further in each replan, and
+    //      stops squeezing the moment a gap opens again (the net must stay closed).
+    //   3. HERDS when the enemies can't close it in the open (their angles don't add up to the open
+    //      directions): the missing angle is left on the side of the nearest wall, so the way out the
+    //      player gets leads into the walls, where the net is smaller.
+    //   4. RAMS within Ram Range, and once the net is closed, within Greedy Radius.
+    // The kill chance is the share of directions the net covers.
 
-    // The pack's chance to get the player right now (0..1), as the share of the player's ways out it
-    // can cut off. The ways out are the open slices of the escape ring, Block Radius from the player
-    // on foot. A slice is cut off when some enemy gets there no later than the player does (the
-    // player running at full speed, plus Intercept Slack seconds): a Red Square on foot (straight
-    // line, a little longer for the walls), a Red Round when that spot is within its shot with a clear
-    // line. Walls all round (no way out at all): 1. `covers`: how many ways out each enemy cuts off
-    static float Expectation(Vector2 p, EnemyPathfinder.Field field, List<Member> all, Dictionary<RedEnemy, int> covers)
+    public static float NetRadius = 5f;
+    public static float SqueezeStep = 1.5f;
+    public static float RamRange = 2f;
+    public static float ContactReach = 0.8f;   // how far a Red Square's ram reaches (its body and the player's)
+    public static float RoundReach = 1.5f;     // how far past its body a Red Round's hook makes a direction unsafe
+    public static float EngageRange = 16f;     // enemies this far on foot or nearer take part in the net
+    public static float PounceBonus = 0.15f;   // the kill chance needed to attack drops this much while the player's skill cools down
+    public static bool NetClosed { get; private set; }
+    static readonly HashSet<RedEnemy> attacking = new HashSet<RedEnemy>();   // ramming now (kept until Let Go further off)
+
+    const int Fine = 72;   // the net's directions, 5 degrees each
+
+    struct Arc { public float angle, half; public RedEnemy e; }   // e null: a wall, or the herding side
+
+    // The angle (each side) an enemy covers, seen from the player
+    static float HalfAngle(Member m, Vector2 p)
+    {
+        float straight = Mathf.Max(0.3f, Vector2.Distance(m.e.Position, p));
+        float ratio = Mathf.Min(0.99f, m.e.moveSpeed / Mathf.Max(0.1f, PlayerSpeed));
+        float reach = m.e is RedRound ? RoundReach : ContactReach;
+        float half = Mathf.Asin(Mathf.Clamp01(ratio + reach / straight));
+        // Round the walls its way in is longer than the straight line, so it covers less
+        float detour = Mathf.Clamp(straight / Mathf.Max(straight, m.d), 0.3f, 1f);
+        return half * detour;
+    }
+
+    // The walls round the player: the directions with no way out Net Radius away on foot, as arcs
+    static void WallArcs(Vector2 p, EnemyPathfinder.Field field, List<Arc> arcs)
     {
         var cell = new Vector2[Bins];
         var open = new bool[Bins];
-        Ring(p, field, BlockRadius, false, cell, open);
-        float playerTime = BlockRadius / Mathf.Max(0.1f, PlayerSpeed) + InterceptSlack;
+        Ring(p, field, NetRadius, false, cell, open);
+        int start = -1;
+        for (int b = 0; b < Bins; b++) if (open[b]) { start = b; break; }
+        if (start < 0) { arcs.Add(new Arc { angle = 0f, half = Mathf.PI }); return; }   // walled in all round
+        int run = 0, first = 0;
+        for (int k = 1; k <= Bins; k++)
+        {
+            int b = (start + k) % Bins;
+            if (!open[b]) { if (run == 0) first = b; run++; continue; }
+            if (run > 0)
+            {
+                float a0 = BinAngle(first) - Mathf.PI / Bins;
+                float width = run * 2f * Mathf.PI / Bins;
+                arcs.Add(new Arc { angle = a0 + width * 0.5f, half = width * 0.5f });
+                run = 0;
+            }
+        }
+    }
 
-        int ways = 0, cut = 0;
+    static float BinAngle(int b) => (b + 0.5f) / Bins * 2f * Mathf.PI - Mathf.PI;
+
+    // Walls and enemies as arcs round the player; returns the share of directions they cover
+    static float NetCoverage(Vector2 p, EnemyPathfinder.Field field, List<Member> net, List<Arc> arcs)
+    {
+        if (arcs == null) arcs = new List<Arc>();
+        arcs.Clear();
+        WallArcs(p, field, arcs);
+        foreach (Member m in net)
+            arcs.Add(new Arc { angle = Angle(m.e.Position - p), half = HalfAngle(m, p), e = m.e });
+        int covered = 0;
+        for (int j = 0; j < Fine; j++)
+        {
+            float a = (j + 0.5f) / Fine * 2f * Mathf.PI - Mathf.PI;
+            foreach (Arc arc in arcs)
+                if (Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, arc.angle * Mathf.Rad2Deg)) <= arc.half * Mathf.Rad2Deg) { covered++; break; }
+        }
+        return (float)covered / Fine;
+    }
+
+    static void PlanNet(Vector2 p, EnemyPathfinder.Field field, List<Member> squares, List<Member> rounds)
+    {
+        if (squares.Count == 0) { NetClosed = false; return; }
+        var net = new List<Member>(squares);
+        net.AddRange(rounds);
+        var arcs = new List<Arc>();
+        float coverage = NetCoverage(p, field, net, arcs);
+        if (NetClosed && coverage < 0.9f) NetClosed = false;
+        else if (!NetClosed && coverage >= 0.98f) NetClosed = true;
+
+        // Herding: what the net is short of, left on the side of the nearest wall
+        float total = 0f;
+        foreach (Arc arc in arcs) total += 2f * arc.half;
+        float shortBy = 2f * Mathf.PI - total;
+        if (shortBy > 0f && WallSide(p, out float wallAngle))
+            arcs.Add(new Arc { angle = wallAngle, half = Mathf.Min(Mathf.PI * 0.5f, shortBy * 0.5f) });
+
+        // Round the player in angle order; each square aims for the middle between its neighbours' edges
+        arcs.Sort((a, b) => a.angle.CompareTo(b.angle));
+        var target = new Dictionary<RedEnemy, float>();
+        int n = arcs.Count;
+        for (int i = 0; i < n; i++)
+        {
+            Arc me = arcs[i];
+            if (me.e == null || me.e is RedRound) continue;
+            if (n == 1)
+            {
+                // Alone: cut off the way the player is running
+                target[me.e] = velocity.sqrMagnitude > 1f ? Angle(velocity) : me.angle;
+                continue;
+            }
+            // Going round from the previous arc to the next one (the whole way round when there are two)
+            Arc prev = arcs[(i - 1 + n) % n], next = arcs[(i + 1) % n];
+            float from = prev.angle, to = next.angle;
+            if (n == 2) to = from + 2f * Mathf.PI;
+            else while (to <= from) to += 2f * Mathf.PI;
+            target[me.e] = ((from + prev.half) + (to - next.half)) * 0.5f;
+        }
+
+        foreach (Member m in squares)
+        {
+            float d = Vector2.Distance(m.e.Position, p);
+            // Ram: right by the player, or anyone near once the net is closed (with hysteresis)
+            float reach = attacking.Contains(m.e) ? (NetClosed ? GreedyRadius : RamRange) + LetGo : (NetClosed ? GreedyRadius : RamRange);
+            if (d <= reach)
+            {
+                attacking.Add(m.e);
+                float t = Mathf.Min(d / Mathf.Max(0.1f, m.e.moveSpeed), 1f);
+                orders[m.e] = new Order { goal = field.Snap(p + velocity * t), role = Role.Closer };
+                continue;
+            }
+            attacking.Remove(m.e);
+            if (!target.TryGetValue(m.e, out float angle)) angle = Angle(m.e.Position - p);
+            // Never back off: hold at Net Radius at most, nearer if already nearer; squeeze when closed
+            float radius = NetClosed ? Mathf.Max(0f, d - SqueezeStep) : Mathf.Min(d, NetRadius);
+            orders[m.e] = new Order { goal = PredictedSlot(p, Dir(angle) * radius, m, field), role = NetClosed ? Role.Closer : Role.Blocker };
+        }
+    }
+
+    // The direction of the nearest wall from the player (within 10 units)
+    static bool WallSide(Vector2 p, out float angle)
+    {
+        angle = 0f;
+        float best = 10f;
+        bool found = false;
         for (int b = 0; b < Bins; b++)
         {
-            if (!open[b]) continue;
-            ways++;
-            bool any = false;
-            foreach (Member m in all)
-            {
-                Vector2 me = m.e.Position;
-                float dist = Vector2.Distance(me, cell[b]);
-                bool covered = m.e is RedRound round
-                    ? dist <= round.shootRange && (round.throughWalls || EnemyPathfinder.Clear(me, cell[b], 0.1f))
-                    : dist * 1.15f / Mathf.Max(0.1f, m.e.moveSpeed) <= playerTime;
-                if (!covered) continue;
-                covers[m.e] = (covers.TryGetValue(m.e, out int n) ? n : 0) + 1;
-                any = true;
-            }
-            if (any) cut++;
+            float a = BinAngle(b);
+            float dist = MapAnalysis.WallDistance(p, Dir(a), 10f);
+            if (dist < best) { best = dist; angle = a; found = true; }
         }
-        return ways == 0 ? 1f : (float)cut / ways;
+        return found;
     }
 
     // --- Defence: holding the ways to the gold near the player ---------------------------------------
@@ -715,70 +861,7 @@ public static class EnemyPack
             }
     }
 
-    // The Red Squares: a circle of Block Radius round the player, one slot per square, evenly spaced,
-    // one slot straight ahead of the player's run. Outside the circle a square does not chase: it
-    // walks to its slot, placed round where the player WILL be by the time it gets there. Inside
-    // the circle it goes for the player itself
-    static float baseAngle;
-    static readonly HashSet<RedEnemy> attacking = new HashSet<RedEnemy>();
-    static bool haveBase;
-
-    static void PlanSquares(Vector2 p, EnemyPathfinder.Field field, List<Member> squares)
-    {
-        if (squares.Count == 0) return;
-
-        // The circle's turn: a slot ahead of the run (it cuts off where the player is going); while
-        // the player stands still it keeps the last one
-        if (velocity.magnitude > 1f) { baseAngle = Angle(velocity); haveBase = true; }
-        else if (!haveBase)
-        {
-            Vector2 mid = Vector2.zero;
-            foreach (Member m in squares) mid += m.e.Position;
-            baseAngle = Angle(mid / squares.Count - p) + Mathf.PI;   // the side away from them
-            haveBase = true;
-        }
-
-        // Within Greedy Radius: for the player, a little ahead of their run. Once on the attack it
-        // keeps at it until the player is Greedy Radius + Let Go clear of it, so it doesn't step back
-        // the moment the player comes near, or flip to and fro at the edge
-        var outside = new List<Member>();
-        foreach (Member m in squares)
-        {
-            float dist = Vector2.Distance(m.e.Position, p);
-            float reach = attacking.Contains(m.e) ? GreedyRadius + LetGo : GreedyRadius;
-            if (dist > reach) { attacking.Remove(m.e); outside.Add(m); continue; }
-            attacking.Add(m.e);
-            float t = Mathf.Min(dist / Mathf.Max(0.1f, m.e.moveSpeed), 1f);
-            orders[m.e] = new Order { goal = field.Snap(p + velocity * t), role = Role.Closer };
-        }
-        int n = outside.Count;
-        if (n == 0) return;
-
-        // Outside: slots in the order they already stand round the player (so no two cross), turned
-        // whichever way puts them nearest their slots overall
-        outside.Sort((a, b) => Around(a.e.Position, p, baseAngle).CompareTo(Around(b.e.Position, p, baseAngle)));
-        int bestTurn = 0; float bestCost = float.PositiveInfinity;
-        for (int turn = 0; turn < n; turn++)
-        {
-            float cost = 0f;
-            for (int i = 0; i < n; i++)
-                cost += (outside[i].e.Position - (p + Dir(SlotAngle((i + turn) % n, n)) * BlockRadius)).sqrMagnitude;
-            if (cost < bestCost) { bestCost = cost; bestTurn = turn; }
-        }
-
-        for (int i = 0; i < n; i++)
-        {
-            Member m = outside[i];
-            Vector2 offset = Dir(SlotAngle((i + bestTurn) % n, n)) * BlockRadius;
-            orders[m.e] = new Order { goal = PredictedSlot(p, offset, m, field), role = Role.Blocker };
-        }
-    }
-
-    static float SlotAngle(int k, int n) => baseAngle + 2f * Mathf.PI * k / n;
     static Vector2 Dir(float a) => new Vector2(Mathf.Cos(a), Mathf.Sin(a));
-
-    // How far round the circle (0..2 pi, from the slot ahead of the run) `at` stands
-    static float Around(Vector2 at, Vector2 c, float from) => Mathf.Repeat(Angle(at - c) - from, 2f * Mathf.PI);
 
     // Its slot round where the player will be when it gets there: the time to walk there (on foot
     // round the walls at first, then straight to the guessed slot) moves the player on at their

@@ -170,6 +170,13 @@ public static class MapAnalysis
         return max;
     }
 
+    // How far a look goes from `from` along `dir` before a wall rock (up to `max`)
+    public static float WallDistance(Vector2 from, Vector2 dir, float max)
+    {
+        if (!EnemyPathfinder.HasSector) return max;
+        return Ray(EnemyPathfinder.Open(Eye), from, dir.normalized, max);
+    }
+
     // Nothing but open ground between `a` and `b` (on the grid)
     public static bool SeeLine(Vector2 a, Vector2 b)
     {

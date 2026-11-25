@@ -108,6 +108,7 @@ public class HUDController : MonoBehaviour
     private TMP_Text pauseInfo;       // "LEVEL 2 - 1:30 left", filled when Pause opens
     private TMP_Text pauseControls;   // the character's keys, filled when Pause opens
     private GameObject endCard;       // the result card, built once when the round ends
+    private TMP_Text endRecord;       // a survival run's time and wave on the card (GameManager.NewRecordLine)
     private GameObject endActions;    // its buttons, hidden while a story or the skill summary plays
     private TMP_Text endFooter;       // "Returning to the map in 2..."
     private float returnAt = -1f;     // when GameFlow's own return timer should run out (unscaled time)
@@ -376,6 +377,11 @@ public class HUDController : MonoBehaviour
             ShowBanner("Collect <color=" + pink + ">$" + gm.MoneyTarget.ToString("N0") + "</color> to win",
                 "Half of the level's gold, before time runs out", 2.6f);
         }
+        if (announceTitle != null)
+        {
+            ShowBanner(announceTitle, announceSub, announceHold);
+            announceTitle = null;
+        }
         AnimateBanner(gm, dt);
         AnimateDamageFlash(dt);
         AnimateTargetPulse(dt);
@@ -400,6 +406,14 @@ public class HUDController : MonoBehaviour
         targetCelebrated = true;
         targetPulseLeft = TargetPulseTime;
         ShowBanner("Target reached!", "Keep eating: all the gold you collect goes to your wallet", 1.8f);
+    }
+
+    // The round's banner, from gameplay code (LevelLoader's survival waves): shown on the HUD's next update
+    static string announceTitle, announceSub;
+    static float announceHold;
+    public static void Announce(string title, string sub, float hold = 2f)
+    {
+        announceTitle = title; announceSub = sub; announceHold = hold;
     }
 
     void ShowBanner(string title, string sub, float hold)
@@ -1546,6 +1560,9 @@ public class HUDController : MonoBehaviour
             BuildEndCard(gm);
         }
 
+        // The run's record is set when the run ends, which can be just after the card is built
+        if (endRecord != null && endRecord.text != gm.NewRecordLine) endRecord.text = gm.NewRecordLine;
+
         // Every frame: the buttons wait for a story or the skill summary after the win (so does
         // GameFlow's return timer), and the return countdown ticks
         bool ready = EndActionsReady(gm);
@@ -1662,6 +1679,12 @@ public class HUDController : MonoBehaviour
             Row(38f, (card, y) => PopupText(card, "Detail", sub, 30f, FontStyles.Bold, subColor, new Vector2(0f, y)));
         if (target)
             Row(72f, (card, y) => EndProgress(card, y + 2f, gm, theme));   // 4 px more space above
+        // A survival run (LevelLoader waves): the time survived, the wave reached, and the gold banked
+        if (levelLoader != null && levelLoader.Waves)
+        {
+            Row(30f, (card, y) => endRecord = PopupText(card, "Record", gm.NewRecordLine, 24f, FontStyles.Bold, theme.pig, new Vector2(0f, y)));
+            Row(24f, (card, y) => PopupText(card, "Banked", "$" + gm.PlayerMoney.ToString("N0") + " to your wallet", 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
+        }
         if (gm.MinerMoney > 0)
             Row(24f, (card, y) => PopupText(card, "Miner", "Miner $" + gm.MinerMoney.ToString("N0"), 18f, FontStyles.Normal, theme.title, new Vector2(0f, y)));
         if (buttons.Count > 0)
