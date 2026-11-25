@@ -72,6 +72,12 @@ public class RedSquare : RedEnemy
 
     void Ram()
     {
+        if (IsFrozen) return;
+        if (player != null && HulkChargeGuard.TryBlockEnemy(player, this))
+        {
+            LastRamBlocked = true;
+            return;
+        }
         Vector2 toMe = (body.position - (Vector2)target.position);
         if (toMe.sqrMagnitude < 0.0001f) toMe = Vector2.up;
         toMe.Normalize();

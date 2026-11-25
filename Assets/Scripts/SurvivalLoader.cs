@@ -8,7 +8,7 @@ using UnityEngine.InputSystem;
 // out of the ground around the player, more of them the longer the run lasts, and gold and diamonds
 // keep turning up nearby. A survival hook has one aim, the player: it never takes treasure, so all
 // of it is the player's to eat. The run ends with the last Life. The score is the time survived and
-// the gold eaten, and the gold goes into the wallet.
+// the gold eaten. Death discards the run's gold; leaving while alive banks it.
 // Everything is built at runtime. The scene only needs a camera and this component with its prefabs
 // (Tools > Gold Miner > Build Flow Scenes wires them).
 [DefaultExecutionOrder(-1000)]
@@ -452,11 +452,11 @@ public class SurvivalLoader : MonoBehaviour
 
     // ---- End of the run ----
 
-    // The gold eaten goes into the wallet (the store spends it), and the best time is kept
+    // A failed run pays no gold; the best survival time is still kept.
     void EndRun()
     {
         runOver = true;
-        if (CrossLevelStatus.Active != null) CrossLevelStatus.Active.addWallet(gm.PlayerMoney);
+        gm.BankLevelEarnings();
         if (gm.TimeSurvived > bestTime)
         {
             bestTime = gm.TimeSurvived;
@@ -468,8 +468,12 @@ public class SurvivalLoader : MonoBehaviour
 
     void LeaveToMap()
     {
-        // Leaving mid-run still banks the gold eaten so far
-        if (gm != null && !runOver && CrossLevelStatus.Active != null) CrossLevelStatus.Active.addWallet(gm.PlayerMoney);
+        // Leaving alive still banks gold; a loss cannot pay through this exit before EndRun runs.
+        if (gm != null && !runOver)
+        {
+            if (gm.IsPlaying) CrossLevelStatus.Ensure().addWallet(Mathf.Max(0, gm.PlayerMoney));
+            else gm.BankLevelEarnings();
+        }
         runOver = true;
         GameFlow.Instance.ReturnToMap();
     }
@@ -566,7 +570,7 @@ public class SurvivalLoader : MonoBehaviour
 
         GUI.Label(new Rect(panel.x, panel.y + 18f, w, 36f), "CAUGHT", titleStyle);
         string detail = "Survived " + Clock(gm.TimeSurvived) + (newBest ? "  (new best!)" : "")
-                      + "\nGold eaten $" + gm.PlayerMoney.ToString("N0") + " (added to your wallet)"
+                      + "\nGold eaten $" + gm.PlayerMoney.ToString("N0") + (gm.PlayerWon ? " (added to your wallet)" : " (not banked)")
                       + "\nBest " + Clock(bestTime);
         GUI.Label(new Rect(panel.x + 16f, panel.y + 62f, w - 32f, 90f), detail, textStyle);
 

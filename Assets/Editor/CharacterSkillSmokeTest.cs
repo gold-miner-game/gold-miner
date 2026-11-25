@@ -26,6 +26,9 @@ public static class CharacterSkillSmokeTest
         var host = new GameObject(typeof(T).Name);
         objects.Add(host);
         var player = host.AddComponent<T>();
+        // Edit-mode AddComponent does not run the runtime Awake that installs Hulk's guard.
+        if (player is RhinoController)
+            typeof(RhinoController).GetMethod("Awake", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(player, null);
         if (player is PenguinController elsa) elsa.InitializeSkills();
         return player;
     }

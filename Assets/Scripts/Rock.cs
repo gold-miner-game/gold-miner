@@ -75,11 +75,16 @@ public class Rock : MonoBehaviour
 
     // Hulk can smash ordinary walls, but never the green barriers hiding locked map areas.
     public bool Smash(float impactSpeed = 0f, float speedFactor = 0f)
+        => StartSmash(impactSpeed, speedFactor, false);
+
+    public bool SmashImmediately() => StartSmash(0f, 0f, true);
+
+    bool StartSmash(float impactSpeed, float speedFactor, bool immediate)
     {
         if (shattered || RhinoProof || IsFrozen) return false;
         shattered = true;
         GetComponent<MapRockDamage>()?.RememberSmash();
-        float total = BreakTime(impactSpeed, speedFactor);
+        float total = immediate ? 0f : BreakTime(impactSpeed, speedFactor);
         if (total <= 0f)
         {
             // Destroy is deferred until the frame ends; clear collision and artwork now.

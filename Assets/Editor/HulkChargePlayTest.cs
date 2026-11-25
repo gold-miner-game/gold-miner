@@ -162,7 +162,7 @@ public static class HulkChargePlayTest
             Check((float)Call(hulk, "ChargeShakeAngle", .025f) == 0f, "zero half-arc disables shaking");
 
             Rock front = Barrier(new Vector2(1.05f, 0f), false);
-            Rock wall = Barrier(new Vector2(1.35f, 0f), true);
+            Rock wall = Barrier(new Vector2(1.2f, 0f), true);
             Rock behind = Barrier(new Vector2(-1.05f, 0f), false);
             Rock beside = Barrier(new Vector2(0f, 1.05f), false);
             wall.OnHookBlocked();

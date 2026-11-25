@@ -81,6 +81,7 @@ public class Hook : MonoBehaviour
     private float clawAngle;
     private Color color;
     private bool cut;   // the rope was cut: only the miner's half winds home, with no claw
+    bool chargeDeflected;
     private Material strokeMaterial;
     private int strokeLayer;
     private int strokeOrder;
@@ -213,6 +214,7 @@ public class Hook : MonoBehaviour
         touched.Clear();
         HitPlayer = false;
         Defended = false;
+        chargeDeflected = false;
         reported = false;
         stallUntil = 0f;
         cut = false;
@@ -290,6 +292,7 @@ public class Hook : MonoBehaviour
     // End the current shot without delivering anything, so a new one can start.
     public void StopShot()
     {
+        chargeDeflected = false;
         if (carried != null) DropCarried();
         carried = null;
         cut = false;
@@ -304,6 +307,9 @@ public class Hook : MonoBehaviour
     // A scripted hit that does not bounce off a block. The tutorial uses this when the head reaches the pig.
     public void ApplyHit(PlayerCharacter player)
     {
+        if (chargeDeflected) return;
+        Vector2 at = transform.position;
+        if (HulkChargeGuard.TryDeflectHook(this, at, at)) return;
         if (ControllerFrozen) return;
         if (IsFrozen) { BreakClawIce(); SendHome(); return; }
         if (player == null || GameManager.Instance == null) return;
@@ -357,12 +363,14 @@ public class Hook : MonoBehaviour
     {
         if (Application.isPlaying)
         {
+            Vector2 at = transform.position;
+            HulkChargeGuard.TryDeflectHook(this, at, at);
             rope?.TrackFrostRope();
             if (carried != null && (IsFrozen || carried.IsFrozen)) DropCarried();
             // When the round ends mid-shot, the hook still comes home but stops reacting
             bool roundOver = GameManager.Instance != null && !GameManager.Instance.IsPlaying;
 
-            if (ControllerFrozen || (IsStalled && !roundOver))
+            if ((!chargeDeflected && ControllerFrozen) || (IsStalled && !roundOver))
             {
                 // Held in place: only redraw
             }
@@ -373,7 +381,7 @@ public class Hook : MonoBehaviour
             }
             else if (state == State.Retracting && (roundOver || Time.time >= holdUntil))
             {
-                Retract(!roundOver);
+                Retract(!roundOver && !chargeDeflected);
             }
         }
 
@@ -384,9 +392,13 @@ public class Hook : MonoBehaviour
     void Extend()
     {
         float step = Mathf.Min(extendSpeed * Time.deltaTime, maxLength - traveled);
+        Vector2 start = transform.position;
 
         foreach (RaycastHit2D hit in CastAhead(dir, step))
         {
+            // Preserve nearer wall/rock impacts; only intercept the unobstructed
+            // portion of this step before each physical collision.
+            if (HulkChargeGuard.TryDeflectHook(this, start, start + dir * hit.distance)) return;
             if (!HandleHit(hit.collider)) continue;
 
             // First valid object on the path: stop here and pull back
@@ -396,6 +408,7 @@ public class Hook : MonoBehaviour
             return;
         }
 
+        if (HulkChargeGuard.TryDeflectHook(this, start, start + dir * step)) return;
         transform.position += (Vector3)(dir * step);
         traveled += step;
         if (traveled >= maxLength - 0.001f) state = State.Retracting;
@@ -406,7 +419,9 @@ public class Hook : MonoBehaviour
         Vector2 pos = transform.position;
         float remaining = Vector2.Distance(pos, origin);
         float step = Mathf.Min(retractSpeed * RetractMultiplier() * Time.deltaTime, remaining);
-        if (rope != null) step = rope.LimitReelStep(step);
+        if (rope != null && !chargeDeflected) step = rope.LimitReelStep(step);
+        Vector2 nextHead = Vector2.MoveTowards(pos, origin, step);
+        if (HulkChargeGuard.TryDeflectHook(this, pos, nextHead)) return;
         if (remaining > .0001f && step <= .000001f) return;
 
         // An empty hook still catches treasure on the way back. A carrying hook ignores everything except
@@ -583,6 +598,9 @@ public class Hook : MonoBehaviour
 
     bool HandlePlayer(PlayerCharacter player, Collider2D col)
     {
+        if (chargeDeflected) return true;
+        Vector2 at = transform.position;
+        if (HulkChargeGuard.TryDeflectHook(this, at, at)) return true;
         // Blocking: the hook bounces off and goes home empty, even in no-kill levels
         if (player.IsBlocking)
         {
@@ -658,6 +676,28 @@ public class Hook : MonoBehaviour
         if (carried == null) return;
         carried.DropFromHook();
         carried = null;
+    }
+
+    public static void RepelFrom(HulkChargeGuard guard)
+    {
+        foreach (Hook hook in Active)
+            if (hook != null) guard.TryDeflect(hook, hook.transform.position, hook.transform.position);
+    }
+
+    public void DeflectFromCharge(PlayerCharacter defender, Vector2 contact)
+    {
+        if (!IsBusy || cut || chargeDeflected) return;
+        bool hadTreasure = carried != null;
+        DropCarried(); BreakClawIce();
+        transform.position = contact;
+        traveled = Vector2.Distance(origin, contact);
+        holdUntil = stallUntil = 0f;
+        Defended = chargeDeflected = true;
+        state = State.Retracting;
+        Report("blocked");
+        defender.OnHookBlocked();
+        if (hadTreasure) defender.OnTreasureKnocked();
+        BlockFlash.Show(contact, contact - (Vector2)defender.transform.position, .3f);
     }
 
     void HoldInClaw()

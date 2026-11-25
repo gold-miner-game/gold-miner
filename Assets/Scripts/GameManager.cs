@@ -50,11 +50,12 @@ public class GameManager : MonoBehaviour
     private bool hadTreasure;
     bool earningsBanked;
 
-    // Both the level and the map transition may settle a round. Pay its collected gold once.
+    // Both the level and the map transition may settle a round. Only wins pay, once.
     public int BankLevelEarnings()
     {
         if (IsPlaying || earningsBanked) return 0;
         earningsBanked = true;
+        if (!PlayerWon) return 0;
         int earned = Mathf.Max(0, PlayerMoney);
         if (earned > 0) CrossLevelStatus.Ensure().addWallet(earned);
         return earned;

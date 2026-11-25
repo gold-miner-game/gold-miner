@@ -2,11 +2,11 @@ using System.Collections.Generic;
 using UnityEngine;
 using FrostEffect = FrostBody2D.FrostBody2D;
 
-// Shared frost patches and gameplay queries. Each touched patch lasts five seconds.
+// Shared frost patches and gameplay queries. Each touched patch lasts 2.5 seconds after its last exposure.
 [DefaultExecutionOrder(1000)]
 public sealed class FrostField2D : MonoBehaviour
 {
-    public const float FrostDuration = 5f;
+    public const float FrostDuration = 2.5f;
     static FrostField2D instance;
     readonly List<Cone> cones = new List<Cone>();
     readonly Dictionary<Renderer, Surface> surfaces = new Dictionary<Renderer, Surface>();

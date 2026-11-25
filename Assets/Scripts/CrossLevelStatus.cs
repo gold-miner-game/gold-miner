@@ -218,7 +218,7 @@ public class CrossLevelStatus : MonoBehaviour
 
     public virtual int getWallet() { return wallet; }
 
-    // Negative is kept. A loss can cost more than the wallet holds.
+    // Negative balances are kept for special-event adjustments.
     public virtual void setWallet(int value)
     {
         wallet = value;
