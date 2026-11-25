@@ -167,7 +167,7 @@ public class NeedleMeowmeowArt : MonoBehaviour
         {
             // a stalking step every other picture, leaning with the shared rock
             offset.y = (frame & 1) == 0 ? 0.04f : 0f;
-            angle = -StopMotion.Rock * StopMotion.RockDegrees;
+            angle = StopMotion.Enabled ? -StopMotion.Rock * StopMotion.RockDegrees : 0f;   // the set only rocks in stop-motion mode
         }
         else if (pose == Pose.Hit) offset.x = left ? 0.08f : -0.08f;   // thrown back from where it faces
         body.transform.localPosition = offset;
