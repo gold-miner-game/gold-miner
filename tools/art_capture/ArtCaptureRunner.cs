@@ -175,6 +175,25 @@ public class ArtCaptureRunner : MonoBehaviour
                     needle.previewCycle = true;
                 }
                 break;
+            case "round":   // roam: put the player a few steps from the nearest walking hook hole (Red Round / Gold Round) and wake it
+                var walkers = FindObjectsByType<RedEnemy>(FindObjectsSortMode.None);
+                var hero = FindFirstObjectByType<PlayerCharacter>();
+                RedEnemy closest = null;
+                foreach (RedEnemy w in walkers)
+                    if (!(w is RedSquare) && hero != null && (closest == null || (w.transform.position - hero.transform.position).sqrMagnitude < (closest.transform.position - hero.transform.position).sqrMagnitude)) closest = w;
+                if (closest != null)
+                {
+                    Vector2 spot = (Vector2)closest.transform.position + Vector2.left * 3.5f;
+                    var rb2 = hero.GetComponent<Rigidbody2D>();
+                    if (rb2 != null) rb2.position = spot;
+                    hero.transform.position = spot;
+                    closest.WakeUp();
+                    // no level places a Gold Round yet: add one through the loader's own spawner, to review its look
+                    var loader = FindFirstObjectByType<LevelLoader>();
+                    MethodInfo addGold = typeof(LevelLoader).GetMethod("AddGoldRound", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (loader != null && addGold != null) addGold.Invoke(loader, new object[] { spot + new Vector2(2.5f, -2.2f) });
+                }
+                break;
             case "brawlerfreeze":   // the brawler set-up, then real frost breathed on that square (FrostField2D.Expose, as Elsa's breath does)
                 Trigger("brawler");
                 new GameObject("Capture frost").AddComponent<CaptureFrost>();

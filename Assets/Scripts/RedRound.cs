@@ -21,6 +21,7 @@ public class RedRound : RedEnemy
     {
         base.Start();
         ai = GetComponent<SurvivalHookAI>();
+        if (GetComponent<PaperMineCart>() == null) gameObject.AddComponent<PaperMineCart>().kind = PaperMineCart.Kind.Red;   // art only
         ai.range = 0f;
         ai.holdFire = true;
     }

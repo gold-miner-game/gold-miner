@@ -40,6 +40,7 @@ public class PaperMiners : MonoBehaviour
     }
 
     readonly List<Miner> miners = new List<Miner>();
+    readonly HashSet<Hook> walkers = new HashSet<Hook>();   // walking hook holes: drawn by PaperMineCart
     readonly List<Vector2> rockAt = new List<Vector2>();   // rock centres, refreshed each scan (no physics query)
     Sprite idle, eager, pull, glare, frameArt, reelArt;
     Sprite idlePaws, eagerPaws, pullPaws, glarePaws;   // the bottom band of each pose (paws on the rim), soft top edge
@@ -94,7 +95,7 @@ public class PaperMiners : MonoBehaviour
         {
             nextScan = Time.unscaledTime + 0.5f;
             foreach (Hook hook in FindObjectsByType<Hook>(FindObjectsSortMode.None))
-                if (!miners.Exists(m => m.hook == hook) && !Add(hook) && Time.timeSinceLevelLoad < 3f)
+                if (!walkers.Contains(hook) && !miners.Exists(m => m.hook == hook) && !Add(hook) && Time.timeSinceLevelLoad < 3f)
                     nextScan = Time.unscaledTime;   // still being built: look again next frame, so the closed hatch shows from the start
             rockAt.Clear();
             foreach (Rock rock in FindObjectsByType<Rock>(FindObjectsSortMode.None))
@@ -140,6 +141,9 @@ public class PaperMiners : MonoBehaviour
         if (brain == null)
             foreach (SurvivalHookAI h in FindObjectsByType<SurvivalHookAI>(FindObjectsSortMode.None))
                 if (h.hook == hook) { hole = h; break; }
+        // A walking hook hole (Red Round, Gold Round) is not a mine shaft: it rides a mine cart and
+        // PaperMineCart draws it, so no timber frame, winch or rim cat here
+        if (hole != null && hole.GetComponent<RedEnemy>() != null) { walkers.Add(hook); return true; }
         bool intro = hatch != null && MapHub.Active == null && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "world_map" && !hook.IsBusy;
         miners.Add(new Miner { hook = hook, rope = rope, body = body, ai = brain, hole = hole, look = Piece("Miner", idle), paws = Piece("Miner Paws", idlePaws), frame = Piece("Mine Shaft", frameArt), reel = Piece("Winch Reel", reelArt),
             flapL = intro ? Piece("Hatch Flap", hatch) : null, flapR = intro ? Piece("Hatch Flap", hatch) : null,
