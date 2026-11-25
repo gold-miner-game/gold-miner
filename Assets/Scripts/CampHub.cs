@@ -203,6 +203,12 @@ public class CampHub : MonoBehaviour
         Restyle(spot);
     }
 
+    static bool HasTailAncestor(Transform t, Transform stop)
+    {
+        for (; t != null && t != stop; t = t.parent) if (t.name.Contains("Tail")) return true;
+        return false;
+    }
+
     static Vector3 PrefabScale(int index)
     {
         ChampionSpawner spawner = FindFirstObjectByType<ChampionSpawner>();
@@ -246,13 +252,29 @@ public class CampHub : MonoBehaviour
         npc.transform.position = spot.at;
         npc.transform.localScale = prefab.transform.localScale * scale;
         Destroy(holder);
+        // A hero's root is not always the middle of its drawing, and facing you mirrors it about the
+        // root: hang it from a pivot at the drawing's true centre (the squirrel's tall tail left out),
+        // so it sits in the middle of its wallow, cushion or lily pads and turns about itself
+        var pivot = new GameObject("Camp " + Names[spot.index] + " pivot").transform;
+        pivot.SetParent(root, false);
+        pivot.position = spot.at;
+        bool any = false;
+        Bounds drawn = new Bounds(spot.at, Vector3.zero);
+        foreach (SpriteRenderer sr in npc.GetComponentsInChildren<SpriteRenderer>())
+        {
+            if (sr.sprite == null || sr.GetComponentInParent<SquirrelTailHeading>() != null && sr.name.Contains("Tail")
+                || HasTailAncestor(sr.transform, npc.transform)) continue;
+            if (any) drawn.Encapsulate(sr.bounds); else { drawn = sr.bounds; any = true; }
+        }
+        if (any) npc.transform.position += (Vector3)(spot.at - (Vector2)drawn.center);
+        npc.transform.SetParent(pivot, true);
         // a solid little body, so you walk round a friend instead of through them (no rigidbody: static)
         var body = new GameObject("Camp NPC body");
         body.transform.position = spot.at;
         body.transform.SetParent(root, true);
         body.AddComponent<CircleCollider2D>().radius = 0.3f;
-        spot.npc = npc.transform;
-        spot.npcScale = npc.transform.localScale;
+        spot.npc = pivot;
+        spot.npcScale = pivot.localScale;
         foreach (SpriteRenderer sr in npc.GetComponentsInChildren<SpriteRenderer>(true)) { spot.parts.Add(sr); spot.colors.Add(sr.color); }
     }
 
