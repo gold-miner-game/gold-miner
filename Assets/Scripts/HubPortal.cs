@@ -180,11 +180,13 @@ public class HubPortal : MonoBehaviour
         if (!IsUnlocked)
         {
             PlayAnalytics.LockedPortal(Node.id, 0);
+            Sfx.Play("denied", transform.position);   // sound
             hub.ShowHint((PrerequisiteIsBattle() ? "Beat " : "Visit ") + PrerequisiteNames()
                          + " first to unlock " + Node.displayName);
             return;
         }
         armed = false;
+        Sfx.Play("portal_enter", transform.position);   // sound
         hub.Enter(this);
     }
 

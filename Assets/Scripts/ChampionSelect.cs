@@ -38,8 +38,12 @@ public class ChampionSelect : MonoBehaviour
         if (!CharacterUnlocks.IsUnlocked(champion))
         {
             if (CharacterUnlocks.TryPurchase(champion, out unlockMessage))
+            {
+                Sfx.Ui("buy");   // sound
                 foreach (SkillPreview preview in FindObjectsByType<SkillPreview>(FindObjectsSortMode.None))
                     preview.RefreshLock();
+            }
+            else Sfx.Ui("denied");   // sound
             return;
         }
         ShowSelected(champion);

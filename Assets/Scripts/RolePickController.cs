@@ -68,7 +68,10 @@ public class RolePickController : MonoBehaviour
             GUI.contentColor = !unlocked && price > 0 ? Color.black : Color.white;
             GUI.enabled = unlocked || price > 0;
             if (GUILayout.Button(!unlocked ? price > 0 ? "$" + price.ToString("N0") : "Locked" : chosen ? "Selected \u2713" : "Choose", GUILayout.Height(32f)))
+            {
+                Sfx.Ui("ui_click");   // sound
                 Pick(c.index);
+            }
             GUI.enabled = true;
             GUI.backgroundColor = oldBackground;
             GUI.contentColor = oldContent;

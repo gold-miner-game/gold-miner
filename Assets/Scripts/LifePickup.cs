@@ -29,6 +29,7 @@ public class LifePickup : MonoBehaviour
 
         taken = true;   // the body and tail can touch it in the same frame: only one Life
         GameManager.Instance.AddLife();
+        Sfx.Play("life_pickup", transform.position);   // sound
         Destroy(gameObject);
         return true;
     }

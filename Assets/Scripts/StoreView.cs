@@ -528,6 +528,7 @@ public class StoreView : MonoBehaviour
         GrantItem(player, id);
         purchasedThisShuffle.Add(id);
         PlayAnalytics.Purchase(id);
+        Sfx.Ui("buy");   // sound
         return true;
     }
 
@@ -643,6 +644,7 @@ public class StoreView : MonoBehaviour
             if (player.getWallet() < price)
             {
                 ShowTip(rect, itemName, "Not enough money!", id);
+                Sfx.Ui("denied");   // sound
                 Refresh();
                 return;
             }

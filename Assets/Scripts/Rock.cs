@@ -65,8 +65,10 @@ public class Rock : MonoBehaviour
     // Called by Hook when this rock blocks it
     public void OnHookBlocked()
     {
-        if (IsFrozen) { FrostField2D.BreakIce(transform); return; }
+        if (IsFrozen) { FrostField2D.BreakIce(transform); Sfx.Play("ice_break", transform.position); return; }
+        Sfx.Play("hook_rock", transform.position);   // sound
         if (indestructible || shattered || isWall) return;
+        Sfx.Play("rock_break", transform.position);   // sound
         shattered = true;
         SpawnPieces();
         DisableColliders();
@@ -83,6 +85,7 @@ public class Rock : MonoBehaviour
     {
         if (shattered || RhinoProof || IsFrozen) return false;
         shattered = true;
+        Sfx.Play("rock_break", transform.position, 1.15f, 0.9f);   // sound: a heavier smash
         GetComponent<MapRockDamage>()?.RememberSmash();
         float total = immediate ? 0f : BreakTime(impactSpeed, speedFactor);
         if (total <= 0f)

@@ -108,6 +108,7 @@ public class Treasure : MonoBehaviour
     {
         if (IsFrozen) { DropFromHook(); return; }
         OnHooks.Remove(this);
+        if (GameManager.Instance != null && GameManager.Instance.IsPlaying) Sfx.Play("miner_bank", transform.position);   // sound
         if (GameManager.Instance != null) GameManager.Instance.AddMinerMoney(value);
         Destroy(gameObject);
     }

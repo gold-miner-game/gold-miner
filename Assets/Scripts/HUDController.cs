@@ -1023,12 +1023,14 @@ public class HUDController : MonoBehaviour
         pausePopup.SetActive(true);
         timeScaleBeforePause = Time.timeScale;
         Time.timeScale = 0f;
+        Sfx.Ui("ui_pause");   // sound
     }
 
     void ResumeFromPause()
     {
         if (pausePopup != null) pausePopup.SetActive(false);
         Time.timeScale = timeScaleBeforePause > 0f ? timeScaleBeforePause : 1f;
+        Sfx.Ui("ui_pause");   // sound
     }
 
     void RestartFromPause()

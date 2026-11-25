@@ -227,6 +227,7 @@ public class Hook : MonoBehaviour
 
         color = shotColor;
         state = State.Extending;
+        Sfx.Play("hook_fire", origin);   // sound
     }
 
     // Tutorial: the rope is already out and still extending. `already` is how far it has traveled.
@@ -507,6 +508,7 @@ public class Hook : MonoBehaviour
             }
         }
         cut = true;
+        Sfx.Play("rope_cut", at);   // sound
         transform.position = at;
         holdUntil = 0f;
         state = State.Retracting;
@@ -545,6 +547,7 @@ public class Hook : MonoBehaviour
             if (!treasure.GrabByHook(transform)) return false;
             carried = treasure;
             grabbedAt = Time.time;
+            Sfx.Play("hook_grab", transform.position);   // sound
             return true;
         }
 
@@ -579,6 +582,7 @@ public class Hook : MonoBehaviour
         if (col.isTrigger && col.GetComponentInChildren<Renderer>() == null) return false;
         touched.Add(col);
         BreakClawIce();
+        Sfx.Play("ice_break", transform.position);   // sound
         if (itemFrozen) FrostField2D.BreakIce(col.transform);
         SendHome();
         return true;

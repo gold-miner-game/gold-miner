@@ -211,10 +211,12 @@ public class LevelPortal : MonoBehaviour
         if (!CanEnter)
         {
             if (maze != null) maze.ShowHint(lockedHint);
+            Sfx.Play("denied", transform.position);   // sound
             return;
         }
 
         entered = true;
+        Sfx.Play("portal_enter", transform.position);   // sound
         if (GameFlow.Instance != null)
             GameFlow.Instance.EnterBattleFromMaze(nodeId);
     }

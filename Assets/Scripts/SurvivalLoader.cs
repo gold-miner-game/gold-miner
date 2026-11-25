@@ -575,8 +575,8 @@ public class SurvivalLoader : MonoBehaviour
         GUI.Label(new Rect(panel.x + 16f, panel.y + 62f, w - 32f, 90f), detail, textStyle);
 
         float bw = (w - 48f) * 0.5f;
-        if (GUI.Button(new Rect(panel.x + 16f, panel.y + h - 60f, bw, 40f), "Try again (R)")) gm.Restart();
-        if (GUI.Button(new Rect(panel.x + 32f + bw, panel.y + h - 60f, bw, 40f), "Back to map")) LeaveToMap();
+        if (GUI.Button(new Rect(panel.x + 16f, panel.y + h - 60f, bw, 40f), "Try again (R)")) { Sfx.Ui("ui_click"); gm.Restart(); }
+        if (GUI.Button(new Rect(panel.x + 32f + bw, panel.y + h - 60f, bw, 40f), "Back to map")) { Sfx.Ui("ui_click"); LeaveToMap(); }
     }
 
     static string Clock(float seconds)

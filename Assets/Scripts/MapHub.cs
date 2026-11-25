@@ -312,6 +312,7 @@ public class MapHub : MonoBehaviour
     // portal with full HP. Without that portal they revive where they are
     public void Revive(GameManager gm)
     {
+        Sfx.Play("revive");   // sound
         MapRockDamage.ResetDamage();
         RefillHp();
         if (gm != null)

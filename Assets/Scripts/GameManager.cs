@@ -167,6 +167,7 @@ public class GameManager : MonoBehaviour
         if (!LevelLoader.Tutorial && CrossLevelStatus.Active != null && CrossLevelStatus.Active.isShielded())
         {
             PlayAnalytics.ShieldSoaked();
+            Sfx.Play("shield_soak");   // sound
             return;
         }
 

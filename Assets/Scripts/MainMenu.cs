@@ -214,7 +214,9 @@ public class MainMenu : MonoBehaviour
         }
         buttonStyle.normal.textColor = hot ? Gold : (crafted ? Cream : TextBright);
         if (tint != null) buttonStyle.normal.textColor = TextBright;
-        return GUI.Button(rect, label, buttonStyle);
+        bool pressed = GUI.Button(rect, label, buttonStyle);
+        if (pressed) Sfx.Ui("ui_click");   // sound
+        return pressed;
     }
 
     void DrawPanel(Rect rect)
