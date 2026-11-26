@@ -251,9 +251,9 @@ public class ArtCaptureRunner : MonoBehaviour
             case "gate":    // camp: step away from the hatch (arming it), then onto it: back to the map
                 new GameObject("Capture gate walk").AddComponent<CaptureGateWalk>();
                 break;
-            case "switch":  // camp: walk up to JK. Rolling and press Enter (play as them: the camp re-opens)
-            case "talk":    // camp: walk up to JK. Rolling and press E (talk)
-            case "hire":    // camp: walk up to Hulk (for hire), card only
+            case "switch":  // camp: walk up to JK. Rolling and press Enter twice (pop-out, then play as them: the camp re-opens)
+            case "talk":    // camp: walk up to JK. Rolling, press E (talk) then Enter (the pop-out opens)
+            case "hire":    // camp: walk up to Hulk (for hire) and press Enter (the pop-out with the Hire button)
             case "elsa":    // camp: walk up to Elsa at her igloo, card only
             case "scrat":   // camp: walk up to Scrat at his stump, card only
             case "soon":    // camp: walk up to Rero Rero (not released) and press E
@@ -269,8 +269,19 @@ public class ArtCaptureRunner : MonoBehaviour
                     var meBody = me.GetComponent<Rigidbody2D>();
                     if (meBody != null) meBody.position = by;
                     me.transform.position = by;
-                    if (action == "talk" || action == "switch" || action == "soon") new GameObject("Capture key").AddComponent<CaptureKey>().key =
-                        action == "switch" ? UnityEngine.InputSystem.Key.Enter : UnityEngine.InputSystem.Key.E;
+                    if (action == "talk" || action == "soon") new GameObject("Capture key").AddComponent<CaptureKey>();
+                    if (action == "talk" || action == "hire" || action == "switch")
+                    {
+                        var enter = new GameObject("Capture enter").AddComponent<CaptureKey>();
+                        enter.key = UnityEngine.InputSystem.Key.Enter;
+                        enter.delay = action == "talk" ? 0.6f : 0f;   // after the talk key, else at once
+                    }
+                    if (action == "switch")
+                    {
+                        var again = new GameObject("Capture enter 2").AddComponent<CaptureKey>();
+                        again.key = UnityEngine.InputSystem.Key.Enter;
+                        again.delay = 1.0f;
+                    }
                 }
                 break;
             case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
@@ -345,6 +356,7 @@ public class CaptureFrost : MonoBehaviour
 public class CaptureKey : MonoBehaviour
 {
     public UnityEngine.InputSystem.Key key = UnityEngine.InputSystem.Key.E;
+    public float delay;   // a second press waits for the first one's pop-out
     float start;
     int stage;
     void Start() { start = Time.unscaledTime; }
@@ -353,8 +365,8 @@ public class CaptureKey : MonoBehaviour
         var kb = UnityEngine.InputSystem.Keyboard.current;
         if (kb == null) kb = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
         float t = Time.unscaledTime - start;
-        if (stage == 0 && t > 0.4f) { UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState(key)); stage = 1; }
-        else if (stage == 1 && t > 0.5f) { UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState()); Destroy(gameObject); }
+        if (stage == 0 && t > 0.4f + delay) { UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState(key)); stage = 1; }
+        else if (stage == 1 && t > 0.5f + delay) { UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState()); Destroy(gameObject); }
     }
 }
 

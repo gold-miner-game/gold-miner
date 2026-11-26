@@ -47,17 +47,25 @@ unreleased one dimmer still. Name tags and states sit under them on the usual fe
 
 ## What you can do
 
-Walk up to a friend, within about 2 units, and a felt card opens on the side of the screen away from them:
+Walk up to a friend, within about 2 units, and a felt talk card opens on the half of the screen
+away from them. It asks whether you'll go on an adventure together. Choosing a hero takes two
+presses of Enter, so a stray key never spends the wallet:
 
 - **[E] Talk:** three beats per speaker/visitor pair, cycling. `CampDialogue.cs` contains 30
   conversations (90 unique beats), selected using the NPC and the currently controlled character.
-  Scrat's bracketed action beats are text descriptions, not new animations.
-- **[Enter] / the card's button:**
+  Scrat's bracketed action beats are text descriptions, not new animations. Talking works with or
+  without the pop-out open.
+- **First [Enter]** (or the card's button): the hero's recorded skill clip **pops out** on the side
+  of the screen away from them (`CharacterSkillDemo.ShowInFrame`, the same clips as the old pick
+  card). The pop-out is just the clip: every key hint stays on the talk card, whose button now reads
+  "[Enter] Play as …" or "[Enter] Hire $…". The talk card moves aside, so the two never overlap.
+- **Second [Enter]** (or the card's button):
   - unlocked hero: **play as them**. The camp re-opens after a short fade, with you standing at
     their home and your previous hero now at theirs.
   - for hire: **hire them** for the price, paid from the wallet (`CharacterUnlocks.TryPurchase`).
-    The top bar shows the wallet.
-  - not released: "not ready to join yet". You can still chat.
+    The top bar shows the wallet. The pop-out stays open, and a further [Enter] plays as them.
+- **Walking away** closes the pop-out. Esc stays the pause key.
+- **Not released** (Scrat, Rero Rero): no pop-out. They chat, but they're not ready to join yet.
 - **The hatch:** back to the map. It completes the Pick Character node, as picking did on the old
   screen. Leaving without a pick counts as picking whoever you are.
 

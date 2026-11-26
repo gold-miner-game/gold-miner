@@ -10,10 +10,15 @@ using UnityEngine.SceneManagement;
 // the world map (a maze level: no clock, no hooks, no run record, you walk as your picked character),
 // and LevelLoader adds this instead of MapHub. It lays out a lamplit clearing round a campfire where
 // the six heroes camp at their tents, and gives the place its functions:
-//   - walk up to a hero: their name and state show; [E] talks (a few lines each, in character)
-//   - [Enter] (or the card's button): unlocked -> play as them (the camp re-opens with you in their
-//     place); for sale (Elsa, Hulk) -> hire them with the wallet (CharacterUnlocks.TryPurchase);
-//     not released (Scrat, Rero Rero) -> visible and chatty, but "not ready to join yet"
+//   - walk up to a hero: the talk card asks if you'll go on an adventure together
+//   - [E] talks (a few lines each, in character), whether or not the pop-out is open
+//   - the first [Enter] (or the card's button): their recorded skill clip pops out beside the scene
+//     (just the clip; every key hint stays on the talk card)
+//   - the second [Enter] (or the card's button): unlocked -> play as them (the camp re-opens with
+//     you in their place); for sale (Elsa, Hulk) -> hire them with the wallet
+//     (CharacterUnlocks.TryPurchase), then a further [Enter] plays as them. Two presses, so a stray
+//     key never spends the wallet. Walking away closes the pop-out (Esc stays the pause key)
+//   - not released (Scrat, Rero Rero): no pop-out; they're chatty, but "not ready to join yet"
 //   - the gate leads back to the map and completes the node, as picking did on the old screen
 // Picking keeps the old screen's rules: ChampionSpawner.Chosen, a fresh record that keeps store goods,
 // the save, analytics and the tutorial's RolePickOpen / CharacterPicked / Picked(i) events.
@@ -62,6 +67,7 @@ public class CampHub : MonoBehaviour
     Vector2 gateAt;
     bool gateArmed;
     Spot near;
+    Spot offer;   // the hero whose pop-out (skill clip + play/hire) is open
     string said = "", note = "";
     float saidUntil, noteUntil, openedAt;
     bool leaving;
@@ -79,7 +85,7 @@ public class CampHub : MonoBehaviour
     public static TextAsset CampLevel => Resources.Load<TextAsset>(CampLevelPath);
 
     void Awake() { Active = this; }
-    void OnDestroy() { if (Active == this) Active = null; }
+    void OnDestroy() { if (Active == this) Active = null; CharacterSkillDemo.Hide(this); }
 
     static int Current => ChampionSpawner.Chosen >= 0 ? ChampionSpawner.Chosen : ChampionSpawner.MrHyde;
 
@@ -367,7 +373,7 @@ public class CampHub : MonoBehaviour
             float d = Vector2.Distance(me, s.npc != null ? (Vector2)s.npc.position : s.at);
             if (d < bestD) { best = s; bestD = d; }
         }
-        if (best != near) { near = best; said = ""; }
+        if (best != near) { near = best; said = ""; offer = null; }
 
         if (!gateArmed && Vector2.Distance(me, gateAt) > 1.4f) gateArmed = true;
         if (gateArmed && Vector2.Distance(me, gateAt) < 0.7f) { StartCoroutine(Leave()); return; }
@@ -375,7 +381,15 @@ public class CampHub : MonoBehaviour
         Keyboard k = Keyboard.current;
         if (k == null || DeveloperConsole.CapturesInput || TutorialDialogue.Playing || near == null) return;
         if (k.eKey.wasPressedThisFrame) Talk(near);
-        if (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame) Act(near);
+        if (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame) Choose(near);
+    }
+
+    // First Enter: the pop-out with the skill clip and the choice. Second Enter: the choice itself
+    void Choose(Spot s)
+    {
+        if (offer == s) Act(s);
+        else if (s.state == State.Ready || s.state == State.ForSale) offer = s;
+        else Act(s);   // not ready: just says so
     }
 
     void Talk(Spot s)
@@ -448,6 +462,9 @@ public class CampHub : MonoBehaviour
 
     // --- The talk card -------------------------------------------------------------------------------
 
+    // The talk card and the pop-out, in ScreenFrame's 1280 x 720 OnGUI space
+    const float CardW = 660f, PopW = 340f, PopEdge = 24f;   // the pop-out is a PopW square: just the clip
+
     void OnGUI()
     {
         if (DeveloperConsole.CapturesInput) return;
@@ -464,34 +481,47 @@ public class CampHub : MonoBehaviour
         }
         const float W = ScreenFrame.GuiWidth, H = ScreenFrame.GuiHeight;
 
+        Rect card = default;
         if (near != null && !leaving)
         {
-            // the card opens on the half of the screen away from the friend, so it never hides them
+            // The talk card opens on the half of the screen away from the friend, so it never hides them.
+            // With the pop-out open it moves aside to share the width, so neither covers the other
             bool friendLow = FriendLow(near);
-            var card = new Rect(W / 2 - 330, friendLow ? 104 : H - 196, 660, 168);
+            bool popOut = offer == near && !TutorialDialogue.Playing;
+            bool popRight = popOut && PopOutRight(near);
+            float spare = popOut ? PopW + PopEdge : 0f;
+            card = new Rect((popRight ? 0f : spare) + (W - spare - CardW) / 2, friendLow ? 104 : H - 196, CardW, 168);
             GUI.Box(card, "");
             GUI.Label(new Rect(card.x + 26, card.y + 16, 400, 34), Names[near.index], titleStyle);
             // Scrat's wordless exchanges are written action beats, not spoken sentences.
             string body = Time.unscaledTime < saidUntil && said != ""
                 ? (said.StartsWith("[") ? said : "\"" + said + "\"") : Blurb(near);
             GUI.Label(new Rect(card.x + 26, card.y + 54, card.width - 52, 60), body, bodyStyle);
-
+            // Every key hint lives here on the talk card; the pop-out is only the clip
             if (GUI.Button(new Rect(card.x + 26, card.y + 116, 170, 38), "[E] Talk")) Talk(near);
-            string act = near.state == State.Ready ? "[Enter] Play as " + Names[near.index]
-                       : near.state == State.ForSale ? "[Enter] Hire  $" + CharacterUnlocks.Price(near.index).ToString("N0")
-                       : "Not ready yet";
+            string ask = near.state == State.NotReady ? "Not ready yet"
+                       : !popOut ? "[Enter] Sure, show me!"
+                       : near.state == State.Ready ? "[Enter] Play as " + Names[near.index]
+                       : "[Enter] Hire  $" + CharacterUnlocks.Price(near.index).ToString("N0");
             GUI.enabled = near.state != State.NotReady;
-            if (GUI.Button(new Rect(card.x + 212, card.y + 116, 300, 38), act)) Act(near);
+            if (GUI.Button(new Rect(card.x + 212, card.y + 116, 300, 38), ask)) Choose(near);
             GUI.enabled = true;
+            if (popOut && CharacterSkillDemo.Supports(near.index))
+                CharacterSkillDemo.ShowInFrame(this, near.index,
+                    new Rect(popRight ? W - PopEdge - PopW : PopEdge, (H - PopW) / 2, PopW, PopW));
+            else CharacterSkillDemo.Hide(this);
         }
-        else if (!leaving)
+        else { CharacterSkillDemo.Hide(this); offer = null; }
+        if (near == null && !leaving)
             GUI.Label(new Rect(0, H - 62, W, 30), "Walk up to a friend to talk or play as them.   The hatch leads back to the map.", hintStyle);
 
         if (Time.unscaledTime < noteUntil)
         {
+            // under the talk card's middle (it moves aside for the pop-out)
             float noteY = near != null && FriendLow(near) ? 284 : H - 252;
-            GUI.Box(new Rect(W / 2 - 300, noteY, 600, 44), "");
-            GUI.Label(new Rect(W / 2 - 300, noteY, 600, 44), note, hintStyle);
+            float noteX = near != null && !leaving ? card.center.x - 300 : W / 2 - 300;
+            GUI.Box(new Rect(noteX, noteY, 600, 44), "");
+            GUI.Label(new Rect(noteX, noteY, 600, 44), note, hintStyle);
         }
 
         // A short fade after switching heroes, so the re-opened camp doesn't pop
@@ -505,6 +535,13 @@ public class CampHub : MonoBehaviour
         }
     }
 
+    // Pop out on the side away from the friend (the walker is in the middle)
+    static bool PopOutRight(Spot s)
+    {
+        Camera cam = Camera.main;
+        return cam != null ? cam.WorldToViewportPoint(s.npc != null ? s.npc.position : (Vector3)s.at).x < 0.5f : true;
+    }
+
     // Is this friend in the lower half of the view (the camera follows the walker)
     static bool FriendLow(Spot s)
     {
@@ -516,8 +553,8 @@ public class CampHub : MonoBehaviour
     {
         switch (s.state)
         {
-            case State.Ready: return "Ready to go down the mine with you.";
-            case State.ForSale: return "Will join you for $" + CharacterUnlocks.Price(s.index).ToString("N0") + " from your wallet.";
+            case State.Ready: return "Fancy an adventure down the mine together?";
+            case State.ForSale: return "Fancy an adventure? I'll join you for $" + CharacterUnlocks.Price(s.index).ToString("N0") + ".";
             default: return "Still getting ready. You can chat, but they can't join yet.";
         }
     }

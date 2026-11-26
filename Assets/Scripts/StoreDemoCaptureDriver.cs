@@ -738,9 +738,10 @@ public class StoreDemoCaptureDriver : MonoBehaviour
             var skill = ((PenguinController)player).SkillSlot.ActiveSkill as ElsaColdBreathSkill;
             valid &= firstMinerFreezeAt >= demoSkillAt && firstHookFreezeAt >= demoSkillAt;
             valid &= skillObserved && breathObserved && frostObserved && gm.Lives == 3 && demoSkillUses == 1
-                && skill != null && Mathf.Approximately(skill.skillCooldown, 6f)
-                && Mathf.Approximately(FrostField2D.FrostDuration, 5f)
-                && miner != null && miner.hook.ShotCount > 0 && miner.IsFrozen && miner.hook.IsFrozen;
+                && skill != null && Mathf.Approximately(skill.skillCooldown, 5f)
+                && Mathf.Approximately(FrostField2D.FrostDuration, 2.5f)
+                // the 2.5 s frost can melt before the clip ends, so the freeze times above prove it landed
+                && miner != null && miner.hook.ShotCount > 0;
         }
         if (!valid) throw new InvalidOperationException("Store demo behavior check failed: " + id);
     }

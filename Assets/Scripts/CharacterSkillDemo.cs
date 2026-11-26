@@ -8,10 +8,11 @@ public class CharacterSkillDemo : MonoBehaviour
     public const float PreviewSize = 400f;
 
     static CharacterSkillDemo instance;
-    SkillPreview owner;
+    Object owner;   // the pick-page card or the camp showing the clip
     Canvas canvas;
     RectTransform panel;
     StoreItemDemo playback;
+    string shown;
 
     public static string ClipName(int champion) => champion == 0 ? "pig_block"
         : champion == 1 ? "cat_roll" : champion == 4 ? "elsa_frost" : champion == 5 ? "hulk_charge" : null;
@@ -35,11 +36,38 @@ public class CharacterSkillDemo : MonoBehaviour
         }
         if (instance.owner == source && instance.panel.gameObject.activeSelf) return;
         instance.owner = source;
+        instance.shown = ClipName(source.ChampionIndex);
         instance.panel.gameObject.SetActive(true);
         instance.playback.Play("CharacterDemos/" + ClipName(source.ChampionIndex), instance.panel);
     }
 
-    public static void Hide(SkillPreview source)
+    // The camp: the clip plays in a spot the caller has already kept clear (a square in ScreenFrame's
+    // 1280 x 720 OnGUI space), so it never covers the hero, the walker or the talk card
+    public static void ShowInFrame(Object source, int champion, Rect guiSquare)
+    {
+        if (source == null || !Supports(champion)) return;
+        if (instance == null)
+        {
+            var root = new GameObject("CharacterSkillDemo", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler));
+            instance = root.AddComponent<CharacterSkillDemo>();
+            instance.Build();
+        }
+        Rect frame = ScreenFrame.Pixels;
+        float s = ScreenFrame.GuiScale;
+        var centre = new Vector2(frame.x + guiSquare.center.x * s, frame.yMax - guiSquare.center.y * s);
+        if (!RectTransformUtility.ScreenPointToWorldPointInRectangle((RectTransform)instance.transform,
+            centre, null, out Vector3 position)) return;
+        instance.panel.position = position;
+        instance.panel.sizeDelta = Vector2.one * (guiSquare.height * s / Mathf.Max(.01f, instance.canvas.scaleFactor));
+        string clip = ClipName(champion);
+        if (instance.owner == source && instance.shown == clip && instance.panel.gameObject.activeSelf) return;
+        instance.owner = source;
+        instance.shown = clip;
+        instance.panel.gameObject.SetActive(true);
+        instance.playback.Play("CharacterDemos/" + clip, instance.panel);
+    }
+
+    public static void Hide(Object source)
     {
         if (instance == null || instance.owner != source) return;
         if (instance.panel != null) instance.panel.gameObject.SetActive(false);
