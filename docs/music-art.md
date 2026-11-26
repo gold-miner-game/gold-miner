@@ -30,7 +30,7 @@ on the map) and a **Sound** entry in the main menu (before Quit).
   - On release, effects play `coin_small` and menus play `ui_click`. Music is heard live while dragging.
 - **Mute all:** a paper toggle with the speaker or the crossed speaker (`SoundDirector.Muted`). The
   slider levels are kept.
-- **Now playing:** the record, the title and style, and **<< / >>** (`PreviousSong` / `NextSong`).
+- **Now playing:** the record, the title and style, and painted paper **back / next** arrows (`PreviousSong` / `NextSong`).
   These are greyed while a store pick or survival's song plays (`SoundDirector.CanSkip`, a new
   read-only getter), and the style line then says "(fixed here)".
 - **Closing:** Done, any scene change, Esc on the menu card, or the pause popup closing all close it.
@@ -61,5 +61,18 @@ A felt card titled in gold, styled as a record shop:
   - **Radio:** the painting on white, keyed.
   - **Record label:** the background removal took the record's label, so it was rebuilt from the
     radio's felt grille and the painted note dyed red.
-  - **Icons:** cut from one sheet.
+  - **Icons:** cut from one sheet; the back / next arrows from a second painting (`arrows.png`).
 - Capture: `tools/art_capture/capture.ps1 -Scenes "Menu,Menu:sound,level_01:pausesound,world_map:musicstore,world_map:musicpick"`.
+
+## Checked in real builds
+
+- **Captures:** the tag on the menu, the world map and over level 1. Skipping mid-level changed the
+  song (Hog Wild Swing to Under the Dirt Map) and the tag announced it. Also captured: the Sound
+  card from the menu and from the pause popup, back / next enabled on the radio and greyed during a
+  pick, mute on, and the store with its radio row, Free / Owned / prices, Playing and the picked star.
+- **Real mouse input** in a running build:
+  - dragging Sound effects to 51%: the level was saved on release while the game ran, which is the
+    step that also plays the preview;
+  - clicking Mute back off;
+  - clicking next: the song changed and the tag slid in.
+

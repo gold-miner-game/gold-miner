@@ -164,6 +164,20 @@ public class ArtCaptureRunner : MonoBehaviour
                 if (hub != null && portal != null) hub.FocusPortal(portal);
                 break;
             case "walk": break;   // handled while saving frames
+            case "radio":       // back to the radio, skip a song, open the Sound card (back / next enabled, a fresh tag)
+                MusicLibrary.Select(null);
+                SoundDirector.NextSong();
+                SoundPanel.Show();
+                break;
+            case "levelsong":   // mid-level: back to the radio and skip a song, so the now-playing tag shows over the level HUD
+                MusicLibrary.Select(null);
+                SoundDirector.NextSong();
+                break;
+            case "mute":        // the Sound card muted; sound comes back on after the shot, so later runs aren't silent
+                SoundDirector.Muted = true;
+                SoundPanel.Show();
+                new GameObject("Capture unmute").AddComponent<CaptureUnmute>();
+                break;
             case "sound":       // the papercraft Sound card (SoundPanel)
                 SoundPanel.Show();
                 break;
@@ -228,4 +242,12 @@ public class ArtCaptureRunner : MonoBehaviour
         Destroy(shot);
         Debug.Log("ART_CAPTURE_SAVED " + name);
     }
+}
+
+// Capture only: turns mute back off a moment after the "mute" shot
+public class CaptureUnmute : MonoBehaviour
+{
+    float start;
+    void Start() { start = Time.unscaledTime; DontDestroyOnLoad(gameObject); }   // survives the next capture scene
+    void Update() { if (Time.unscaledTime - start > 2f) { SoundDirector.Muted = false; PlayerPrefs.Save(); Destroy(gameObject); } }
 }

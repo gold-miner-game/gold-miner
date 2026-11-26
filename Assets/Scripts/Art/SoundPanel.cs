@@ -10,7 +10,7 @@ using UnityEngine;
 //   Now playing - the record, the song's title and style, and back / next (SoundDirector.PreviousSong /
 //     NextSong), greyed while a store pick or survival's song plays (SoundDirector.CanSkip).
 // IMGUI buttons click with Sfx.Ui("ui_click"); the sliders don't (they preview on release instead).
-// Art: Resources/Art/Music/{Icon_Note,Icon_Bell,Icon_Hand,Icon_Speaker,Icon_Mute,Record}, UI/FeltPanel,
+// Art: Resources/Art/Music/{Icon_Note,Icon_Bell,Icon_Hand,Icon_Speaker,Icon_Mute,Icon_Back,Icon_Next,Record_*}, UI/FeltPanel,
 // UI/PaperCard; Fredoka (PaperType.Body), the display face for the title.
 public class SoundPanel : MonoBehaviour
 {
@@ -26,7 +26,7 @@ public class SoundPanel : MonoBehaviour
 
     GUIStyle card, paper, title, label, small, percent, ink, inkSmall, thumb, emptyStyle;
     Texture[] icons;
-    Texture speaker, muted, record, fill;
+    Texture speaker, muted, record, fill, back, next;
     static readonly Color Gold = new Color(1f, 0.84f, 0.42f), Cream = new Color(0.97f, 0.9f, 0.74f),
                           Ink = new Color(0.24f, 0.16f, 0.1f), Umber = new Color(0.48f, 0.34f, 0.22f);
 
@@ -127,11 +127,23 @@ public class SoundPanel : MonoBehaviour
         GUI.Label(new Rect(np.x + 67f, np.y + 33f, np.width - 200f, 22f),
             now == null ? "" : canSkip ? now.style : now.style + "  (fixed here)", inkSmall);
         GUI.enabled = canSkip;
-        if (GUI.Button(new Rect(np.xMax - 124f, np.y + 11f, 54f, 40f), "<<")) { SoundDirector.PreviousSong(); Sfx.Ui("ui_click"); }
-        if (GUI.Button(new Rect(np.xMax - 64f, np.y + 11f, 54f, 40f), ">>")) { SoundDirector.NextSong(); Sfx.Ui("ui_click"); }
+        if (ArrowButton(new Rect(np.xMax - 124f, np.y + 9f, 54f, 44f), back, "<<")) { SoundDirector.PreviousSong(); Sfx.Ui("ui_click"); }
+        if (ArrowButton(new Rect(np.xMax - 64f, np.y + 9f, 54f, 44f), next, ">>")) { SoundDirector.NextSong(); Sfx.Ui("ui_click"); }
         GUI.enabled = true;
 
         if (GUI.Button(new Rect(box.center.x - 90f, box.yMax - 64f, 180f, 46f), "Done")) { Sfx.Ui("ui_click"); Close(); }
+    }
+
+    // A paper cap with the painted back / next arrow (faded with the rest when skipping is off)
+    static bool ArrowButton(Rect r, Texture icon, string fallback)
+    {
+        if (icon == null) return GUI.Button(r, fallback);
+        bool pressed = GUI.Button(r, GUIContent.none);
+        Color was = GUI.color;
+        if (!GUI.enabled) GUI.color = new Color(1f, 1f, 1f, 0.35f);
+        GUI.DrawTexture(new Rect(r.x + 9f, r.y + 8f, r.width - 18f, r.height - 16f), icon, ScaleMode.ScaleToFit, true);
+        GUI.color = was;
+        return pressed;
     }
 
     // One volume row: icon, name, a felt track with a gold paper fill and a paper-tag handle, whole percent
@@ -206,6 +218,8 @@ public class SoundPanel : MonoBehaviour
         speaker = Tex("Music/Icon_Speaker");
         muted = Tex("Music/Icon_Mute");
         record = Tex("Music/Record");
+        back = Tex("Music/Icon_Back");
+        next = Tex("Music/Icon_Next");
     }
 
     static Texture Tex(string name) { Sprite s = ArtLibrary.Get(name); return s != null ? s.texture : null; }

@@ -7,7 +7,8 @@ Sources (Meshy image-to-image in the keyframe's cut-paper style): docs/images/mu
     radio_white.png   the same radio painted on pure white, keyed here (its brown body survives)
     icons.png         a sheet of flat paper icons, 3 x 3 cells; the top two rows are used:
                       note, bell, hand / speaker, muted speaker, star
-Output: Assets/Resources/Art/Music/Record.png, Record_00..11.png (its held turns), Radio.png, Icon_{Note,Bell,Hand,Speaker,Mute,Star}.png
+    arrows.png        back / next song, side by side
+Output: Assets/Resources/Art/Music/Record.png, Record_00..11.png (its held turns), Radio.png, Icon_{Note,Bell,Hand,Speaker,Mute,Star,Back,Next}.png
 Usage: python tools/art/make_music.py   (from the repo root)
 """
 from collections import deque
@@ -76,6 +77,11 @@ def main():
     ic = icons()
     for name, im in ic.items():
         im.save(OUT / f"Icon_{name}.png")
+    # back / next song: arrows.png holds the two side by side (left half back, right half next)
+    arrows = Image.open(SRC / "arrows.png").convert("RGBA")
+    half = arrows.width // 2
+    square(arrows.crop((0, 0, half, arrows.height)), 256).save(OUT / "Icon_Back.png")
+    square(arrows.crop((half, 0, arrows.width, arrows.height)), 256).save(OUT / "Icon_Next.png")
 
     square(key_white(Image.open(SRC / "radio_white.png")), 256).save(OUT / "Radio.png")
 
