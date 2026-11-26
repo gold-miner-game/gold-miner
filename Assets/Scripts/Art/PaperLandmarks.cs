@@ -9,34 +9,37 @@ using UnityEngine.SceneManagement;
 // Level 5. Painted in the keyframe's cut-paper style (Resources/Art/Landmarks/*, tools/art/make_landmarks.py).
 //   - Same contract as PaperPortalStones: HubPortal's Star renderer is the public signal (off = still a
 //     disguised rock, on = revealing or revealed). While it is a rock nothing changes, so secrets hold.
-//   - Once revealed, the star is switched off with forceRenderingOff (HubPortal never touches it) and
-//     the landmark stands on the portal's own hexagon, which stays as a coloured plate in its original
-//     size (violet open, blue cleared, dim locked), so the portals still pop off the brown floor. The
-//     landmark is the portal's child: it grows with the reveal and breathes with an open portal.
+//   - Once revealed, the hexagon and star are switched off with forceRenderingOff (HubPortal never
+//     touches it) and the landmark shows in their place, one tile across like the hexagon, standing in a
+//     soft pool of light in the state colour (violet open, blue cleared, none while locked), so the
+//     portals still pop off the brown floor without a token-like tile under a building. The landmark is
+//     the portal's child: it grows with the reveal and breathes (light included) with an open portal.
 //   - The portal's state still reads: locked (the hexagon's dim colour) = the landmark greyed;
 //     cleared = a small blue paper star pinned to it; open = full colour, breathing.
-//   - The landmark fits inside the hexagon, so the map keeps its honeycomb rhythm and the name tags stay
+//   - The landmark is the hexagon's size, so the map keeps its honeycomb rhythm and the name tags stay
 //     where HubPortal put them.
 // No gameplay field is read or changed: colliders, unlocking and entering stay HubPortal's.
 [DefaultExecutionOrder(31100)]   // after PaperPortalStones (31000)
 public class PaperLandmarks : MonoBehaviour
 {
 
-    const float TileWidth = 0.82f;   // in map tiles: the landmark sits inside its hexagon, whose rim shows the state colour
+    const float TileWidth = 1.0f;    // in map tiles: the size of the hexagon it replaces
+    const float GlowTiles = 2.3f;    // the state light's width, in map tiles
+    static readonly Color OpenLight = new Color(0.74f, 0.5f, 1f, 0.85f), ClearedLight = new Color(0.52f, 0.82f, 1f, 0.65f);
 
     static PaperLandmarks instance;
 
     sealed class Look
     {
         public HubPortal portal;
-        public SpriteRenderer hex, star, landmark, ribbon;
+        public SpriteRenderer hex, star, landmark, ribbon, glow;
         public Transform label;
         public bool shown;
     }
 
     readonly List<Look> looks = new List<Look>();
     readonly Dictionary<string, Sprite> art = new Dictionary<string, Sprite>();
-    Sprite ribbonArt;
+    Sprite ribbonArt, glowArt;
     float nextScan;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -49,7 +52,7 @@ public class PaperLandmarks : MonoBehaviour
         SceneManager.sceneLoaded += (s, m) => { if (instance != null) instance.nextScan = 0f; };
     }
 
-    void Start() { ribbonArt = ArtLibrary.Get("Fx/PaperStar"); }
+    void Start() { ribbonArt = ArtLibrary.Get("Fx/PaperStar"); glowArt = ArtLibrary.Get("Fx/LampPool"); }
 
     // Which landmark a node gets: by id first, then by its kind
     static string LandmarkFor(MapNode node)
@@ -111,6 +114,16 @@ public class PaperLandmarks : MonoBehaviour
                 look.ribbon.sortingOrder = 5;
                 look.ribbon.enabled = false;
             }
+            if (glowArt != null)
+            {
+                // the state light: a soft pool on the floor round the landmark, not a tile under it
+                var g = new GameObject("State Light");
+                g.transform.SetParent(portal.transform, false);
+                look.glow = g.AddComponent<SpriteRenderer>();
+                look.glow.sprite = glowArt;
+                look.glow.sortingOrder = 2;   // on the floor, under the landmark (4) and the name tag (5)
+                look.glow.enabled = false;
+            }
             looks.Add(look);
         }
     }
@@ -126,7 +139,7 @@ public class PaperLandmarks : MonoBehaviour
             if (!revealed)
             {
                 // still a rock (PaperPortalStones draws it): no landmark, the hexagon renderer stays on
-                if (l.shown) { l.landmark.enabled = false; if (l.ribbon != null) l.ribbon.enabled = false; SetPortalArt(l, true); l.shown = false; }
+                if (l.shown) { l.landmark.enabled = false; if (l.ribbon != null) l.ribbon.enabled = false; if (l.glow != null) l.glow.enabled = false; SetPortalArt(l, true); l.shown = false; }
                 continue;
             }
             if (!l.shown)
@@ -138,6 +151,12 @@ public class PaperLandmarks : MonoBehaviour
                 float local = TileWidth / 0.95f / Mathf.Max(0.001f, Mathf.Max(spriteSize.x, spriteSize.y));
                 l.landmark.transform.localScale = Vector3.one * local;
                 l.landmark.transform.localPosition = Vector3.zero;
+                if (l.glow != null)
+                {
+                    Vector2 gs = l.glow.sprite.bounds.size;
+                    l.glow.transform.localScale = new Vector3(GlowTiles / 0.95f / Mathf.Max(0.001f, gs.x), GlowTiles * 0.7f / 0.95f / Mathf.Max(0.001f, gs.y), 1f);
+                    l.glow.transform.localPosition = new Vector3(0f, -0.12f, 0f);   // pooled at the building's foot
+                }
                 if (l.ribbon != null)
                 {
                     Vector2 rb = l.ribbon.sprite.bounds.size;
@@ -155,6 +174,14 @@ public class PaperLandmarks : MonoBehaviour
             Color tint = locked ? new Color(0.55f, 0.53f, 0.58f, 1f) : Color.white;
             tint.a = hc.a;
             l.landmark.color = tint;
+            if (l.glow != null)
+            {
+                // the state as light: violet at an open door, blue once cleared, dark while locked
+                l.glow.enabled = !locked;
+                Color gc = cleared ? ClearedLight : OpenLight;
+                gc.a *= hc.a;
+                l.glow.color = gc;
+            }
             if (l.ribbon != null)
             {
                 l.ribbon.enabled = cleared;
@@ -163,10 +190,10 @@ public class PaperLandmarks : MonoBehaviour
         }
     }
 
-    // The hexagon stays: it is the portal's plate, the original size, and its colour still says the
-    // state (violet open, blue cleared, dim locked). Only the star gives way to the landmark.
+    // The hexagon and star give way to the landmark; the state is said by the light instead
     static void SetPortalArt(Look l, bool on)
     {
+        if (l.hex != null) l.hex.forceRenderingOff = !on;
         if (l.star != null) l.star.forceRenderingOff = !on;
     }
 }
