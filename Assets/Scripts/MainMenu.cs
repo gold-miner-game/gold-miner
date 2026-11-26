@@ -57,7 +57,7 @@ public class MainMenu : MonoBehaviour
             return;
         }
         Keyboard keyboard = DeveloperConsole.CapturesInput ? null : Keyboard.current;
-        if (keyboard == null) return;
+        if (keyboard == null || SoundPanel.IsOpen) return;   // keys belong to the Sound card while it is open
         if (keyboard.escapeKey.wasPressedThisFrame && page != Page.Main) page = Page.Main;
         else if (keyboard.enterKey.wasPressedThisFrame && page == Page.Main) StartGame();
     }
@@ -140,6 +140,7 @@ public class MainMenu : MonoBehaviour
         }
         GUI.Label(new Rect(0, logo != null ? 228f : 205f, w, 30), "Eat the gold. Dodge the hook.", taglineStyle);
 
+        if (SoundPanel.IsOpen) return;   // the Sound card is on top: no menu button under it
         switch (page)
         {
             case Page.Main: DrawMain(w); break;
@@ -169,6 +170,8 @@ public class MainMenu : MonoBehaviour
             if (DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), "New Game", false)) page = Page.ConfirmNew;
             y += ButtonHeight + ButtonGap;
         }
+        if (DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), "Sound", false)) SoundPanel.Show();
+        y += ButtonHeight + ButtonGap;
         if (CanQuit && DrawButton(new Rect(x, y, ButtonWidth, ButtonHeight), "Quit", false)) Application.Quit();
     }
 

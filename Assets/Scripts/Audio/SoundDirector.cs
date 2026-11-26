@@ -263,6 +263,8 @@ public class SoundDirector : MonoBehaviour
     public static Song NowPlaying => instance != null ? instance.songNow : null;
     public static int RadioIndex => instance != null && instance.radioIndex >= 0
         ? System.Array.IndexOf(Radio, AllSongs[instance.radioIndex]) : -1;
+    // True while the radio plays: next / back work. False during a store pick or survival's song (UI greys the buttons)
+    public static bool CanSkip => instance != null && instance.mode == MusicMode.Radio;
     public static void NextSong() { if (instance != null && instance.mode == MusicMode.Radio) instance.PlayRadio(instance.radioIndex + 1, 1); }
     public static void PreviousSong() { if (instance != null && instance.mode == MusicMode.Radio) instance.PlayRadio(instance.radioIndex - 1, -1); }
     public static void PlaySong(int radioListIndex)

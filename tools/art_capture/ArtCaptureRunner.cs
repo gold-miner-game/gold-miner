@@ -164,6 +164,25 @@ public class ArtCaptureRunner : MonoBehaviour
                 if (hub != null && portal != null) hub.FocusPortal(portal);
                 break;
             case "walk": break;   // handled while saving frames
+            case "sound":       // the papercraft Sound card (SoundPanel)
+                SoundPanel.Show();
+                break;
+            case "pausesound":  // the pause popup's Sound button: the card over the hidden pause card
+                var hudForSound = FindFirstObjectByType<HUDController>();
+                if (hudForSound != null)
+                {
+                    typeof(HUDController).GetMethod("OpenPause", Private)?.Invoke(hudForSound, null);
+                    typeof(HUDController).GetMethod("OpenSoundFromPause", Private)?.Invoke(hudForSound, null);
+                }
+                break;
+            case "musicpick":   // take and pick a free song first, so the store shows its Playing / picked stamps
+                MusicLibrary.Buy("hog_wild_swing");
+                MusicLibrary.Select("hog_wild_swing");
+                MusicStorePanel.Show(null, null);
+                break;
+            case "musicstore":  // the music store panel (the radio picked, nothing bought)
+                MusicStorePanel.Show(null, null);
+                break;
             case "needle":   // the sprint-stab cat's look (no gameplay yet): its review cycle beside the player (film it on world_map: no hooks there)
                 var who = FindFirstObjectByType<PlayerCharacter>();
                 if (who != null)

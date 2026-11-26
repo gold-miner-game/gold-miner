@@ -130,6 +130,21 @@ public static class ArtLibrary
 
     public static readonly Color Cream = new Color(0.97f, 0.9f, 0.74f);
 
+    // The music record (Music/Record_00..11, tools/art/make_music.py): 12 held turns of 30 degrees.
+    // RecordFrame is the turn for this moment, a notch per stop-motion pose on real time (the store and
+    // the pause popup freeze the game); turning = false shows it at rest.
+    static Texture[] recordFrames;
+    public static Texture RecordFrame(bool turning = true)
+    {
+        if (recordFrames == null)
+        {
+            recordFrames = new Texture[12];
+            for (int i = 0; i < 12; i++) { Sprite s = Get("Music/Record_" + i.ToString("00")); recordFrames[i] = s != null ? s.texture : null; }
+        }
+        int f = turning ? Mathf.FloorToInt(Time.unscaledTime * StopMotion.Pose) % 12 : 0;
+        return recordFrames[f];
+    }
+
     // IMGUI boxes (guides, survival info): a stitched felt card instead of a flat colour. Keeps the
     // style's layout; widens padding so text clears the stitching. False: no art, style unchanged.
     public static bool FeltBox(GUIStyle style)

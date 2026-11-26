@@ -1082,6 +1082,16 @@ public class HUDController : MonoBehaviour
 
     // A dimmed screen (it also blocks clicks behind it) with a centered card. Built here rather than
     // by HUDBuilder, so the Game scene's saved HUD needs no rebuild
+    RectTransform pauseCard;
+
+    void OpenSoundFromPause()
+    {
+        if (pauseCard == null || SoundPanel.IsOpen) return;
+        pauseCard.gameObject.SetActive(false);   // nothing under the Sound card can catch a click
+        SoundPanel.Show(() => { if (pauseCard != null) pauseCard.gameObject.SetActive(true); },
+                        () => pausePopup == null || !pausePopup.activeSelf);
+    }
+
     void BuildPausePopup()
     {
         HUDTheme theme = PopupTheme;
@@ -1098,7 +1108,7 @@ public class HUDController : MonoBehaviour
 
         const float width = 600f;
         const float buttonGap = 14f;
-        int buttons = hub ? 2 : 3;
+        int buttons = hub ? 3 : 4;   // + Sound
         float buttonsHeight = buttons * PopupButtonHeight + (buttons - 1) * buttonGap;
         // Padding 44 / 40, title 52, sub 30, buttons, then (levels only) a divider and the controls
         float height = 44f + 52f + 12f + 30f + 24f + buttonsHeight + 40f;
@@ -1118,6 +1128,10 @@ public class HUDController : MonoBehaviour
         Vector2 size = new Vector2(width - 96f, PopupButtonHeight);
         float y = top - PopupButtonHeight * 0.5f;
         PopupButton(card, PopupStyle.Primary, "Resume", "Esc", size, new Vector2(0f, y), ResumeFromPause);
+        // Sound: the papercraft Sound card (volumes, mute, now playing with back / next) over a hidden card
+        pauseCard = card;
+        y -= PopupButtonHeight + buttonGap;
+        PopupButton(card, PopupStyle.Secondary, "Sound", null, size, new Vector2(0f, y), OpenSoundFromPause);
         if (!hub)
         {
             y -= PopupButtonHeight + buttonGap;
