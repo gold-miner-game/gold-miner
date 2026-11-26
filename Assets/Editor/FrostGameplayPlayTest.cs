@@ -186,6 +186,49 @@ public static class FrostGameplayPlayTest
         Freeze(Part(hook,"Rope"),.35f,.65f);
         elsa.transform.position=origin+Vector2.right*4f;elsa.gameObject.AddComponent<BoxCollider2D>();
         Physics2D.SyncTransforms();Check(elsa.TryCutRopes()&&hook.Defended,"Elsa can cut an icy rope through the normal J action");
-        Debug.Log("FROST_GAMEPLAY_PASS: "+checks+" checks: miner/controller pause, icy rope reeling, empty ice-breaking impacts, protected treasure/blocks, and Elsa collection/cutting.");
+        CheckElsaPassage(elsa, pig);
+        Debug.Log("FROST_GAMEPLAY_PASS: "+checks+" checks: miner/controller pause, icy rope reeling, empty ice-breaking impacts, protected treasure/blocks, and Elsa collection/cutting/passage.");
+    }
+
+    static void CheckElsaPassage(PenguinController elsa, MrHydeController pig)
+    {
+        Vector2 at = Case(); elsa.transform.position = at;
+        Collider2D own = elsa.GetComponent<Collider2D>();
+        var enemy = Make("Frozen passage enemy", at + Vector2.right * .6f);
+        var art = Art(enemy); enemy.AddComponent<RedSquare>();
+        var enemyBody = enemy.AddComponent<BoxCollider2D>();
+        var child = Make("Enemy child collider", at + Vector2.right * .6f);
+        child.transform.SetParent(enemy.transform, true);
+        var childBody = child.AddComponent<CircleCollider2D>();
+        Physics2D.SyncTransforms();
+        Call(elsa, "UpdateFrozenCollisions");
+        Check(!Physics2D.GetIgnoreCollision(own, enemyBody), "Unfrozen enemy still blocks Elsa");
+        object frost = Freeze(art); Call(elsa, "UpdateFrozenCollisions");
+        Check(Physics2D.GetIgnoreCollision(own, enemyBody) && Physics2D.GetIgnoreCollision(own, childBody),
+            "Elsa passes through a frozen enemy including its child colliders");
+        Check(enemyBody.enabled && !Physics2D.GetIgnoreCollision(pig.GetComponent<Collider2D>(), enemyBody),
+            "Frozen enemy remains solid for other characters");
+        Call(frost, "Tick", Cones(), Time.time + FrostField2D.FrostDuration + .1f);
+        Call(elsa, "UpdateFrozenCollisions");
+        Check(!Physics2D.GetIgnoreCollision(own, enemyBody) && !Physics2D.GetIgnoreCollision(own, childBody),
+            "Natural frost expiry restores enemy collisions");
+        Freeze(art); Call(elsa, "UpdateFrozenCollisions");
+        FrostField2D.BreakIce(enemy.transform); Call(elsa, "UpdateFrozenCollisions");
+        Check(!Physics2D.GetIgnoreCollision(own, enemyBody), "Breaking the ice restores collision immediately on refresh");
+        Freeze(art); Call(elsa, "UpdateFrozenCollisions");
+        elsa.enabled = false;
+        Check(!Physics2D.GetIgnoreCollision(own, enemyBody), "Disabling Elsa cleans up her collision exceptions");
+        elsa.enabled = true;
+        Physics2D.IgnoreCollision(own, enemyBody, true);
+        Call(elsa, "UpdateFrozenCollisions"); FrostField2D.BreakIce(enemy.transform);
+        Call(elsa, "UpdateFrozenCollisions");
+        Check(Physics2D.GetIgnoreCollision(own, enemyBody), "Pre-existing collision exceptions survive frost expiry");
+        Physics2D.IgnoreCollision(own, enemyBody, false);
+
+        var rockObject = Make("Passage stays enemy-only", at + Vector2.left * .6f);
+        Freeze(Art(rockObject)); rockObject.AddComponent<Rock>();
+        var wall = rockObject.AddComponent<BoxCollider2D>();
+        Physics2D.SyncTransforms(); Call(elsa, "UpdateFrozenCollisions");
+        Check(!Physics2D.GetIgnoreCollision(own, wall), "Frozen rocks still block Elsa");
     }
 }

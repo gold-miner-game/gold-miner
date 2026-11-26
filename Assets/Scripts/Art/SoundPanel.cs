@@ -135,7 +135,7 @@ public class SoundPanel : MonoBehaviour
     }
 
     // A paper cap with the painted back / next arrow (faded with the rest when skipping is off)
-    static bool ArrowButton(Rect r, Texture icon, string fallback)
+    internal static bool ArrowButton(Rect r, Texture icon, string fallback)
     {
         if (icon == null) return GUI.Button(r, fallback);
         bool pressed = GUI.Button(r, GUIContent.none);

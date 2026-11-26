@@ -83,7 +83,7 @@ public class MusicStorePanel : MonoBehaviour
     // IMGUI buttons click with Sfx.Ui("ui_click").
     // Art: Resources/Art/Music/{Record,Radio,Icon_Star} (tools/art/make_music.py), UI/FeltPanel, UI/PaperCard.
     GUIStyle cardStyle, stripStyle, styleStyle, priceStyle, stampStyle;
-    Texture recordArt, radioArt, starArt;
+    Texture recordArt, radioArt, starArt, backArt, nextArt;
     const float RowH = 58f, RowGap = 8f;
     static readonly Color Ink = new Color(0.24f, 0.16f, 0.1f), Umber = new Color(0.48f, 0.34f, 0.22f),
                           Gold = new Color(1f, 0.84f, 0.42f);
@@ -109,6 +109,8 @@ public class MusicStorePanel : MonoBehaviour
         recordArt = Tex("Music/Record");
         radioArt = Tex("Music/Radio");
         starArt = Tex("Music/Icon_Star");
+        backArt = Tex("Music/Icon_Back");
+        nextArt = Tex("Music/Icon_Next");
     }
 
     static Texture Tex(string name) { Sprite s = ArtLibrary.Get(name); return s != null ? s.texture : null; }
@@ -150,9 +152,7 @@ public class MusicStorePanel : MonoBehaviour
         string picked = MusicLibrary.SelectedId;
         SoundDirector.Song now = SoundDirector.NowPlaying;
         // The radio first: the clear way back to the game's own rotation
-        Strip(new Rect(x, y, w - 16f, RowH), radioArt, false, "The game's music (radio)",
-              "every free and bought song, in turn", "", picked == null, false,
-              picked == null ? null : "Pick", () => Pick(null));
+        RadioStrip(new Rect(x, y, w - 16f, RowH), picked == null);
         y += RowH + RowGap + 4f;
 
         var songs = MusicLibrary.Songs;
@@ -182,6 +182,34 @@ public class MusicStorePanel : MonoBehaviour
 
         GUI.Label(new Rect(x, box.yMax - 104f, w, 30f), message, noteStyle);
         if (Button(new Rect(box.center.x - 90f, box.yMax - 64f, 180f, 46f), "Leave")) Leave();
+    }
+
+    // The radio has track controls in place of the song rows' price and stamps.
+    void RadioStrip(Rect r, bool selected)
+    {
+        GUI.Box(r, GUIContent.none, stripStyle);
+        if (radioArt != null)
+            GUI.DrawTexture(new Rect(r.x + 8f, r.y + 5f, r.height - 10f, r.height - 10f), radioArt, ScaleMode.ScaleToFit, true);
+
+        float controlsX = r.xMax - 126f - (selected ? 0f : 126f);
+        float tx = r.x + r.height + 6f;
+        float textW = controlsX - tx - 10f;
+        GUI.Label(new Rect(tx, r.y, textW, r.height), "Radio", rowStyle);
+
+        bool wasEnabled = GUI.enabled;
+        GUI.enabled = wasEnabled && selected && SoundDirector.CanSkip;
+        if (SoundPanel.ArrowButton(new Rect(controlsX, r.y + 9f, 54f, r.height - 18f), backArt, "<<"))
+        {
+            SoundDirector.PreviousSong();
+            Sfx.Ui("ui_click");
+        }
+        if (SoundPanel.ArrowButton(new Rect(controlsX + 60f, r.y + 9f, 54f, r.height - 18f), nextArt, ">>"))
+        {
+            SoundDirector.NextSong();
+            Sfx.Ui("ui_click");
+        }
+        GUI.enabled = wasEnabled;
+        if (!selected && Button(new Rect(r.xMax - 126f, r.y + 9f, 120f, r.height - 18f), "Pick")) Pick(null);
     }
 
     // One paper strip: art, title over style, the Playing / picked stamps, price, the action button

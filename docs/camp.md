@@ -18,7 +18,7 @@ ready yet. There are no hooks, no clock and no run record here.
 - **Centre:** a campfire plaza, framed by four small rock outcrops.
 - **Gate:** the hatch "Back to the Map" sits in the west notch, and you arrive just inside it.
 - **Hulk's cave** is a real walled chamber in the south-east, with its mouth toward the fire.
-- The walls are marked as stones Hulk can't break, so he can try his charge without wrecking the camp.
+- Hulk can smash the camp's rocks with his charge. All rocks return whenever the camp is entered again (including after switching heroes); camp damage is not saved with world-map damage.
 
 Each hero has a home that suits them, painted in the keyframe's cut-paper style (Meshy):
 

@@ -92,8 +92,8 @@ public class CampHub : MonoBehaviour
         root = new GameObject("Camp").transform;
         var data = source != null ? LevelJson.Parse(source.text) as Dictionary<string, object> : null;
 
-        // The camp walls never break: Hulk can try his charge here without wrecking the place
-        foreach (Rock rock in FindObjectsByType<Rock>(FindObjectsSortMode.None)) rock.hookPasses = true;
+        // Keep the normal wall flags so Hulk can smash camp rocks. LevelLoader rebuilds
+        // them on every entry; camp rocks do not use the world map's saved damage.
 
         Vector2 fireAt = Cell(level, data, "camp_fire", new Vector2(10, 5));
         gateAt = Cell(level, data, "camp_gate", new Vector2(1, 5));

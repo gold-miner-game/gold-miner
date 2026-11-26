@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
-// Movement/artwork only. The independent loadout chooses and creates the K skill at runtime.
+// Movement, frost passage and artwork. The independent loadout creates the K skill at runtime.
 public class PenguinController : PlayerCharacter
 {
     public override bool CanEatFrozenTreasure => true;
@@ -16,6 +18,14 @@ public class PenguinController : PlayerCharacter
     float finishHeadingAt;
     Vector2 nearbyHeading;
     RuntimeSkillSlot skillSlot;
+    SortingGroup drawingGroup;
+    int normalDrawingOrder;
+    const int FrostPassageOrder = 20; // Above enemy bodies and frost, below attack effects (30).
+    readonly List<Collider2D> frostBodies = new List<Collider2D>();
+    readonly List<Collider2D> frostNearby = new List<Collider2D>();
+    readonly HashSet<(Collider2D player, Collider2D enemy)> frostIgnored = new HashSet<(Collider2D, Collider2D)>();
+    readonly HashSet<(Collider2D player, Collider2D enemy)> frostWanted = new HashSet<(Collider2D, Collider2D)>();
+    readonly List<(Collider2D player, Collider2D enemy)> frostRestore = new List<(Collider2D, Collider2D)>();
     public RuntimeSkillSlot SkillSlot => skillSlot;
     public override bool HasSkill => skillSlot != null && skillSlot.ActiveSkill != null;
     public override string SkillName => HasSkill ? skillSlot.ActiveSkill.SkillName : "";
@@ -28,6 +38,9 @@ public class PenguinController : PlayerCharacter
     {
         if (visualRoot == null) visualRoot = transform.Find("Artwork");
         base.Awake(); InitializeSkills();
+        drawingGroup = GetComponent<SortingGroup>();
+        if (drawingGroup == null) drawingGroup = gameObject.AddComponent<SortingGroup>();
+        normalDrawingOrder = drawingGroup.sortingOrder;
     }
     public void InitializeSkills()
     {
@@ -40,14 +53,74 @@ public class PenguinController : PlayerCharacter
     protected override void UseSkill() { skillSlot?.TryActivate(); }
     protected override Vector2 Velocity(Vector2 input)
     {
+        UpdateFrozenCollisions();
         return HasSkill && skillSlot.ActiveSkill.BlocksMovement ? Vector2.zero : base.Velocity(input);
     }
     protected override void OnStopped()
     {
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) skillSlot?.Cancel();
     }
-    void OnDisable() { skillSlot?.Cancel(); headingInput = Vector2.zero; finishingNearbyTurn = false; }
-    void LateUpdate() { UpdateHeading(); }
+    void OnDisable()
+    {
+        skillSlot?.Cancel(); headingInput = Vector2.zero; finishingNearbyTurn = false;
+        foreach (var pair in frostIgnored)
+            if (pair.player != null && pair.enemy != null) Physics2D.IgnoreCollision(pair.player, pair.enemy, false);
+        frostIgnored.Clear();
+        if (drawingGroup != null) drawingGroup.sortingOrder = normalDrawingOrder;
+    }
+    void LateUpdate() { UpdateFrozenCollisions(); UpdateHeading(); }
+
+    // Ignore only Elsa/body pairs, never disable an enemy's collider globally.
+    // Nearby overlap queries still find ignored bodies, so thawing restores collision.
+    void UpdateFrozenCollisions()
+    {
+        frostWanted.Clear();
+        GetComponentsInChildren(false, frostBodies);
+        var filter = new ContactFilter2D { useTriggers = false, useLayerMask = false };
+        float reach = .2f + CurrentSpeed * Mathf.Max(Time.fixedDeltaTime, Time.unscaledDeltaTime);
+        foreach (Collider2D own in frostBodies)
+        {
+            if (!own.enabled || own.isTrigger) continue;
+            Bounds area = own.bounds;
+            Physics2D.OverlapBox(area.center, (Vector2)area.size + Vector2.one * reach * 2f, 0f, filter, frostNearby);
+            foreach (Collider2D other in frostNearby)
+            {
+                if (other.transform.IsChildOf(transform) || !FrozenEnemyBody(other)) continue;
+                var pair = (player: own, enemy: other);
+                frostWanted.Add(pair);
+                if (frostIgnored.Contains(pair)) Physics2D.IgnoreCollision(own, other, true);
+                else if (!Physics2D.GetIgnoreCollision(own, other))
+                {
+                    Physics2D.IgnoreCollision(own, other, true);
+                    frostIgnored.Add(pair); // Leave pre-existing collision exceptions alone.
+                }
+            }
+        }
+        frostRestore.Clear();
+        foreach (var pair in frostIgnored)
+            if (!frostWanted.Contains(pair))
+            {
+                if (pair.player != null && pair.enemy != null) Physics2D.IgnoreCollision(pair.player, pair.enemy, false);
+                frostRestore.Add(pair);
+            }
+        foreach (var pair in frostRestore) frostIgnored.Remove(pair);
+        // Raise the whole character together so eyes, scarf and body keep their internal order.
+        if (drawingGroup != null)
+            drawingGroup.sortingOrder = frostWanted.Count > 0
+                ? Mathf.Max(normalDrawingOrder, FrostPassageOrder) : normalDrawingOrder;
+    }
+
+    static bool FrozenEnemyBody(Collider2D collider)
+    {
+        // A hook keeps its own ice-breaking hit rules even when its owner is frozen.
+        if (collider.GetComponentInParent<Hook>() != null) return false;
+        RedEnemy enemy = collider.GetComponentInParent<RedEnemy>();
+        if (enemy != null && enemy.IsFrozen) return true;
+        MinerAI miner = collider.GetComponentInParent<MinerAI>();
+        if (miner != null && miner.IsFrozen) return true;
+        SurvivalHookAI survival = collider.GetComponentInParent<SurvivalHookAI>();
+        return survival != null && survival.IsFrozen;
+    }
 
     void UpdateHeading()
     {

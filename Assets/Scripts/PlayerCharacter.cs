@@ -406,6 +406,7 @@ public abstract class PlayerCharacter : MonoBehaviour
             {
                 Collider2D other = hits[i].collider;
                 if (other == null || other == body || other.transform.IsChildOf(transform)) continue;
+                if (Physics2D.GetIgnoreCollision(body, other)) continue;
                 allowed = Mathf.Min(allowed, hits[i].distance);
             }
             if (allowed > 0.001f) transform.position += (Vector3)(delta.normalized * allowed);
