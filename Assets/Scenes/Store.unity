@@ -1988,6 +1988,8 @@ MonoBehaviour:
   lines: []
   scriptFile: {fileID: 4900000, guid: 3f6a9c2e5b8d4a1f9e0c7b2d5a8f1e4c, type: 3}
   useLines: 0
+  film: store_intro.mp4
+  afterFilm: []
   lettersPerSecond: 45
   speakerLight: {fileID: 0}
   characterOrder: 50

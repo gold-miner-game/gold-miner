@@ -248,7 +248,7 @@ MonoBehaviour:
   afterStep: {fileID: 0}
   startEvent: point_picking
   startEventCount: 1
-  endOn: 5
+  endOn: 1
   seconds: 1
   endEvent: dialogue_done
   area: {fileID: 0}
@@ -1089,6 +1089,9 @@ MonoBehaviour:
     fireEvent: point_picking
   scriptFile: {fileID: 0}
   useLines: 0
+  film: map_intro.mp4
+  afterFilm:
+  - point_picking
   lettersPerSecond: 45
   speakerLight: {fileID: 1954075951}
   characterOrder: 50

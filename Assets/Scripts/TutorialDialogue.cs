@@ -66,6 +66,12 @@ public class TutorialDialogue : MonoBehaviour
     [Tooltip("Play the Lines above, even with a Script File set")]
     public bool useLines = false;
 
+    [Header("Film")]
+    [Tooltip("Optional: a film in Assets/StreamingAssets/Films (e.g. map_intro.mp4) played full screen instead of the lines. When it ends or is skipped, the After Film events fire and the conversation ends as if read")]
+    public string film;
+    [Tooltip("Events fired, in order, when the film ends (e.g. point_picking, so a Tutorial Pointer still runs)")]
+    [TutorialEvent(true)] public string[] afterFilm = new string[0];
+
     [Header("Look")]
     [Tooltip("Letters per second as a line types out (0 = all at once)")]
     public float lettersPerSecond = 45f;
@@ -185,6 +191,13 @@ public class TutorialDialogue : MonoBehaviour
     {
         if (IsRunning) return;
         step = owner;
+        if (!string.IsNullOrEmpty(film))
+        {
+            IsRunning = true;
+            index = -1;
+            FilmScreen.Play(film, FilmDone);
+            return;
+        }
         BuildScript();
         if (script.Count == 0) { step.End(); return; }
 
@@ -685,6 +698,16 @@ public class TutorialDialogue : MonoBehaviour
                 }
             }
         }
+    }
+
+    // The film ended (or was skipped, or couldn't play): its follow-up events, then the usual end
+    void FilmDone()
+    {
+        if (!IsRunning) return;
+        if (afterFilm != null)
+            foreach (string e in afterFilm)
+                if (!string.IsNullOrEmpty(e)) TutorialEvents.Fire(e);
+        Finish();
     }
 
     void Finish()
