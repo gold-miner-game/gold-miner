@@ -9,19 +9,20 @@ using UnityEngine.SceneManagement;
 // Level 5. Painted in the keyframe's cut-paper style (Resources/Art/Landmarks/*, tools/art/make_landmarks.py).
 //   - Same contract as PaperPortalStones: HubPortal's Star renderer is the public signal (off = still a
 //     disguised rock, on = revealing or revealed). While it is a rock nothing changes, so secrets hold.
-//   - Once revealed, the hexagon and star are switched off with forceRenderingOff (HubPortal never
-//     touches it) and the landmark shows instead, as a child of the portal: it grows with the reveal
-//     and breathes with an open portal, because HubPortal scales the portal itself.
+//   - Once revealed, the star is switched off with forceRenderingOff (HubPortal never touches it) and
+//     the landmark stands on the portal's own hexagon, which stays as a coloured plate in its original
+//     size (violet open, blue cleared, dim locked), so the portals still pop off the brown floor. The
+//     landmark is the portal's child: it grows with the reveal and breathes with an open portal.
 //   - The portal's state still reads: locked (the hexagon's dim colour) = the landmark greyed;
 //     cleared = a small blue paper star pinned to it; open = full colour, breathing.
-//   - Each landmark fills exactly the hexagon's footprint, so the map keeps its honeycomb rhythm and the
-//     name tags stay where HubPortal put them.
+//   - The landmark fits inside the hexagon, so the map keeps its honeycomb rhythm and the name tags stay
+//     where HubPortal put them.
 // No gameplay field is read or changed: colliders, unlocking and entering stay HubPortal's.
 [DefaultExecutionOrder(31100)]   // after PaperPortalStones (31000)
 public class PaperLandmarks : MonoBehaviour
 {
 
-    const float TileWidth = 1.05f;   // in map tiles: a touch over a rock, as the breathing hexagon read
+    const float TileWidth = 0.82f;   // in map tiles: the landmark sits inside its hexagon, whose rim shows the state colour
 
     static PaperLandmarks instance;
 
@@ -162,9 +163,10 @@ public class PaperLandmarks : MonoBehaviour
         }
     }
 
+    // The hexagon stays: it is the portal's plate, the original size, and its colour still says the
+    // state (violet open, blue cleared, dim locked). Only the star gives way to the landmark.
     static void SetPortalArt(Look l, bool on)
     {
-        if (l.hex != null) l.hex.forceRenderingOff = !on;
         if (l.star != null) l.star.forceRenderingOff = !on;
     }
 }

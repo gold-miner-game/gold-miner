@@ -170,8 +170,15 @@ public class CampHub : MonoBehaviour
 
     void BuildGate(Vector2 at)
     {
-        Sprite hatch = ArtLibrary.Get("Objects/ExitHatch");
-        if (hatch != null) Piece("Camp Gate", hatch, at, 1.1f, -30);
+        // The way back down to the mine map: the world map's own timber mine entrance (Landmarks/Mine),
+        // set into the camp's west wall; the plain exit hatch if that art is missing
+        Sprite gate = ArtLibrary.Get("Landmarks/Mine");
+        if (gate != null) Piece("Camp Gate", gate, at + new Vector2(-0.15f, 0.25f), 1.9f, -30);
+        else
+        {
+            Sprite hatch = ArtLibrary.Get("Objects/ExitHatch");
+            if (hatch != null) Piece("Camp Gate", hatch, at, 1.1f, -30);
+        }
         Label("Label Back to the Map", "Back to the Map", at + new Vector2(0.4f, 0.95f), 2.6f, Color.white);
     }
 

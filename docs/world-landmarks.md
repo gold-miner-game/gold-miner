@@ -19,13 +19,15 @@ each one was. Each revealed portal now shows a landmark in the keyframe's cut-pa
 `PaperLandmarks` is art only.
 - **Contract:** it follows the same rule as `PaperPortalStones`. The portal's Star renderer is the
   signal: off means still a disguised rock, so nothing changes and secrets hold; on means revealed.
-- **Once revealed:** the hexagon and star are switched off (`forceRenderingOff`, which `HubPortal`
-  never touches), and the landmark shows as the portal's child. It grows with the reveal and breathes
-  with an open portal, because `HubPortal` scales the portal.
-- **Size:** each landmark is **one map tile**, the size of the hexagon it replaces and of the wall
-  rocks, so the honeycomb keeps its rhythm and the name tags stay where they were.
-- **State:** read from the hexagon's own colour. Locked is greyed, cleared gets a small blue paper
-  star, and open is full colour.
+- **Once revealed:** only the star is switched off (`forceRenderingOff`, which `HubPortal` never
+  touches). The landmark stands on the portal's own **hexagon**, which stays as a coloured plate at
+  its original size. The landmark is the portal's child: it grows with the reveal and breathes with
+  an open portal, because `HubPortal` scales the portal.
+- **Size:** the landmark sits inside the hexagon (0.82 of a tile), so the honeycomb keeps its rhythm
+  and the name tags stay where they were. An earlier version without the plate blended into the brown
+  floor and lost the state colour; the alpha review put the plate back.
+- **State:** the plate's own colour says it (violet open, blue cleared, dim locked). A locked landmark
+  is also greyed, and a cleared one gets a small blue paper star.
 - No gameplay field is read or changed.
 
 Sprites: `python tools/art/make_landmarks.py` cuts `docs/images/landmarks/sheet_{a,b}.png` (two Meshy
