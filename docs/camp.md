@@ -49,8 +49,9 @@ unreleased one dimmer still. Name tags and states sit under them on the usual fe
 
 Walk up to a friend, within about 2 units, and a felt card opens on the side of the screen away from them:
 
-- **[E] Talk:** three lines each, in character, cycling. Each line hints at the hero's real skill
-  (block, roll, firm tail, tongue, frost breath, charge).
+- **[E] Talk:** three beats per speaker/visitor pair, cycling. `CampDialogue.cs` contains 30
+  conversations (90 unique beats), selected using the NPC and the currently controlled character.
+  Scrat's bracketed action beats are text descriptions, not new animations.
 - **[Enter] / the card's button:**
   - unlocked hero: **play as them**. The camp re-opens after a short fade, with you standing at
     their home and your previous hero now at theirs.
@@ -63,6 +64,31 @@ Walk up to a friend, within about 2 units, and a felt card opens on the side of 
 Picking keeps the old screen's rules: `ChampionSpawner.Chosen`, a fresh record that keeps store
 goods, the save (`ProgressStore.SelectedCharacter`), analytics, and the tutorial events
 `RolePickOpen`, `CharacterPicked` and `Picked(i)`.
+
+## Dialogue direction
+
+User-selected references guide personality and manner of speaking ONLY. Do not transfer their
+professions, hobbies, biography, relationships, titles, signature props, plot events, or catchphrases.
+Any new interests or anecdotes must be independently grounded in this game's characters and camp.
+Keep the dialogue in English. Both sides of a pairing should reflect these personalities.
+Keep exactly three beats per pairing. Vary the subject across pairings: weather, food, hobbies,
+enemy encounters, memories, cave conditions, everyday annoyances, and hopes for the surface.
+References guide delivery and motives; they do not restrict every exchange to a character's defining
+trait. Quiet, casual conversation belongs here too. New anecdotes are camp fiction, not imported lore.
+Animal habits and existing camp objects are valid material: Rolling can chase her yarn or groom,
+Hyde can sniff things out, Rero can catch flies, and Elsa can enjoy sliding. Let personality shape
+their reaction to these experiences. Avoid making every line demonstrate the same trait.
+Treat A speaking to B and B speaking to A as separate encounters with different topics, not two
+halves or retellings of the same event. Each direction still has exactly three beats.
+
+| Hero | Reference | Voice and tension |
+| --- | --- | --- |
+| Mr. Hyde | Shirou Emiya / 卫宫士郎 | Earnest, practical, stubbornly altruistic; helps before thinking and struggles to accept care himself. Avoid the old gruff caretaker voice. |
+| JK. Rolling | Eriri Spencer Sawamura / 泽村·斯宾塞·英梨梨 | Proud, competitive, sensitive to criticism, hungry for recognition, awkward about showing care. No inherited artist role or painting hobby. Avoid reducing every line to a denial of affection. Replaces the earlier Chitanda reference. |
+| Scrat | Scrat, Ice Age | Squeaks, gestures, fixation on an acorn, escalating physical comedy; briefly generous before obsession wins. Avoid fluent speeches. |
+| Rero Rero | Utena Tenjou + Touga Kiryuu / 天上欧蒂娜＋桐生冬芽 | Protective idealism mixed with cultivated charm, probing questions, and the temptation to make others dependent. Can question his own motives. No inherited prince identity or story. Avoid the old sleepy pond sage. |
+| Elsa | Anon Chihaya / 千早爱音 | Outgoing, image-conscious, eager for approval; embarrassment gives way to imperfect but active kindness. Avoid the cold queen stereotype. |
+| Hulk | Jules Winnfield, Pulp Fiction | Deliberate conversational authority, everyday rituals and moral questions; strength under control and an effort to choose restraint. This replaces the earlier superhero Hulk reference. Avoid caveman speech. |
 
 ## Code
 

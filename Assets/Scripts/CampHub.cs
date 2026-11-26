@@ -28,28 +28,6 @@ public class CampHub : MonoBehaviour
         new Color(0.95f, 0.55f, 0.65f), new Color(0.42f, 0.36f, 0.5f), new Color(0.68f, 0.45f, 0.24f),
         new Color(0.36f, 0.68f, 0.32f), new Color(0.48f, 0.74f, 0.98f), new Color(0.8f, 0.28f, 0.22f),
     };
-    static readonly string[][] Lines =
-    {
-        new[] { "Oink. The cats want our gold, but they never get past my block.",
-                "Hold [K] and I raise my block: their hooks bounce right off.",
-                "Once the rope trick is learned, [J] cuts a hook's rope clean through." },
-        new[] { "Mrrp. Some cats chase gold. I chase speed.",
-                "Press [K] and I roll. Nothing can hook a rolling cat.",
-                "Roll into a miner when its guard is down. It never sees me coming." },
-        new[] { "Acorns first, mine later. My nuts aren't buried yet.",
-                "This tail is iron. When I'm ready, hold [K] and nothing pulls me.",
-                "Not ready to join you yet. Ask me again another day." },
-        new[] { "Rero rero... the flies down here are huge.",
-                "My tongue reaches further than any hook. Soon, soon.",
-                "I'm not ready to join you yet. Rero." },
-        new[] { "Brr. Finally, someone who likes the cold.",
-                "Press [K] and I breathe frost. Hooks freeze in mid air, miners too.",
-                "Hire me and the mine goes very, very quiet." },
-        new[] { "HRMPH. Walls? What walls?",
-                "Press [K] and I charge. Rocks crumble, hooks bounce off my horn.",
-                "Hire me and I'll clear you a road through any rock." },
-    };
-
     enum State { Current, Ready, ForSale, NotReady }
 
     class Spot
@@ -66,6 +44,15 @@ public class CampHub : MonoBehaviour
         public string home;
         public Vector2 homeAnchor = new Vector2(0.5f, 0.3f);
         public float homeSize = 2.7f;
+        public Vector3? homePosition;
+        public Vector3? homeScale;
+        public bool groupHome;
+        public Vector3? homeGroupPosition;
+        public Vector3? homeGroupScale;
+        public Vector3? npcLocalPosition;
+        public Vector3? npcLocalRotation;
+        public Vector3? npcPivotPosition;
+        public float? npcFacingX;
     }
 
     readonly List<Spot> spots = new List<Spot>();
@@ -130,6 +117,22 @@ public class CampHub : MonoBehaviour
                 if (d.TryGetValue("home_anchor", out object ha) && ha is List<object> al && al.Count == 2)
                     spot.homeAnchor = new Vector2(ToFloat(al[0]), ToFloat(al[1]));
                 if (d.TryGetValue("home_size", out object hs)) spot.homeSize = ToFloat(hs);
+                if (d.TryGetValue("home_position", out object hp) && hp is List<object> homePos && homePos.Count == 3)
+                    spot.homePosition = new Vector3(ToFloat(homePos[0]), ToFloat(homePos[1]), ToFloat(homePos[2]));
+                if (d.TryGetValue("home_scale", out object hscale) && hscale is List<object> homeScale && homeScale.Count == 3)
+                    spot.homeScale = new Vector3(ToFloat(homeScale[0]), ToFloat(homeScale[1]), ToFloat(homeScale[2]));
+                spot.groupHome = d.TryGetValue("group_home", out object gh) && gh is bool groupHome && groupHome;
+                if (d.TryGetValue("home_group_position", out object hgp) && hgp is List<object> groupPos && groupPos.Count == 3)
+                    spot.homeGroupPosition = new Vector3(ToFloat(groupPos[0]), ToFloat(groupPos[1]), ToFloat(groupPos[2]));
+                if (d.TryGetValue("home_group_scale", out object hgs) && hgs is List<object> groupScale && groupScale.Count == 3)
+                    spot.homeGroupScale = new Vector3(ToFloat(groupScale[0]), ToFloat(groupScale[1]), ToFloat(groupScale[2]));
+                if (d.TryGetValue("npc_local_position", out object np) && np is List<object> pos && pos.Count == 3)
+                    spot.npcLocalPosition = new Vector3(ToFloat(pos[0]), ToFloat(pos[1]), ToFloat(pos[2]));
+                if (d.TryGetValue("npc_local_rotation", out object nr) && nr is List<object> rot && rot.Count == 3)
+                    spot.npcLocalRotation = new Vector3(ToFloat(rot[0]), ToFloat(rot[1]), ToFloat(rot[2]));
+                if (d.TryGetValue("npc_pivot_position", out object pp) && pp is List<object> pivotPos && pivotPos.Count == 3)
+                    spot.npcPivotPosition = new Vector3(ToFloat(pivotPos[0]), ToFloat(pivotPos[1]), ToFloat(pivotPos[2]));
+                if (d.TryGetValue("npc_facing_x", out object facing)) spot.npcFacingX = ToFloat(facing) < 0f ? -1f : 1f;
                 if (spot.index < 0 || spot.index >= CharacterUnlocks.Count) continue;
                 BuildSpot(spot, fireAt, scale);
                 spots.Add(spot);
@@ -190,11 +193,30 @@ public class CampHub : MonoBehaviour
         if (home != null)
         {
             Vector2 homeAt = spot.at - (spot.homeAnchor - new Vector2(0.5f, 0.5f)) * spot.homeSize;
-            Piece(Names[spot.index] + " Home", home, homeAt, spot.homeSize, -10);
+            SpriteRenderer homePiece = Piece(Names[spot.index] + " Home", home, homeAt, spot.homeSize, -10);
+            if (spot.homePosition.HasValue) homePiece.transform.position = spot.homePosition.Value;
+            if (spot.homeScale.HasValue) homePiece.transform.localScale = spot.homeScale.Value;
             // the home's front (the box's flap, the stump's front wall, the cave's rubble) drawn over the
             // hero, so they sit inside it: over every hero part (prefab orders reach 20), under the tags (40)
             Sprite front = ArtLibrary.Get(spot.home + "_Front");
-            if (front != null) Piece(Names[spot.index] + " Home front", front, homeAt, spot.homeSize, 30);
+            SpriteRenderer frontPiece = front != null
+                ? Piece(Names[spot.index] + " Home front", front, homeAt, spot.homeSize, 30) : null;
+            if (frontPiece != null)
+            {
+                if (spot.homePosition.HasValue) frontPiece.transform.position = spot.homePosition.Value;
+                if (spot.homeScale.HasValue) frontPiece.transform.localScale = spot.homeScale.Value;
+            }
+            if (spot.groupHome)
+            {
+                var homeRoot = new GameObject(Names[spot.index] + " Home Group").transform;
+                homeRoot.SetParent(root, false);
+                homeRoot.position = homePiece.transform.position;
+                homePiece.transform.SetParent(homeRoot, true);
+                if (frontPiece != null) frontPiece.transform.SetParent(homeRoot, true);
+                // Apply the saved group pose after parenting so both layers move and scale together.
+                if (spot.homeGroupPosition.HasValue) homeRoot.localPosition = spot.homeGroupPosition.Value;
+                if (spot.homeGroupScale.HasValue) homeRoot.localScale = spot.homeGroupScale.Value;
+            }
             tagY = Mathf.Min(tagY, homeAt.y - spot.at.y - spot.homeSize * 0.42f);
         }
         Shadow(spot.at + Vector2.down * 0.35f, 0.9f);
@@ -272,9 +294,14 @@ public class CampHub : MonoBehaviour
         }
         if (any) npc.transform.position += (Vector3)(spot.at - (Vector2)drawn.center);
         npc.transform.SetParent(pivot, true);
+        // Optional saved Inspector pose for the artwork inside its camp pivot.
+        if (spot.npcLocalPosition.HasValue) npc.transform.localPosition = spot.npcLocalPosition.Value;
+        if (spot.npcLocalRotation.HasValue) npc.transform.localRotation = Quaternion.Euler(spot.npcLocalRotation.Value);
+        if (spot.npcPivotPosition.HasValue) pivot.position = spot.npcPivotPosition.Value;
+        if (spot.npcFacingX.HasValue) pivot.localScale = new Vector3(spot.npcFacingX.Value, 1f, 1f);
         // a solid little body, so you walk round a friend instead of through them (no rigidbody: static)
         var body = new GameObject("Camp NPC body");
-        body.transform.position = spot.at;
+        body.transform.position = pivot.position;
         body.transform.SetParent(root, true);
         body.AddComponent<CircleCollider2D>().radius = 0.3f;
         spot.npc = pivot;
@@ -319,7 +346,8 @@ public class CampHub : MonoBehaviour
         {
             if (s.npc == null) continue;
             bool left = me.x < s.at.x;
-            s.npc.localScale = new Vector3(Mathf.Abs(s.npcScale.x) * (left ? 1f : -1f), s.npcScale.y, s.npcScale.z);
+            float facingX = s.npcFacingX ?? (left ? 1f : -1f);
+            s.npc.localScale = new Vector3(Mathf.Abs(s.npcScale.x) * facingX, s.npcScale.y, s.npcScale.z);
             s.npc.localRotation = Quaternion.Euler(0f, 0f, -rock * StopMotion.RockDegrees);
         }
 
@@ -329,7 +357,7 @@ public class CampHub : MonoBehaviour
         foreach (Spot s in spots)
         {
             if (s.state == State.Current) continue;
-            float d = Vector2.Distance(me, s.at);
+            float d = Vector2.Distance(me, s.npc != null ? (Vector2)s.npc.position : s.at);
             if (d < bestD) { best = s; bestD = d; }
         }
         if (best != near) { near = best; said = ""; }
@@ -345,8 +373,8 @@ public class CampHub : MonoBehaviour
 
     void Talk(Spot s)
     {
-        s.line = (s.line + 1) % Lines[s.index].Length;
-        said = Lines[s.index][s.line];
+        s.line++;
+        said = CampDialogue.GetLine(s.index, Current, s.line);
         saidUntil = Time.unscaledTime + 6f;
     }
 
@@ -436,7 +464,9 @@ public class CampHub : MonoBehaviour
             var card = new Rect(W / 2 - 330, friendLow ? 104 : H - 196, 660, 168);
             GUI.Box(card, "");
             GUI.Label(new Rect(card.x + 26, card.y + 16, 400, 34), Names[near.index], titleStyle);
-            string body = Time.unscaledTime < saidUntil && said != "" ? "\"" + said + "\"" : Blurb(near);
+            // Scrat's wordless exchanges are written action beats, not spoken sentences.
+            string body = Time.unscaledTime < saidUntil && said != ""
+                ? (said.StartsWith("[") ? said : "\"" + said + "\"") : Blurb(near);
             GUI.Label(new Rect(card.x + 26, card.y + 54, card.width - 52, 60), body, bodyStyle);
 
             if (GUI.Button(new Rect(card.x + 26, card.y + 116, 170, 38), "[E] Talk")) Talk(near);

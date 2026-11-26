@@ -43,6 +43,8 @@
       "character": 0,
       "x": 7,
       "y": 5,
+      "npc_local_position": [0.03, 0.19, 0],
+      "npc_local_rotation": [0, 0, 330.793121],
       "home": "Camp/Home_Pig",
       "home_anchor": [
         0.447,
@@ -54,6 +56,8 @@
       "character": 1,
       "x": 18,
       "y": 4.2,
+      "npc_pivot_position": [0.602, 5.5, 0],
+      "npc_facing_x": -1,
       "home": "Camp/Home_Cat",
       "home_anchor": [
         0.445,
@@ -65,7 +69,12 @@
       "character": 4,
       "x": 29,
       "y": 5,
+      "npc_local_position": [0.19, 0.04, 0],
+      "npc_local_rotation": [0, 0, 355.832306],
+      "npc_facing_x": -1,
       "home": "Camp/Home_Penguin",
+      "home_position": [10.9899998, 5.44000006, 0],
+      "home_scale": [2.18733072, 2.18733072, 2.18733072],
       "home_anchor": [
         0.577,
         0.33
@@ -76,7 +85,12 @@
       "character": 5,
       "x": 29.5,
       "y": 15,
+      "npc_pivot_position": [11.88, -5.5, 0],
       "home": "Camp/Home_Rhino",
+      "group_home": true,
+      "home_group_position": [11.93, -5.36, 0],
+      "home_group_scale": [0.8, 0.8, 0.8],
+      "npc_facing_x": -1,
       "home_anchor": [
         0.488,
         0.48
@@ -87,6 +101,7 @@
       "character": 3,
       "x": 18,
       "y": 14.8,
+      "npc_pivot_position": [0.5, -5.44, 0],
       "home": "Camp/Home_Frog",
       "home_anchor": [
         0.5,
@@ -98,7 +113,11 @@
       "character": 2,
       "x": 7,
       "y": 15,
+      "npc_pivot_position": [-10.5, -6.56, 0],
       "home": "Camp/Home_Squirrel",
+      "group_home": true,
+      "home_group_position": [-10.39, -6.06, 0],
+      "home_group_scale": [1.6, 1.6, 1.6],
       "home_anchor": [
         0.47,
         0.86
