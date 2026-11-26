@@ -15,7 +15,7 @@ Two films replace the only Boot-reachable story dialogues: the world map's first
 - 16:9, 1920x1080 master (the web build plays it at 960x540). English voices, new music and sound.
 
 ## Voices (from the camp dialogue's personalities)
-- Pig (Hyde): earnest, kind, a little self-forgetting; soft young voice.
+- Pig (Hyde, male): earnest, kind, a little self-forgetting; soft young voice.
 - J.K. Rolling: proud, competitive, cares but won't admit it; bright, sharp young voice.
 - Evil Meowmeow: theatrical, greedy, purring showman (he has his own jazz theme); smooth, sly voice.
 
@@ -31,7 +31,7 @@ Plays instead of the hub's Story step. When it ends it fires `point_picking`, so
 | 2 | A hook on a rope drops right behind the pig and misses; the pig scurries. | Hook whoosh, clank |
 | 3 | Crane up: the cave's rocks form a huge cat face; the two eye-hollows glow green; cat miners in carts sit in the eyes. | Low rumble, music sting |
 | 4 | Evil Meowmeow looms over the rock face, red eyes flaring, grin widening. The pig, tiny below, raises a trotter. | Evil Meowmeow (purring, theatrical): "Ohhh, a little piggy snacking on MY gold? Then I'll go fishing... for pork." · Pig (earnest, small): "I... could share?" |
-| 5 | Torches light a camp. J.K. Rolling (the cream cat) rolls in like a ball, pops up beside the pig, chin high. Behind her, the squirrel, frog, penguin and rhino sit dim in the shadows, each with a little "For hire" paper tag. | J.K. Rolling (proud, pretending not to care): "Ugh, you're hopeless. Fine, I'll come. Not for you! The others? They'll want paying." |
+| 5 | Torches light a camp. J.K. Rolling (the cream cat) stands by the fire, arms crossed, chin high; she turns away, then grudgingly nods. Behind her, the squirrel, frog, penguin and rhino sit dim in the shadows, each with a little "For hire" paper tag. | J.K. Rolling (proud, pretending not to care): "Ugh, you're hopeless. Fine, I'll come. Not for you! The others? They'll want paying." |
 
 ### Film 2: "Gold Back to the Cat" (store, first visit, ~20 s)
 Plays instead of the store's StoreIntro step. The store is usable when it ends.
