@@ -91,7 +91,11 @@ public class ArtCaptureRunner : MonoBehaviour
                 LevelLoader.AdvanceNow = false;
                 SceneManager.LoadScene("Game");
             }
-            else SceneManager.LoadScene(scene);
+            else
+            {
+                LevelLoader.Requested = null;   // a camp entry before this one must not leak its level into this scene
+                SceneManager.LoadScene(scene);
+            }
             yield return Hold(wait);
             if (action != null)
             {
