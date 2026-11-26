@@ -62,9 +62,18 @@ song, and the radio resumes where it stopped afterwards.
 | 9 | Evil Meowmeow (`evil_meowmeow`) | cabaret metal | 2250 |
 | 10 / survival | Hook, Line and Oinky (`hook_line_and_oinky`) | surf rockabilly | 2250 |
 
-Songs 1, 2, 4, 6, 9 and 10 come from the first six songs (the `audio/music` branch). Songs 3, 5, 7 and 8 are
-instrumentals made in the second pass (ElevenLabs Music v2.5, 2:30 each, 2,250 credits each; flow "Gold
-Miner - music pass 2"). Their untouched originals are in `E:\Create with code\sound\elevenlabs\oinky_music_pass2`.
+Songs 1, 2, 4, 6, 9 and 10 come from the first six songs (the `audio/music` branch). Songs 3, 5, 7 and 8 were
+made in the second pass (ElevenLabs Music v2.5, 2:30 each; flow "Gold Miner - music pass 2"). They are **sung**,
+with original game lyrics and animal sounds on the beat:
+
+- **Lucky Strike Polka:** a beer-hall gang chorus, "Oink oink, hey!", and pig oinks on the off-beats.
+- **Tumbleweed Tunnels:** a gravelly cowboy baritone, coyote howls and a horse whinny.
+- **Dig It Disco:** a soul diva with a "dig dig!" choir and cat meows as ad-libs.
+- **Nine Lives Tango:** a villain cat singer, purrs and hisses, ending on "Meow."
+
+A Scribe transcription confirmed the lyrics come through almost word for word. The lyrics, plus the
+instrumental takes made before (`*_instrumental.mp3`), are in
+`E:\Create with code\sound\elevenlabs\oinky_music_pass2`.
 
 - Every song has its own title. The jazz versions used to share their originals' names.
 - Songs crossfade into each other (3 s). The music steps back to half volume while paused, and dips
