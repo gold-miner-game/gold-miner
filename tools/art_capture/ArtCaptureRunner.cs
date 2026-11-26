@@ -329,6 +329,9 @@ public class CaptureFrost : MonoBehaviour
         Vector2 from = pc.transform.position;
         Vector2 to = near.transform.position;
         FrostField2D.Expose(pc.transform, from, to - from, Vector2.Distance(from, to) + 1.5f, 30f);
+    }
+}
+
 // Capture only: taps E a moment later (the camp's talk key), through the Input System like a player would
 public class CaptureKey : MonoBehaviour
 {
