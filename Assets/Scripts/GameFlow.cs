@@ -38,7 +38,7 @@ public class GameFlow : MonoBehaviour
     public WorldMap Map { get; private set; }
     public MapNode CurrentNode { get; private set; }
     // True while the world-map hub (a walkable level, MapHub) is open
-    public bool InHub => flow == Flow.Hub || MapHub.Active != null;   // or its scene was played directly
+    public bool InHub => flow == Flow.Hub || MapHub.Active != null || CampHub.Active != null;   // or its scene was played directly; the camp is a hub too (no clock, the wallet on the bar)
     // True while the first-time tutorialLevels run is playing (not a map Battle node).
     public bool InTutorialRun => tutorialStep >= 0;
     // True while a world map Battle node is being played (read without creating a GameFlow)
@@ -198,7 +198,19 @@ public class GameFlow : MonoBehaviour
 
             case NodeType.RolePick:
                 flow = Flow.RolePick;
-                SceneManager.LoadScene(RolePickScene);   // the Select scene ("WHO ARE U")
+                TextAsset camp = CampHub.CampLevel;
+                if (camp != null)
+                {
+                    // The character camp: a safe place to walk as your hero, meet the others, switch or hire
+                    ApplyChosenCharacter();
+                    LevelLoader.ScriptedTutorial = true;
+                    LevelLoader.Requested = camp;
+                    LevelLoader.WaitToAdvance = true;
+                    LevelLoader.AdvanceNow = false;
+                    SceneManager.LoadScene(LevelLayout.SceneFor(camp));
+                    break;
+                }
+                SceneManager.LoadScene(RolePickScene);   // the old Select scene ("WHO ARE U")
                 break;
 
             case NodeType.Store:

@@ -82,7 +82,16 @@ public class ArtCaptureRunner : MonoBehaviour
             string scene = parts[0], action = parts.Length > 1 ? parts[1] : null;
             if (action == "reward") SkillUnlockSummary.PlayEveryTime = true;
             LevelLoader.ScriptedTutorial = action == "tutorial" ? true : (bool?)null;
-            SceneManager.LoadScene(scene);
+            if (scene == "camp")
+            {
+                // the character camp (CampHub) is a level in the Game scene, opened like GameFlow's Pick Character node
+                LevelLoader.ScriptedTutorial = true;
+                LevelLoader.Requested = Resources.Load<TextAsset>("Hub/camp");
+                LevelLoader.WaitToAdvance = true;
+                LevelLoader.AdvanceNow = false;
+                SceneManager.LoadScene("Game");
+            }
+            else SceneManager.LoadScene(scene);
             yield return Hold(wait);
             if (action != null)
             {
@@ -98,7 +107,7 @@ public class ArtCaptureRunner : MonoBehaviour
                 MethodInfo start = typeof(MainMenu).GetMethod("StartGame", BindingFlags.Instance | BindingFlags.NonPublic);
                 if (menu != null && start != null) start.Invoke(menu, null);
             }
-            string loaded = parts[0];
+            string loaded = parts[0] == "camp" ? "Game" : parts[0];   // the camp is a level in the Game scene
             // "NAME:walk": hold the real right-arrow key (Input System) while saving frames at 30 a second, to
             // see whether moving pieces step on the stop-motion beat or glide.
             bool walk = action == "walk";
@@ -231,6 +240,31 @@ public class ArtCaptureRunner : MonoBehaviour
                 Trigger("brawler");
                 new GameObject("Capture frost").AddComponent<CaptureFrost>();
                 break;
+            case "gate":    // camp: step away from the hatch (arming it), then onto it: back to the map
+                new GameObject("Capture gate walk").AddComponent<CaptureGateWalk>();
+                break;
+            case "switch":  // camp: walk up to JK. Rolling and press Enter (play as them: the camp re-opens)
+            case "talk":    // camp: walk up to JK. Rolling and press E (talk)
+            case "hire":    // camp: walk up to Hulk (for hire), card only
+            case "elsa":    // camp: walk up to Elsa at her igloo, card only
+            case "scrat":   // camp: walk up to Scrat at his stump, card only
+            case "soon":    // camp: walk up to Rero Rero (not released) and press E
+                // whichever of the two starters is a friend here (the other is the one you play)
+                GameObject starter = GameObject.Find("Camp JK. Rolling");
+                if (starter == null) starter = GameObject.Find("Camp Mr. Hyde");
+                var npc = action == "talk" || action == "switch" ? starter
+                        : GameObject.Find(action == "hire" ? "Camp Hulk" : action == "elsa" ? "Camp Elsa" : action == "scrat" ? "Camp Scrat" : "Camp Rero Rero");
+                var me = FindFirstObjectByType<PlayerCharacter>();
+                if (npc != null && me != null)
+                {
+                    Vector2 by = (Vector2)npc.transform.position + new Vector2(-1.1f, 0f);
+                    var meBody = me.GetComponent<Rigidbody2D>();
+                    if (meBody != null) meBody.position = by;
+                    me.transform.position = by;
+                    if (action == "talk" || action == "switch" || action == "soon") new GameObject("Capture key").AddComponent<CaptureKey>().key =
+                        action == "switch" ? UnityEngine.InputSystem.Key.Enter : UnityEngine.InputSystem.Key.E;
+                }
+                break;
             case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
                 var squares = FindObjectsByType<RedSquare>(FindObjectsSortMode.None);
                 var pc = FindFirstObjectByType<PlayerCharacter>();
@@ -295,5 +329,40 @@ public class CaptureFrost : MonoBehaviour
         Vector2 from = pc.transform.position;
         Vector2 to = near.transform.position;
         FrostField2D.Expose(pc.transform, from, to - from, Vector2.Distance(from, to) + 1.5f, 30f);
+// Capture only: taps E a moment later (the camp's talk key), through the Input System like a player would
+public class CaptureKey : MonoBehaviour
+{
+    public UnityEngine.InputSystem.Key key = UnityEngine.InputSystem.Key.E;
+    float start;
+    int stage;
+    void Start() { start = Time.unscaledTime; }
+    void Update()
+    {
+        var kb = UnityEngine.InputSystem.Keyboard.current;
+        if (kb == null) kb = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
+        float t = Time.unscaledTime - start;
+        if (stage == 0 && t > 0.4f) { UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState(key)); stage = 1; }
+        else if (stage == 1 && t > 0.5f) { UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState()); Destroy(gameObject); }
+    }
+}
+
+// Capture only: in the camp, stands the player in the middle (arming the gate), then on the hatch
+public class CaptureGateWalk : MonoBehaviour
+{
+    float start;
+    int stage;
+    void Start() { start = Time.unscaledTime; }
+    void Update()
+    {
+        var me = FindFirstObjectByType<PlayerCharacter>();
+        var gate = GameObject.Find("Camp Gate");
+        if (me == null || gate == null) return;
+        float t = Time.unscaledTime - start;
+        Vector2 to = stage == 0 ? (Vector2)gate.transform.position + new Vector2(3f, 0f) : (Vector2)gate.transform.position;
+        if (stage == 0 && t > 0.3f) stage = 1;
+        var body = me.GetComponent<Rigidbody2D>();
+        if (body != null) body.position = to;
+        me.transform.position = to;
+        if (stage == 1 && t > 0.6f) Destroy(gameObject);
     }
 }

@@ -70,10 +70,18 @@ public class MineBackdrop : MonoBehaviour
     {
         if (cam == null) cam = Camera.main;
         if (cam == null || look == null) return;
-        float height = cam.orthographicSize * 2f + 1f;
-        float width = height * Mathf.Max(cam.aspect, 0.1f) + 1f;
+        // Covers the view, but snapped to whole tiles of the floor's own pattern and sized in whole even
+        // tiles: a tiled sprite's pattern is anchored to the sprite, so following the camera smoothly
+        // made the whole floor slide along with a following camera (the camp, the roam map). Snapped,
+        // the felt stays put on the ground while the view moves over it.
+        float tile = look.sprite != null ? Mathf.Max(0.01f, look.sprite.bounds.size.x) : 8f;
+        float viewH = cam.orthographicSize * 2f;
+        float viewW = viewH * Mathf.Max(cam.aspect, 0.1f);
+        float width = (Mathf.Ceil(viewW / tile / 2f) + 1f) * 2f * tile;
+        float height = (Mathf.Ceil(viewH / tile / 2f) + 1f) * 2f * tile;
         Vector3 at = cam.transform.position;
-        transform.position = new Vector3(at.x, at.y, at.z + cam.farClipPlane * 0.9f);
+        float x = Mathf.Round(at.x / tile) * tile, y = Mathf.Round(at.y / tile) * tile;
+        transform.position = new Vector3(x, y, at.z + cam.farClipPlane * 0.9f);
         look.size = new Vector2(width, height);
         if (Time.unscaledTime >= nextLook)   // the level's name is a fresh string each read: twice a second
         {

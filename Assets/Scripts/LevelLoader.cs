@@ -389,10 +389,20 @@ public class LevelLoader : MonoBehaviour
         GameplayCamera.SetArenaSize(level.MazeSize + Vector2.one * tile);
         if (player != null) player.transform.localScale = Vector3.one * tile * level.Param("player_scale", 0.9f);
 
+        // "camp": 1 is the character camp (the Pick Character node): its own hub, not the world map
+        if (IsCamp)
+        {
+            CampHub camp = GetComponent<CampHub>();
+            if (camp == null) camp = gameObject.AddComponent<CampHub>();
+            camp.Build(level, list[current], player);
+            return;
+        }
         MapHub hub = GetComponent<MapHub>();
         if (hub == null) hub = gameObject.AddComponent<MapHub>();
         hub.Build(level, player, hex, grey, baked);
     }
+
+    bool IsCamp => level != null && level.Param("camp", 0f) > 0.5f;
 
     // --- Attack mode ("attack": 1) ----------------------------------------------------------------
     // No gold: a sector arena_width x arena_height (default twice the screen each way) with wall
@@ -1757,7 +1767,8 @@ public class LevelLoader : MonoBehaviour
             else
             {
                 MazeHubState.ReadPrefsIfNeeded();
-                if (MazeHubState.HasSave) MazeHubState.ApplyToScene(null, player, GameManager.Instance);
+                // the camp keeps its own layout: the world map's saved spot means nothing there
+                if (MazeHubState.HasSave && !IsCamp) MazeHubState.ApplyToScene(null, player, GameManager.Instance);
                 else MazeHubState.ApplyDisplayMoney(GameManager.Instance);
             }
             // Restore only map HP; armed goods wait for the next battle.

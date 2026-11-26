@@ -1,0 +1,227 @@
+{
+  "name": "Camp",
+  "_comment": "The character camp (CampHub): replaces the old Select screen as the world map's Pick Character node. A safe clearing in the mine (no hooks, no clock) where the player walks as their current character, meets the other heroes at their tents around the campfire, talks to them (E), and plays as an unlocked one, hires a locked one for its price, or hears that an unreleased one is not ready (Enter). The gate leads back to the map. A cave about two screens each way, the camera following you like Level 4; each hero has a home that suits them (mud wallow, box bed, stump, pond, igloo, rocky cave: \"home\" art; home_anchor = where in the painting the hero stands, as 0..1 from its bottom-left, so the pig stands IN its wallow, the frog on its lily pads, Hulk in his cave mouth; home_size = the painting's width in units), Hulk's inside a real walled chamber. Grid: # wall, P where you arrive. camp_spots / camp_fire / camp_gate are grid cells (col, row; fractions allowed) read by CampHub; character = ChampionSpawner order (0 Mr. Hyde, 1 JK. Rolling, 2 Scrat, 3 Rero Rero, 4 Elsa, 5 Hulk).",
+  "params": {
+    "camp": 1,
+    "tile_size": 1.0,
+    "player_scale": 0.8,
+    "digest_time": 0.0,
+    "digest_per_value": 0.0
+  },
+  "grid": [
+    "####################################",
+    "####...###########..################",
+    "###...............................##",
+    "##................................##",
+    "##................................##",
+    "##................................##",
+    "##................................##",
+    "##..........##.........##.........##",
+    "#...........#...........#.........##",
+    "#.................................##",
+    "#...P.............................##",
+    "##................................##",
+    "##..........#...........#.#..#######",
+    "##..........##.........##.........##",
+    "##................................##",
+    "##........................#.......##",
+    "###.......................#.......##",
+    "###.......................#.......##",
+    "###########..###########..##########",
+    "####################################"
+  ],
+  "camp_fire": {
+    "x": 18,
+    "y": 10
+  },
+  "camp_gate": {
+    "x": 1.4,
+    "y": 10
+  },
+  "camp_spots": [
+    {
+      "character": 0,
+      "x": 7,
+      "y": 5,
+      "npc_local_position": [0.03, 0.19, 0],
+      "npc_local_rotation": [0, 0, 330.793121],
+      "home": "Camp/Home_Pig",
+      "home_anchor": [
+        0.447,
+        0.475
+      ],
+      "home_size": 2.7
+    },
+    {
+      "character": 1,
+      "x": 18,
+      "y": 4.2,
+      "npc_pivot_position": [0.602, 5.5, 0],
+      "npc_facing_x": -1,
+      "home": "Camp/Home_Cat",
+      "home_anchor": [
+        0.445,
+        0.47
+      ],
+      "home_size": 2.5
+    },
+    {
+      "character": 4,
+      "x": 29,
+      "y": 5,
+      "npc_local_position": [0.19, 0.04, 0],
+      "npc_local_rotation": [0, 0, 355.832306],
+      "npc_facing_x": -1,
+      "home": "Camp/Home_Penguin",
+      "home_position": [10.9899998, 5.44000006, 0],
+      "home_scale": [2.18733072, 2.18733072, 2.18733072],
+      "home_anchor": [
+        0.577,
+        0.33
+      ],
+      "home_size": 3.0
+    },
+    {
+      "character": 5,
+      "x": 29.5,
+      "y": 15,
+      "npc_pivot_position": [11.88, -5.5, 0],
+      "home": "Camp/Home_Rhino",
+      "group_home": true,
+      "home_group_position": [11.93, -5.36, 0],
+      "home_group_scale": [0.8, 0.8, 0.8],
+      "npc_facing_x": -1,
+      "home_anchor": [
+        0.488,
+        0.48
+      ],
+      "home_size": 3.2
+    },
+    {
+      "character": 3,
+      "x": 18,
+      "y": 14.8,
+      "npc_pivot_position": [0.5, -5.44, 0],
+      "home": "Camp/Home_Frog",
+      "home_anchor": [
+        0.5,
+        0.49
+      ],
+      "home_size": 3.2
+    },
+    {
+      "character": 2,
+      "x": 7,
+      "y": 15,
+      "npc_pivot_position": [-10.5, -6.56, 0],
+      "home": "Camp/Home_Squirrel",
+      "group_home": true,
+      "home_group_position": [-10.39, -6.06, 0],
+      "home_group_scale": [1.6, 1.6, 1.6],
+      "home_anchor": [
+        0.47,
+        0.86
+      ],
+      "home_size": 2.4
+    }
+  ],
+  "camp_props": [
+    {
+      "art": "Props/Lantern",
+      "x": 3,
+      "y": 3,
+      "size": 0.7
+    },
+    {
+      "art": "Props/Lantern",
+      "x": 33,
+      "y": 3,
+      "size": 0.7
+    },
+    {
+      "art": "Props/Lantern",
+      "x": 3,
+      "y": 16.5,
+      "size": 0.7
+    },
+    {
+      "art": "Props/Lantern",
+      "x": 14,
+      "y": 10,
+      "size": 0.6
+    },
+    {
+      "art": "Props/Lantern",
+      "x": 22,
+      "y": 10,
+      "size": 0.6
+    },
+    {
+      "art": "Props/Crate",
+      "x": 33,
+      "y": 9,
+      "size": 1.0
+    },
+    {
+      "art": "Props/Crate",
+      "x": 32.2,
+      "y": 9.6,
+      "size": 0.75
+    },
+    {
+      "art": "Props/Mushrooms",
+      "x": 11,
+      "y": 17,
+      "size": 0.9
+    },
+    {
+      "art": "Props/Mushrooms",
+      "x": 22,
+      "y": 2.5,
+      "size": 0.8
+    },
+    {
+      "art": "Props/Pebbles",
+      "x": 15,
+      "y": 7,
+      "size": 0.7
+    },
+    {
+      "art": "Props/Pebbles",
+      "x": 21,
+      "y": 13,
+      "size": 0.7
+    },
+    {
+      "art": "Props/Moss",
+      "x": 24,
+      "y": 17,
+      "size": 1.0
+    },
+    {
+      "art": "Props/Moss",
+      "x": 10,
+      "y": 2.5,
+      "size": 0.9
+    },
+    {
+      "art": "Props/Plank",
+      "x": 31.5,
+      "y": 13.2,
+      "size": 1.1
+    },
+    {
+      "art": "Props/Rope",
+      "x": 27.5,
+      "y": 2.6,
+      "size": 0.9
+    },
+    {
+      "art": "Props/Rail",
+      "x": 5,
+      "y": 10.6,
+      "size": 1.3
+    }
+  ],
+  "camp_view": 1.0
+}
