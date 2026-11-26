@@ -240,6 +240,10 @@ public class ArtCaptureRunner : MonoBehaviour
                     if (loader != null && addGold != null) addGold.Invoke(loader, new object[] { spot + new Vector2(2.5f, -2.2f) });
                 }
                 break;
+            case "cartfreeze":      // the walking-miner set-up, then real frost breathed on the nearest cart
+                Trigger("round");
+                new GameObject("Capture frost").AddComponent<CaptureFrost>().carts = true;
+                break;
             case "brawlerfreeze":   // the brawler set-up, then real frost breathed on that square (FrostField2D.Expose, as Elsa's breath does)
                 Trigger("brawler");
                 new GameObject("Capture frost").AddComponent<CaptureFrost>();
@@ -317,6 +321,7 @@ public class CaptureUnmute : MonoBehaviour
 // second (the same FrostField2D.Expose call Elsa's breath makes), to film a frozen enemy.
 public class CaptureFrost : MonoBehaviour
 {
+    public bool carts;   // breathe on the nearest walking miner (mine cart) instead of a Red Square
     float start;
     void Start() { start = Time.time; }
     void Update()
@@ -326,9 +331,9 @@ public class CaptureFrost : MonoBehaviour
         if (t > 2.0f) { Destroy(gameObject); return; }
         var pc = FindFirstObjectByType<PlayerCharacter>();
         if (pc == null) return;
-        RedSquare near = null;
-        foreach (RedSquare s in FindObjectsByType<RedSquare>(FindObjectsSortMode.None))
-            if (near == null || (s.transform.position - pc.transform.position).sqrMagnitude < (near.transform.position - pc.transform.position).sqrMagnitude) near = s;
+        RedEnemy near = null;
+        foreach (RedEnemy s in FindObjectsByType<RedEnemy>(FindObjectsSortMode.None))
+            if ((s is RedSquare) != carts && (near == null || (s.transform.position - pc.transform.position).sqrMagnitude < (near.transform.position - pc.transform.position).sqrMagnitude)) near = s;
         if (near == null) return;
         Vector2 from = pc.transform.position;
         Vector2 to = near.transform.position;

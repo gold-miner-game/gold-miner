@@ -20,7 +20,7 @@ The square's 1x1 box collider is unchanged; the figure is drawn about 1.5 world 
 | Wind-up | hunting and within 1.8 units of the player: crouched, glove cocked back | `Brawler_Windup` |
 | Punch | the frame a ram lands, held 0.3 s: glove thrust at the camera, paper speed strips | `Brawler_Punch` |
 | Bonk | the ram was blocked (Mr. Hyde's block), or it is shoved by the pig's attack: dizzy, stars | `Brawler_Bonk` |
-| (frozen) | Elsa's frost: holds whatever pose and facing it was caught in until it thaws; the frost draws over it | - |
+| (frozen) | Elsa's frost: holds whatever pose and facing it was caught in until it thaws, and the whole brawler turns ice-blue like the frozen miner cats (any patch freezes all of it); the frost patch draws over it | - |
 
 `PaperBrawler` swaps the square's own root sprite and its flipX, so it faces the player. Hits change the
 picture at once; every other change waits for the next stop-motion pose. HookHealth's hit blink and
@@ -56,7 +56,7 @@ as a hole that stays put.)
 | Aim | the hook's telegraph (`SurvivalHookAI.Aiming`): up on the rim, glaring | `Cart*_Aim` |
 | Reel | hook out (`Hook.IsBusy`): standing in the cart, straining on the twine | `Cart*_Reel` |
 | Hit | while `HookHealth` blinks: X eyes / coins popping | `Cart*_Hit` |
-| (frozen) | Elsa's frost: holds its pose and facing; the wheels ice over to match the body | - |
+| (frozen) | Elsa's frost: holds its pose and facing; the whole cart (cat, tub, wheels) turns ice-blue like the frozen miner cats; the dust ruts never frost | - |
 
 `PaperMineCart` swaps the hole's own root sprite, flip and sorting order, and adds collider-free
 children, so the hole's collider (fitted to the old disc), HP blink, frost, hook and every gameplay

@@ -28,6 +28,8 @@ public class PaperBrawler : MonoBehaviour
     float punchUntil = -1f;
     bool wasRammed;
     Sprite shown;
+    bool wasFrozen;
+    static readonly Color Ice = new Color(0.72f, 0.88f, 1f);   // the frozen miner cats' and carts' ice-blue
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void ResetStatics() { guard = walkA = walkB = windup = punch = bonk = null; }
@@ -64,7 +66,11 @@ public class PaperBrawler : MonoBehaviour
         if (Time.timeScale <= 0f) return;   // paused: a still photo
         // Frozen by Elsa: held in the pose and facing it was caught in, like the frozen miner cats,
         // until it thaws (its frost is drawn over this held picture by FrostBody2D)
-        if (square.IsFrozen) return;
+        // Frozen by Elsa: the whole brawler turns ice-blue, like the frozen miner cats (any frost patch
+        // freezes all of it, so all of it reads frozen; FrostBody2D's patch still shows where the breath hit)
+        bool frozen = square.IsFrozen;
+        if (frozen != wasFrozen) { wasFrozen = frozen; look.color = frozen ? Ice : Color.white; }
+        if (frozen) return;
 
         bool rammed = square.Rammed;
         if (rammed && !wasRammed && !square.LastRamBlocked) punchUntil = Time.time + punchHold;

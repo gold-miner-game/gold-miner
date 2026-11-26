@@ -118,9 +118,12 @@ public class PaperMineCart : MonoBehaviour
         if (frozen != wasFrozen)
         {
             wasFrozen = frozen;
-            Color wheelTint = frozen ? Ice : Color.white;   // the body's frost is FrostBody2D's; the wheels ice to match
-            if (wheelL != null) wheelL.color = wheelTint;
-            if (wheelR != null) wheelR.color = wheelTint;
+            // the whole cart turns ice-blue, cat, tub and wheels, like the frozen miner cats (any frost
+            // patch freezes all of it); FrostBody2D's patch still shows where the breath hit
+            Color iceTint = frozen ? Ice : Color.white;
+            look.color = iceTint;
+            if (wheelL != null) wheelL.color = iceTint;
+            if (wheelR != null) wheelR.color = iceTint;
         }
         if (frozen) return;   // held as it was caught
 
@@ -188,7 +191,11 @@ public class PaperMineCart : MonoBehaviour
         if (rutArt == null || (now - rutFrom).sqrMagnitude < rutEvery * rutEvery) return;
         Vector3 dir = (now - rutFrom).normalized;
         rutFrom = now;
-        if (rutRoot == null) rutRoot = new GameObject(name + " ruts").transform;   // not a child: ruts stay where they were pressed
+        if (rutRoot == null)
+        {
+            rutRoot = new GameObject(name + " ruts").transform;   // not a child: ruts stay where they were pressed
+            rutRoot.gameObject.AddComponent<FrostIgnore2D>();     // marks in the dust: Elsa's breath doesn't frost them
+        }
         float gauge = WheelHub.x * Mathf.Abs(transform.lossyScale.x);
         Vector3 across = new Vector3(-dir.y, dir.x, 0f) * gauge;
         Vector3 ground = now + Vector3.up * (WheelHub.y * Mathf.Abs(transform.lossyScale.y)) * 0.6f;
