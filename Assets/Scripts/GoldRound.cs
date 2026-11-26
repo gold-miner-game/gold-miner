@@ -30,6 +30,7 @@ public class GoldRound : RedEnemy
     {
         base.Start();
         ai = GetComponent<SurvivalHookAI>();
+        if (GetComponent<PaperMineCart>() == null) gameObject.AddComponent<PaperMineCart>().kind = PaperMineCart.Kind.Gold;   // art only
         ai.goldOnly = true;
         ai.range = 0f;
         ai.holdFire = true;

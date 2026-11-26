@@ -208,6 +208,29 @@ public class ArtCaptureRunner : MonoBehaviour
                     needle.previewCycle = true;
                 }
                 break;
+            case "round":   // roam: put the player a few steps from the nearest walking hook hole (Red Round / Gold Round) and wake it
+                var walkers = FindObjectsByType<RedEnemy>(FindObjectsSortMode.None);
+                var hero = FindFirstObjectByType<PlayerCharacter>();
+                RedEnemy closest = null;
+                foreach (RedEnemy w in walkers)
+                    if (!(w is RedSquare) && hero != null && (closest == null || (w.transform.position - hero.transform.position).sqrMagnitude < (closest.transform.position - hero.transform.position).sqrMagnitude)) closest = w;
+                if (closest != null)
+                {
+                    Vector2 spot = (Vector2)closest.transform.position + Vector2.left * 3.5f;
+                    var rb2 = hero.GetComponent<Rigidbody2D>();
+                    if (rb2 != null) rb2.position = spot;
+                    hero.transform.position = spot;
+                    closest.WakeUp();
+                    // no level places a Gold Round yet: add one through the loader's own spawner, to review its look
+                    var loader = FindFirstObjectByType<LevelLoader>();
+                    MethodInfo addGold = typeof(LevelLoader).GetMethod("AddGoldRound", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (loader != null && addGold != null) addGold.Invoke(loader, new object[] { spot + new Vector2(2.5f, -2.2f) });
+                }
+                break;
+            case "brawlerfreeze":   // the brawler set-up, then real frost breathed on that square (FrostField2D.Expose, as Elsa's breath does)
+                Trigger("brawler");
+                new GameObject("Capture frost").AddComponent<CaptureFrost>();
+                break;
             case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
                 var squares = FindObjectsByType<RedSquare>(FindObjectsSortMode.None);
                 var pc = FindFirstObjectByType<PlayerCharacter>();
@@ -250,4 +273,27 @@ public class CaptureUnmute : MonoBehaviour
     float start;
     void Start() { start = Time.unscaledTime; DontDestroyOnLoad(gameObject); }   // survives the next capture scene
     void Update() { if (Time.unscaledTime - start > 2f) { SoundDirector.Muted = false; PlayerPrefs.Save(); Destroy(gameObject); } }
+}
+
+// Capture only: after a moment, breathes frost from the player onto the nearest Red Square for a
+// second (the same FrostField2D.Expose call Elsa's breath makes), to film a frozen enemy.
+public class CaptureFrost : MonoBehaviour
+{
+    float start;
+    void Start() { start = Time.time; }
+    void Update()
+    {
+        float t = Time.time - start;
+        if (t < 1.0f) return;
+        if (t > 2.0f) { Destroy(gameObject); return; }
+        var pc = FindFirstObjectByType<PlayerCharacter>();
+        if (pc == null) return;
+        RedSquare near = null;
+        foreach (RedSquare s in FindObjectsByType<RedSquare>(FindObjectsSortMode.None))
+            if (near == null || (s.transform.position - pc.transform.position).sqrMagnitude < (near.transform.position - pc.transform.position).sqrMagnitude) near = s;
+        if (near == null) return;
+        Vector2 from = pc.transform.position;
+        Vector2 to = near.transform.position;
+        FrostField2D.Expose(pc.transform, from, to - from, Vector2.Distance(from, to) + 1.5f, 30f);
+    }
 }

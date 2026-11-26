@@ -28,6 +28,7 @@ public class HookHealth : MonoBehaviour
     static readonly List<HookHealth> all = new List<HookHealth>();
 
     public bool Alive => hp > 0;
+    public bool Blinking => Time.time < blinkUntil;   // read-only, for the art (hit pose)
     public BoxCollider2D Box { get; private set; }
 
     SpriteRenderer[] sprites;

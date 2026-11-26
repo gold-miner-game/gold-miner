@@ -20,6 +20,7 @@ The square's 1x1 box collider is unchanged; the figure is drawn about 1.5 world 
 | Wind-up | hunting and within 1.8 units of the player: crouched, glove cocked back | `Brawler_Windup` |
 | Punch | the frame a ram lands, held 0.3 s: glove thrust at the camera, paper speed strips | `Brawler_Punch` |
 | Bonk | the ram was blocked (Mr. Hyde's block), or it is shoved by the pig's attack: dizzy, stars | `Brawler_Bonk` |
+| (frozen) | Elsa's frost: holds whatever pose and facing it was caught in until it thaws; the frost draws over it | - |
 
 `PaperBrawler` swaps the square's own root sprite and its flipX, so it faces the player. Hits change the
 picture at once; every other change waits for the next stop-motion pose. HookHealth's hit blink and
@@ -32,23 +33,47 @@ Regenerate the sprites with `python tools/art/make_brawler.py` from the Meshy so
 `tools/art_capture/capture.ps1 -Scenes "level_roam:brawler" -Frames 24`. The `brawler` capture
 action puts the player three steps from the nearest Red Square and wakes it.
 
-## Red Round: "Burrow Bandit" (designed, parked, not built)
+## Walking miners: Red Round and Gold Round ride mine carts (built)
 
-The walking red hook hole is a Meowmeow that digs its own shaft as it goes. It rises out of a round
-mound of torn paper soil, wearing a red bandana, with glowing red eyes.
-Poses: Dig/Walk (ducked, so only the ears and eyes show; torn-paper crumbs fly up and are left on the
-floor), Aim (pops up with a red glare on the telegraph), Reel (straining on the twine), Hit/KO (X eyes,
-felt fluff pops off, then the mound collapses).
-Note from the game-scale mock-up: rust-red soil blends with red-tinted wall rocks. When this is built,
-use umber soil and keep the red to a stitched felt ring, the bandana and the eyes.
-Sources: `images/roam-enemies/red_round_*.png`.
+![cart sheet](images/roam-enemies/cart_design_sheet.png)
 
-## Gold Round: "Greedy Digger" (designed, parked, not built)
+A fixed miner works a winch over a timber shaft (`PaperMiners`). The walking hook holes used to get
+that same shaft and winch dragged beside the old red disc, which read as a solid block, not as
+something that moves. A shaft cannot walk, so the walkers are drawn as their own enemy: a felt
+Meowmeow riding a **mine cart** with its winch on board. Wheels say "mobile" even while it stands.
+(An earlier idea, a cat in a travelling burrow mound, was dropped for the same reason: a mound reads
+as a hole that stays put.)
 
-The gold-collecting walker is the same burrowing cat in a gold-sand mound. It has gold-coin eyes with
-stitched dollar signs, a greedy grin and a burlap sack, a cousin of the Greedy Meowmeow.
-Poses: Dig/Walk (ducked, gold crumbs fly), Aim (eyes on the gold), Bank (hugs the nugget, sparkle eyes).
-Sources: `images/roam-enemies/gold_round_*.png`.
+- **Red Round:** a red riveted cart tub with a red felt rim stitched in white, and the red-eyed cat
+  with its red bandana.
+- **Gold Round:** an ochre-gold tub heaped with nuggets, with a sack on the side, and a grey cat with
+  gold-coin eyes.
+
+| Pose | When | Sprite |
+| --- | --- | --- |
+| Roll | moving: ducked to the ears; the cart rocks +-3 degrees over bumps on the beat | `Cart{Red,Gold}_Lurk`, `_Lurk_w1/_w2` |
+| Lurk | standing | `Cart*_Lurk` |
+| Aim | the hook's telegraph (`SurvivalHookAI.Aiming`): up on the rim, glaring | `Cart*_Aim` |
+| Reel | hook out (`Hook.IsBusy`): standing in the cart, straining on the twine | `Cart*_Reel` |
+| Hit | while `HookHealth` blinks: X eyes / coins popping | `Cart*_Hit` |
+| (frozen) | Elsa's frost: holds its pose and facing; the wheels ice over to match the body | - |
+
+`PaperMineCart` swaps the hole's own root sprite, flip and sorting order, and adds collider-free
+children, so the hole's collider (fitted to the old disc), HP blink, frost, hook and every gameplay
+value are unchanged.
+- **Wheels:** the tub is painted without wheels. Two spoked wheels (`Miner/WinchReel`) are separate
+  cut-outs behind the tub's lower corners, and they turn 40 degrees per pose in the direction of travel.
+- **Ruts:** pale dust ruts (`Fx/Stitch`) are left in pairs every 0.3 units and fade over 1.4 s, so a
+  cart's path shows even in a still frame.
+- **Sorting:** the cat sits in front of its resting brass claw and behind its rope while the hook is
+  out, with the shaft cats' orders (rope +7 / rope -2).
+- **Facing:** it faces its target (the player, or the gold for a Gold Round).
+
+`PaperMiners` now leaves walking holes alone. `RedRound` and `GoldRound` attach the art, and
+`HookHealth.Blinking` is the only gameplay-file addition: a read-only getter.
+Sprites: `python tools/art/make_cart.py` (sources `images/roam-enemies/cart_*.png`). Capture:
+`level_roam:round` puts the player near a walking miner and, for review, spawns a Gold Round through
+the loader's own `AddGoldRound`.
 
 ## Needle Meowmeow: the sprint-stab cat (look and prefab built, gameplay not written)
 
