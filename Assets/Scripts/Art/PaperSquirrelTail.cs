@@ -11,6 +11,7 @@ using UnityEngine.SceneManagement;
 // (the tail parts carry no colliders). Swapped wherever a squirrel appears: in play and in the camp.
 public class PaperSquirrelTail : MonoBehaviour
 {
+    static readonly Color PrefabTailTint = new Color(0.6784314f, 0.4117647f, 0.2666667f);   // Squirrel.prefab's tail colour
     static PaperSquirrelTail instance;
     Sprite crown, stripe;
     float nextScan;
@@ -42,7 +43,10 @@ public class PaperSquirrelTail : MonoBehaviour
             if (c == null || b == null || c.sprite == crown) continue;
             c.sprite = crown;
             b.sprite = stripe;
-            c.color = b.color = Color.white;                    // painted felt, not a tinted circle
+            // painted felt, not a tinted circle: shown in its own colours, but keeping any dimming the
+            // squirrel carries (the camp dims a hero who can't join yet), read off the prefab's tail tint
+            float dim = Mathf.Clamp01(c.color.r / PrefabTailTint.r);
+            c.color = b.color = new Color(dim, dim, dim, c.color.a);
             b.sortingOrder = c.sortingOrder + 1;                // the light stripe lies on the plume
         }
     }
