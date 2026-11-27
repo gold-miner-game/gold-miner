@@ -169,6 +169,15 @@ public class TutorialDialogue : MonoBehaviour
     }
 
     void Awake() { step = GetComponent<TutorialStep>(); }
+
+    // A film that opens the scene: black from the very first frame, so the scene doesn't flash
+    // up while the level gets going (the step starts a few frames in, after the player arrives)
+    void Start()
+    {
+        if (string.IsNullOrEmpty(film) || step == null || !step.isActiveAndEnabled) return;
+        if (step.startOn == TutorialStep.StartTrigger.LevelStart && step.delay <= 0f && !step.AlreadySeen)
+            FilmScreen.Cover();
+    }
     void OnEnable() { if (!all.Contains(this)) all.Add(this); }
     void OnDisable() { all.Remove(this); }
 

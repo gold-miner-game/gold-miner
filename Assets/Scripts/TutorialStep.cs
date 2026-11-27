@@ -171,9 +171,12 @@ public class TutorialStep : MonoBehaviour
 
         if (afterStep == null && startOn == StartTrigger.AfterStep) afterStep = StepAbove();
         inLevel = FindFirstObjectByType<LevelLayout>() != null;
-        if ((onlyFirstTime || oncePerSave) && (!ReplaySeen || oncePerSave)
-            && PlayerPrefs.GetInt(SeenKey, 0) == 1) Current = State.Done;
+        if (AlreadySeen) Current = State.Done;
     }
+
+    // Only First Time / Once Per Save and already played: it won't show again
+    public bool AlreadySeen => (onlyFirstTime || oncePerSave) && (!ReplaySeen || oncePerSave)
+                               && PlayerPrefs.GetInt(SeenKey, 0) == 1;
 
     bool inLevel;   // in a level scene: the player is on its way with the Game scene
 

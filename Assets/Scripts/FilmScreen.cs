@@ -12,6 +12,9 @@ using UnityEngine.Video;
 // game's music steps aside while it plays (SoundDirector reads FilmScreen.Playing).
 // After a moment a "Space / click: skip" tag shows; a key or click then skips. If the file is
 // missing or can't play, it ends at once, so a story step never hangs on a film.
+// No flash of the scene: the black is opaque from its first frame and only the picture fades up,
+// once a decoded frame is ready. A film that opens a scene also gets FilmScreen.Cover() as the scene
+// loads (TutorialDialogue.Start), so the frames before its step starts stay black too.
 public class FilmScreen : MonoBehaviour
 {
     public const string Folder = "Films";
@@ -29,17 +32,37 @@ public class FilmScreen : MonoBehaviour
     CanvasGroup group;
     GameObject skipTag;
     Action done;
-    float started;
+    float started, shownAt;
     bool prepared, finished;
 
     public static FilmScreen Play(string file, Action onDone)
     {
+        // A cover put up for this film takes it over, so the black never drops in between
+        if (current != null && current.covering) { current.Begin(file, onDone); return current; }
         if (current != null) current.End();
         var go = new GameObject("FilmScreen");
         var screen = go.AddComponent<FilmScreen>();
+        screen.BuildScreen();
         screen.Begin(file, onDone);
         return screen;
     }
+
+    // Plain black over everything until a film starts: for a film that opens a scene, called as the
+    // scene loads so its first frames never show. Goes away by itself if no film follows.
+    public static void Cover()
+    {
+        if (current != null) return;
+        var go = new GameObject("FilmScreen (cover)");
+        var screen = go.AddComponent<FilmScreen>();
+        screen.BuildScreen();
+        screen.covering = true;
+        screen.started = Time.unscaledTime;
+        current = screen;
+    }
+
+    const float CoverTimeout = 8f;   // a cover with no film after this long lifts (never a stuck black screen)
+    bool covering;
+    bool showing;   // the first frame is on screen: the picture fades up from black
 
     // A film's URL under StreamingAssets (works in the editor, desktop and WebGL)
     public static string UrlFor(string file)
@@ -52,9 +75,10 @@ public class FilmScreen : MonoBehaviour
     void Begin(string file, Action onDone)
     {
         current = this;
+        covering = false;
+        gameObject.name = "FilmScreen";
         done = onDone;
         started = Time.unscaledTime;
-        BuildScreen();
 
         player = gameObject.AddComponent<VideoPlayer>();
         player.playOnAwake = false;
@@ -79,7 +103,6 @@ public class FilmScreen : MonoBehaviour
         target = new RenderTexture(w, h, 0);
         vp.targetTexture = target;
         picture.texture = target;
-        picture.color = Color.white;
         fitter.aspectRatio = (float)w / h;
         float volume = SoundDirector.Muted ? 0f : SoundDirector.GetVolume(SoundDirector.Volume.Master);
         for (ushort i = 0; i < vp.audioTrackCount; i++) vp.SetDirectAudioVolume(i, volume);
@@ -90,7 +113,14 @@ public class FilmScreen : MonoBehaviour
     {
         if (finished) return;
         float t = Time.unscaledTime - started;
-        group.alpha = Mathf.Clamp01(t / 0.25f);
+        if (covering)
+        {
+            if (t > CoverTimeout) { Debug.LogWarning("FilmScreen: a cover waited with no film"); End(); }
+            return;
+        }
+        // The black is there from the start; the picture fades up once a real frame is decoded
+        if (!showing && prepared && player.isPlaying && player.frame >= 1) { showing = true; shownAt = Time.unscaledTime; }
+        if (showing) picture.color = Color.Lerp(Color.black, Color.white, (Time.unscaledTime - shownAt) / 0.3f);
         if (!prepared && t > PrepareTimeout) { Debug.LogWarning("FilmScreen: the film didn't load in time"); End(); return; }
 
         bool canSkip = t > SkipAfter;
@@ -129,7 +159,7 @@ public class FilmScreen : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.matchWidthOrHeight = 0.5f;
         group = gameObject.AddComponent<CanvasGroup>();
-        group.alpha = 0f;
+        group.alpha = 1f;   // opaque at once: the scene underneath must never peek through
         group.blocksRaycasts = true;   // nothing under the film takes clicks
 
         var black = new GameObject("Black", typeof(RectTransform), typeof(Image));
