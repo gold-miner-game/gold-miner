@@ -248,6 +248,17 @@ public class ArtCaptureRunner : MonoBehaviour
                 Trigger("brawler");
                 new GameObject("Capture frost").AddComponent<CaptureFrost>();
                 break;
+            case "gateview":   // camp: stand a few steps right of the mine exit (not on it), to see the exit itself
+                var gateArt = GameObject.Find("Camp Gate");
+                var gatePc = FindFirstObjectByType<PlayerCharacter>();
+                if (gateArt != null && gatePc != null)
+                {
+                    Vector2 near = (Vector2)gateArt.transform.position + new Vector2(2.4f, -0.4f);
+                    var gateRb = gatePc.GetComponent<Rigidbody2D>();
+                    if (gateRb != null) gateRb.position = near;
+                    gatePc.transform.position = near;
+                }
+                break;
             case "gate":    // camp: step away from the hatch (arming it), then onto it: back to the map
                 new GameObject("Capture gate walk").AddComponent<CaptureGateWalk>();
                 break;
