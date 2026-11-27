@@ -55,6 +55,10 @@ public class PaperClaws : MonoBehaviour
     const float ChainAspect = 256f / 85f;   // Tiles/Chain: two whole link periods, seamless
     static readonly Vector2 GrappleEye = new Vector2(0.5f, 0.855f);   // the eye ring's hole in Fx/Grapple (prongs down)
     const float GrappleLength = 0.844f;     // eye to prong tips, in sprite widths
+    // Sized to the small burrow cat, not to the brass claw (which is drawn 1.3x its arms on purpose):
+    // the grapple reaches 0.85 of the claw's length, the chain is a light one
+    const float GrappleReach = 0.85f;
+    const float ChainWidth = 0.11f;
     readonly Vector3[] points = new Vector3[64];
     const float CableWidth = 0.19f;   // the keyframe twine, its two strands parting into open eyes on the (larger drawn) claw
     const float ClawScale = 1.3f;     // the brass claw is drawn larger than its arms, so the thick rope has a plate to tie onto
@@ -164,7 +168,7 @@ public class PaperClaws : MonoBehaviour
             ropeOutline = outlineT != null ? outlineT.GetComponent<LineRenderer>() : null,
             arms = new[] { left, Line(hook, "ClawLeftOutline"), right, Line(hook, "ClawRightOutline") },
             armColors = new[] { Color.white, Color.clear, Color.white, Color.clear },
-            cable = rope != null && cableMaterial != null ? Cable(map ? chainMaterial : cableMaterial) : null,
+            cable = rope != null && cableMaterial != null ? Cable(map ? chainMaterial : cableMaterial, map ? ChainWidth : CableWidth) : null,
             map = map,
         });
         return true;
@@ -172,7 +176,7 @@ public class PaperClaws : MonoBehaviour
 
     static bool OnMap() => MapHub.Active != null || SceneManager.GetActiveScene().name == "world_map";
 
-    LineRenderer Cable(Material material)
+    LineRenderer Cable(Material material, float width)
     {
         var go = new GameObject("Paper Cable");
         go.transform.SetParent(transform, false);
@@ -181,7 +185,7 @@ public class PaperClaws : MonoBehaviour
         line.useWorldSpace = true;
         line.textureMode = LineTextureMode.Tile;
         line.numCapVertices = 2;
-        line.widthMultiplier = CableWidth;
+        line.widthMultiplier = width;
         line.enabled = false;
         return line;
     }
@@ -220,7 +224,7 @@ public class PaperClaws : MonoBehaviour
         Color tint = frozen ? Ice : Color.Lerp(Color.white, new Color(rope.r, rope.g, rope.b), c.map ? 0.2f : 0.3f);
         tint.a = rope.a;
         c.cable.startColor = c.cable.endColor = tint;
-        c.cable.textureScale = new Vector2(1f / (CableWidth * (c.map ? ChainAspect : CableAspect)), 1f);
+        c.cable.textureScale = new Vector2(1f / (c.map ? ChainWidth * ChainAspect : CableWidth * CableAspect), 1f);
         c.cable.sortingLayerID = c.rope.sortingLayerID;
         c.cable.sortingOrder = c.rope.sortingOrder + 1;   // over the gameplay rope, under the claw
     }
@@ -297,7 +301,7 @@ public class PaperClaws : MonoBehaviour
             c.plate.sprite = grappleArt;
             float along = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg + 90f;   // the art points down
             c.plate.transform.SetPositionAndRotation(pivot, Quaternion.Euler(0f, 0f, along));
-            c.plate.transform.localScale = Vector3.one * (reach * 1.04f * ClawScale / GrappleLength);
+            c.plate.transform.localScale = Vector3.one * (reach * GrappleReach / GrappleLength);
             Color iron = frozen ? Ice : Color.Lerp(Color.white, new Color(line.r, line.g, line.b), 0.25f);
             iron.a = line.a;
             c.plate.color = iron;

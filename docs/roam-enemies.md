@@ -132,8 +132,9 @@ why:
   the shared beat. Frozen by Elsa, it turns ice-blue and holds its pose. The Pull painting's hemp rope was
   inpainted away (`tools/art/make_burrow.py`), since the chain comes out of the burrow.
 - **The hook** (`PaperClaws`, map mode): a forged-iron four-prong grappling hook with a red felt wrap
-  (`Fx/Grapple`). Its eye ring sits on the line's end, and it points along the shot, drawn as long as the
-  brass claw. The line is an iron chain (`Tiles/Chain`, a seamless two-link tile) instead of the two-ply
+  (`Fx/Grapple`). Its eye ring sits on the line's end, and it points along the shot. It's sized to the small burrow cat:
+  0.85 of the claw's reach, where the brass claw is drawn 1.3x. The line is a light iron chain
+  (`Tiles/Chain`, a seamless two-link tile, 0.11 wide against the twine's 0.19) instead of the two-ply
   twine. Both have a cream cut-paper edge so they read on the dark floor, and both are only lightly tinted
   toward the hook's colour. Iron that bites into rock is the hint that these hooks are stopped by rock.
 
