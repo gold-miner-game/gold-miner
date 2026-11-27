@@ -179,7 +179,11 @@ public class SoundWatcher : MonoBehaviour
         if (p != skillOwner) { skillOwner = p; skillWasActive = p != null && p.SkillActive; coolingDown = false; }
         if (p == null) return;
         bool active = p.SkillActive;
-        if (active && !skillWasActive && PlayerCharacter.IsPlaying) Sfx.Play(SoundCues.Skill(p), p.transform.position);
+        if (active && !skillWasActive && PlayerCharacter.IsPlaying)
+        {
+            Sfx.Play(SoundCues.Skill(p), p.transform.position);
+            if (p is CatController) Sfx.Play("roll_cry", p.transform.position);   // J.K. Rolling's battle cry as she rolls
+        }
         skillWasActive = active;
 
         // The skill is ready again: a soft chime when a real cooldown (not a hold skill) runs out

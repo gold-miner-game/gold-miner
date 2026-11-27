@@ -14,7 +14,7 @@ using UnityEngine.SceneManagement;
 public static class AudioGameplayProbe
 {
     const string Pending = "AudioGameplayProbe.Pending";
-    static readonly (string scene, float seconds)[] Steps = { ("level_02", 40f), ("level_roam", 30f), ("world_map", 12f), ("Menu", 4f) };
+    static readonly (string scene, float seconds)[] Steps = { ("level_02", 40f), ("level_roam", 30f), ("level_roam#cat", 20f), ("world_map", 12f), ("Menu", 4f) };
     static readonly List<string> songs = new List<string>();
     static float nextCharge;
     static readonly Dictionary<string, int> heard = new Dictionary<string, int>();
@@ -42,7 +42,7 @@ public static class AudioGameplayProbe
             }
             float t = Time.realtimeSinceStartup - stepAt;
             if (scene == "level_02") Nudge(t);
-            if (scene == "level_roam") Brawl(t);
+            if (scene.StartsWith("level_roam")) Brawl(t);
             if (t < Steps[step].seconds) return;
             if (step + 1 < Steps.Length) { Next(); return; }
             Finish();
@@ -58,7 +58,9 @@ public static class AudioGameplayProbe
         scene = Steps[step].scene;
         skillPressed = walkedToGold = false;
         LevelLoader.Requested = null;
-        SceneManager.LoadScene(scene);
+        // "level_roam#cat": the same level again as J.K. Rolling (ChampionSpawner order: 1 = the cat)
+        if (scene.EndsWith("#cat")) ChampionSpawner.Chosen = 1;
+        SceneManager.LoadScene(scene.Split('#')[0]);
         stepAt = Time.realtimeSinceStartup;
     }
 
@@ -90,7 +92,7 @@ public static class AudioGameplayProbe
     {
         PlayerCharacter player = UnityEngine.Object.FindFirstObjectByType<PlayerCharacter>();
         if (player == null || t < 3f || t < nextCharge) return;
-        character = SoundCues.Voice(player);
+        if (scene == "level_roam") character = SoundCues.Voice(player);
         nextCharge = t + 0.5f;
         RedEnemy enemy = UnityEngine.Object.FindObjectsByType<RedEnemy>(FindObjectsSortMode.None)
             .Where(e => e.isActiveAndEnabled).OrderBy(e => Vector2.Distance(e.transform.position, player.transform.position)).FirstOrDefault();
@@ -114,6 +116,9 @@ public static class AudioGameplayProbe
         // Only the pig's block and the rhino's charge knock Brawlers back (the cat rolls through them)
         var core = new List<string> { "hook_fire", "eat_munch", "round_start", "skill_ready" };
         if (character == "pig" || character == "rhino") core.Add("enemy_yowl");
+        // J.K. Rolling's roll: the whoosh and her battle cry, heard in the cat run
+        foreach (string cue in new[] { "skill_roll", "roll_cry" })
+            if (!heard.ContainsKey("level_roam#cat:" + cue)) core.Add("cat-run " + cue);
         Debug.Log("AUDIO_PROBE character in the roam level: " + character);
         string[] missing = core.Where(c => !heard.Keys.Any(k => k.EndsWith(":" + c))).ToArray();
         SoundDirector d = SoundDirector.Instance;

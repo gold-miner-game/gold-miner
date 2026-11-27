@@ -61,6 +61,7 @@ public static class SoundCues
         // --- each character's K skill
         C("skill_block", 0.6f, 0.04f, 0.1f, 1),
         C("skill_roll", 0.6f, 0.05f, 0.1f, 1),
+        C("roll_cry", 0.6f, 0.05f, 0.3f, 1),   // layered on the cat's roll: an excited "mrrrow!"
         C("skill_tail", 0.55f, 0.05f, 0.1f, 1),
         C("skill_tongue", 0.6f, 0.06f, 0.1f, 1),
         C("skill_breath", 0.6f, 0.03f, 0.2f, 1),
