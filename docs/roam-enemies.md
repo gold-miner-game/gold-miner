@@ -117,3 +117,29 @@ Suggested gameplay hooks, for whoever writes it: telegraph about 0.9 s, dash abo
 the real values are the gameplay owner's call. HookHealth will find the Body renderer for its hit blink.
 
 Sprites: `python tools/art/make_needle.py` (sources `images/roam-enemies/needle_*.png`).
+
+## World map: the Burrow Bandit with a grapple (built)
+
+The parked burrow design from the sheet above is now built, for the world map's two eye miners. They are
+a different enemy from the level miners: their hooks stop at the first rock they touch
+(`hook_wall_grace 0`), while level hooks fly over rocks. So they get their own look, and their hook says
+why:
+
+- **The cat** (`PaperMiners`, map mode): a charcoal felt Meowmeow with a red bandana in a torn-paper earth
+  mound (`Burrow/Duck`, `Aim`, `Pull`; `Hurt` is cut for later). It ducks with glowing eyes while the hook
+  rests, pops up glaring while it shoots, and strains while it reels in. There's no timber shaft, winch or
+  rim cat. The mound takes the shaft frame's footprint (1.25x the rock-fitted miner size), and it tips on
+  the shared beat. Frozen by Elsa, it turns ice-blue and holds its pose. The Pull painting's hemp rope was
+  inpainted away (`tools/art/make_burrow.py`), since the chain comes out of the burrow.
+- **The hook** (`PaperClaws`, map mode): a forged-iron four-prong grappling hook with a red felt wrap
+  (`Fx/Grapple`). Its eye ring sits on the line's end, and it points along the shot, drawn as long as the
+  brass claw. The line is an iron chain (`Tiles/Chain`, a seamless two-link tile) instead of the two-ply
+  twine. Both have a cream cut-paper edge so they read on the dark floor, and both are only lightly tinted
+  toward the hook's colour. Iron that bites into rock is the hint that these hooks are stopped by rock.
+
+Art only: hook speed, cooldown, colliders and the rock rule are unchanged (the map's timings are
+`hook_extend`, `hook_retract` and `cooldown` in `Hub/world_map.json`, owned by gameplay).
+Sprites: `python tools/art/make_burrow.py` and `python tools/art/make_grapple.py`
+(sources `docs/images/roam-enemies/red_round_*.png`, `grapple_pieces.png`). Capture: `world_map:eyes`
+stands the player on the eye gold nearest a miner, so it shoots.
+

@@ -10,6 +10,11 @@ using UnityEngine.SceneManagement;
 // Like the miners of the classic gold-mining arcade games, it works a winch: each burrow is framed as a
 // mine shaft (cut-paper timber planks) and a twine reel beside it turns a held pose at a time, paying out
 // while the hook flies and cranking back while it reels in.
+// World map: the cats there are a different enemy from the level miners (their hooks stop at rocks), so they
+// are drawn as one: the "Burrow Bandit", a felt cat in a torn-paper earth mound (Resources/Art/Burrow), no
+// timber shaft or winch. It ducks in its burrow, pops up glaring to shoot, strains to reel in. The mound
+// takes the shaft frame's footprint (the same rock-fitted size), and PaperClaws gives these hooks an iron
+// grapple on a chain.
 // Read-only: it follows each Hook's rope (its first point is the burrow) and the hook's own position and
 // AimedAtPlayer flag. Drawn above the burrow and below the rope; never parented to the hook; no colliders.
 public class PaperMiners : MonoBehaviour
@@ -37,6 +42,8 @@ public class PaperMiners : MonoBehaviour
         public SpriteRenderer flapL, flapR;   // the shaft's board hatch, for the level-start intro
         public int introStart;        // beat the intro began on; introDone once the cat has popped out
         public bool introDone, introSeen;   // the intro counts from the first beat the shaft is actually drawn
+        public bool burrow;           // a world-map cat: the Burrow Bandit in its mound
+        public SpriteRenderer disc;   // its hook hole's own red disc: hidden under the mound, which takes its size
     }
 
     readonly List<Miner> miners = new List<Miner>();
@@ -48,11 +55,14 @@ public class PaperMiners : MonoBehaviour
     static readonly Color Ice = new Color(0.72f, 0.9f, 1f);   // the same ice as the frozen claw and twine
     float nextScan;
     Sprite hatch;   // Miner/HatchFlap, re-pivoted on its hinge edge
+    Sprite duck, aim, strain;   // Burrow/Duck, Aim, Pull: the world map's burrow cat
+    const float MoundHole = 0.22f;   // the burrow's hole, below the sprite's centre, as a share of its width
     // Level-start intro, in held poses from introStart: closed, closed, rattle, closed, flaps half down, flaps
     // down, the cat pops low, overshoots, settles (9 poses, ~1.1 s, inside a miner's 1.5 s start delay; if the
     // hook fires first, the intro just ends). Battle levels and Survival holes, not the world map.
     const int IntroPoses = 9;
-    // Hooks whose shaft is still under its closed hatch: PaperClaws keeps their claw and twine out of sight.
+    // Hooks whose shaft is still under its closed hatch, or a world-map hook resting down its burrow:
+    // PaperClaws keeps their claw and twine (or grapple and chain) out of sight.
     static readonly HashSet<Hook> closed = new HashSet<Hook>();
     public static bool UnderHatch(Hook hook) => closed.Contains(hook);
 
@@ -81,6 +91,7 @@ public class PaperMiners : MonoBehaviour
         frameArt = ArtLibrary.Get("Miner/ShaftFrame"); reelArt = ArtLibrary.Get("Miner/WinchReel");
         idlePaws = ArtLibrary.Get("Miner/MinerIdle_paws"); eagerPaws = ArtLibrary.Get("Miner/MinerEager_paws");
         pullPaws = ArtLibrary.Get("Miner/MinerPull_paws"); glarePaws = ArtLibrary.Get("Miner/MinerGlare_paws");
+        duck = ArtLibrary.Get("Burrow/Duck"); aim = ArtLibrary.Get("Burrow/Aim"); strain = ArtLibrary.Get("Burrow/Pull");
         Sprite flap = ArtLibrary.Get("Miner/HatchFlap");
         if (flap != null)
         {
@@ -144,7 +155,15 @@ public class PaperMiners : MonoBehaviour
         // A walking hook hole (Red Round, Gold Round) is not a mine shaft: it rides a mine cart and
         // PaperMineCart draws it, so no timber frame, winch or rim cat here
         if (hole != null && hole.GetComponent<RedEnemy>() != null) { walkers.Add(hook); return true; }
-        bool intro = hatch != null && MapHub.Active == null && UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "world_map" && !hook.IsBusy;
+        bool onMap = MapHub.Active != null || UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "world_map";
+        if (onMap && duck != null && aim != null && strain != null)
+        {
+            Component owner = brain != null ? (Component)brain : hole;
+            SpriteRenderer disc = owner != null ? owner.GetComponent<SpriteRenderer>() : null;
+            miners.Add(new Miner { hook = hook, rope = rope, body = body, ai = brain, hole = hole, look = Piece("Burrow Cat", duck), burrow = true, introDone = true, disc = disc });
+            return true;
+        }
+        bool intro = hatch != null && !onMap && !hook.IsBusy;
         miners.Add(new Miner { hook = hook, rope = rope, body = body, ai = brain, hole = hole, look = Piece("Miner", idle), paws = Piece("Miner Paws", idlePaws), frame = Piece("Mine Shaft", frameArt), reel = Piece("Winch Reel", reelArt),
             flapL = intro ? Piece("Hatch Flap", hatch) : null, flapR = intro ? Piece("Hatch Flap", hatch) : null,
             introStart = miners.Count % 3, introDone = !intro });   // a stagger for now; shafts open a pose apart, not in unison
@@ -210,6 +229,7 @@ public class PaperMiners : MonoBehaviour
             if (m.hook.IsBusy) m.reelAngle += reach >= m.lastReach ? -30f : 30f;   // pay out / crank back, a held pose per tick
             m.lastReach = reach;
         }
+        if (m.burrow) { Burrow(m, size); return; }
         m.look.sprite = m.pose == 1 ? eager : m.pose == 2 ? pull : m.pose == 3 ? glare : idle;
 
         // the art's top points up; turn it to face the hook's way. Lean the eager/glare poses a little out
@@ -277,6 +297,31 @@ public class PaperMiners : MonoBehaviour
             m.reel.sortingLayerID = m.rope.sortingLayerID;
             m.reel.sortingOrder = m.rope.sortingOrder - 1;
         }
+    }
+
+    // The world map's burrow cat: the mound sits on the burrow, as wide as the shaft frame it replaces (so the
+    // same rock-fitted size), upright; the cat ducks, pops up to shoot, strains to reel in. It tips on the
+    // shared beat from the mound's base like the shaft cats, and holds still while frozen.
+    void Burrow(Miner m, float size)
+    {
+        m.look.sprite = m.pose == 1 || m.pose == 3 ? aim : m.pose == 2 ? strain : duck;
+        // the hook hole's red disc (and an old paper-square body) are hidden, never disabled (frost reads them);
+        // the mound covers the disc's footprint, so the cat keeps the hole's on-screen size
+        foreach (SpriteRenderer hidden in new[] { m.body, m.disc })
+            if (hidden != null && hidden.color.a > 0f) { Color c = hidden.color; c.a = 0f; hidden.color = c; }
+        float width = Mathf.Max(size * 1.25f, m.disc != null ? m.disc.bounds.size.x * 1.15f : 0f);
+        // between shots the grapple and chain lie down the hole, out of sight (PaperClaws reads UnderHatch)
+        if (m.hook.IsBusy) closed.Remove(m.hook); else closed.Add(m.hook);
+        float scale = width / Mathf.Max(0.01f, m.look.sprite.bounds.size.x);
+        Vector2 at = m.home + Vector2.up * (width * MoundHole);   // the hole over the burrow
+        Quaternion tip = Quaternion.Euler(0f, 0f, StopMotion.Enabled && !m.frozen ? -StopMotion.Rock * StopMotion.RockDegrees * 0.5f : 0f);
+        Vector3 hinge = (Vector3)m.home + Vector3.down * (width * 0.25f);
+        m.look.transform.SetPositionAndRotation(hinge + tip * ((Vector3)at - hinge), tip);
+        m.look.transform.localScale = Vector3.one * scale;
+        m.look.color = m.frozen ? Ice : Color.white;
+        m.look.sortingLayerID = m.rope.sortingLayerID;
+        // resting, the grapple lies down the hole behind the cat; while the hook is out the chain runs over it
+        m.look.sortingOrder = m.hook.IsBusy ? m.rope.sortingOrder - 2 : m.rope.sortingOrder + 7;
     }
 
     // The level-start hatch: the cat stays out of sight while the boards are closed, then pops out of the shaft.

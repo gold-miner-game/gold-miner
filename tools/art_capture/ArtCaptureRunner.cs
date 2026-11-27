@@ -284,6 +284,21 @@ public class ArtCaptureRunner : MonoBehaviour
                     }
                 }
                 break;
+            case "eyes":   // world_map: stand on the gold in the eye hollow nearest a map miner, so it shoots (burrow cat + grapple)
+                var eyeMiner = FindFirstObjectByType<MinerAI>();
+                var eyePc = FindFirstObjectByType<PlayerCharacter>();
+                if (eyeMiner != null && eyePc != null)
+                {
+                    Treasure bait = null;
+                    foreach (Treasure t in FindObjectsByType<Treasure>(FindObjectsSortMode.None))
+                        if (bait == null || (t.transform.position - eyeMiner.transform.position).sqrMagnitude < (bait.transform.position - eyeMiner.transform.position).sqrMagnitude) bait = t;
+                    Vector2 stand = bait != null ? (Vector2)bait.transform.position : (Vector2)eyeMiner.transform.position + Vector2.left * 1.5f;
+                    var eyeRb = eyePc.GetComponent<Rigidbody2D>();
+                    if (eyeRb != null) eyeRb.position = stand;
+                    eyePc.transform.position = stand;
+                    Debug.Log("ART_CAPTURE_EYES miner " + (Vector2)eyeMiner.transform.position + " player " + stand);
+                }
+                break;
             case "brawler":   // roam: put the player a few steps from the nearest Red Square and wake it, to see it act
                 var squares = FindObjectsByType<RedSquare>(FindObjectsSortMode.None);
                 var pc = FindFirstObjectByType<PlayerCharacter>();
