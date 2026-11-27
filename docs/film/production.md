@@ -50,3 +50,13 @@ Rejected takes: F1-S2 v1 (hook never slams), F1-S3 v1 (no crane, carts melted, p
 - `Assets/StreamingAssets/Films/map_intro.mp4`: Film 1, 32.3 s, 1920x1080 24 fps H.264/AAC, 11.8 MB.
 - `Assets/StreamingAssets/Films/store_intro.mp4`: Film 2, 23.1 s, 6.8 MB.
 - Spend: 7,759 → 619 Tapies left (7,140 used; 1080p finals ≈ 100 Tapies/s).
+
+## Revisions (user notes, 2026-11-26)
+- Film 2: the hiccup shot opened with coins already spat. Replaced by F2-S3 v2 (keyframe b08d1ab2-… with a clean counter → Seedance 2.5 720p, node 0180c3f6-033c-43d6-8936-29f5aaef0201). The pig's line (pauses tightened, `vo_f2_pig_tight.wav`) now starts after the hiccups.
+- FilmScreen: no flash of the scene before a film (opaque cover from the scene's first frame).
+
+## Film 3: "Nobody Escapes" (Survival, first death, 8.7 s)
+- One shot: the pig lies dazed with felt stars, ringed by cart miners with raised hooks; Evil Meowmeow looms and gloats. Keyframe aee42dd9-… → Seedance 2.5 720p 6 s (node d4abccc8-1e89-42b3-a05b-b828e58bc517), played at 1.45x length.
+- Line (harry): "Tired already, piggy? Nobody escapes my mountain... Go on. Try again." Score: the game's own `evil_meowmeow.ogg`.
+- In game: `level_survival` → Tutorial/SurvivalDeathFilm (round_lost, once per save), then the usual lost result (R retries). File: `Assets/StreamingAssets/Films/survival_death.mp4`.
+- Tapies left after Film 3: ~32.
