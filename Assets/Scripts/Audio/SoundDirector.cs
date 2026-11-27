@@ -372,6 +372,7 @@ public class SoundDirector : MonoBehaviour
         float bus = BusGain(SoundCues.Bus.Music) * MusicLevel * roundEndDip;
         if (Time.timeScale == 0f) bus *= 0.5f;                   // paused: the music steps back
         if (DuckingNow) bus *= 1f - duckDepth;
+        if (FilmScreen.Playing) bus = 0f;                        // a film has its own score
         float t = fadeStart < 0f ? 1f : Mathf.Clamp01((Time.unscaledTime - fadeStart) / CrossfadeTime);
 
         if (musicNow != null) musicNow.volume = bus * t;

@@ -58,6 +58,7 @@ public class CampHub : MonoBehaviour
         public Vector3? npcLocalRotation;
         public Vector3? npcPivotPosition;
         public float? npcFacingX;
+        public Bounds? homeArt;   // where the home's painting (and its front) is drawn, in the world
     }
 
     readonly List<Spot> spots = new List<Spot>();
@@ -153,7 +154,7 @@ public class CampHub : MonoBehaviour
         // Arrive by the gate, or at your own home after switching heroes
         Vector2 arrive = level.pigStart;
         Spot mine = spots.Find(s => s.index == arriveAt);
-        if (mine != null) arrive = mine.at + (fireAt - mine.at).normalized * 1.1f;
+        if (mine != null) arrive = OutsideHome(mine, fireAt, player);
         arriveAt = -1;
         Place(player, arrive);
         gateArmed = Vector2.Distance(arrive, gateAt) > 1.4f;
@@ -230,6 +231,9 @@ public class CampHub : MonoBehaviour
                 if (spot.homeGroupPosition.HasValue) homeRoot.localPosition = spot.homeGroupPosition.Value;
                 if (spot.homeGroupScale.HasValue) homeRoot.localScale = spot.homeGroupScale.Value;
             }
+            Bounds art = homePiece.bounds;
+            if (frontPiece != null) art.Encapsulate(frontPiece.bounds);
+            spot.homeArt = art;
             tagY = Mathf.Min(tagY, homeAt.y - spot.at.y - spot.homeSize * 0.42f);
         }
         Shadow(spot.at + Vector2.down * 0.35f, 0.9f);
@@ -597,6 +601,39 @@ public class CampHub : MonoBehaviour
         tmp.rectTransform.sizeDelta = new Vector2(width, 0.6f);
         tmp.sortingOrder = 40;
         return tmp;
+    }
+
+    // Arriving at your own home: step from it toward the fire until the walker is clear of the home's
+    // painting, so a big home (Hulk's cave, whose front is drawn over heroes) never hides you, and
+    // clear of walls. Falls back to the old 1.1 tiles if no such spot is found
+    static Vector2 OutsideHome(Spot spot, Vector2 fireAt, PlayerCharacter who)
+    {
+        Vector2 toFire = fireAt - spot.at;
+        Vector2 dir = toFire.sqrMagnitude > 0.0001f ? toFire.normalized : Vector2.right;
+        Vector2 fallback = spot.at + dir * 1.1f;
+        Collider2D body = who != null ? who.GetComponent<Collider2D>() : null;
+        float radius = body != null ? Mathf.Max(body.bounds.extents.x, body.bounds.extents.y) : 0.5f;
+        if (body == null && who != null)
+            foreach (Renderer r in who.GetComponentsInChildren<Renderer>())
+                radius = Mathf.Max(radius, Mathf.Max(r.bounds.extents.x, r.bounds.extents.y));
+        var filter = new ContactFilter2D { useTriggers = false, useLayerMask = false };
+        var hits = new List<Collider2D>();
+        float far = Mathf.Max(1.1f, toFire.magnitude - 1f);
+        for (float d = 1.1f; d <= far; d += 0.1f)
+        {
+            Vector2 p = spot.at + dir * d;
+            if (spot.homeArt.HasValue)
+            {
+                Bounds art = spot.homeArt.Value;
+                art.Expand(new Vector3(radius * 2f, radius * 2f, 0f));
+                if (art.Contains(new Vector3(p.x, p.y, art.center.z))) continue;
+            }
+            hits.Clear();
+            Physics2D.OverlapCircle(p, radius * 0.9f, filter, hits);
+            if (hits.Exists(h => h != null && (who == null || !h.transform.IsChildOf(who.transform)))) continue;
+            return p;
+        }
+        return fallback;
     }
 
     static void Place(PlayerCharacter who, Vector2 at)

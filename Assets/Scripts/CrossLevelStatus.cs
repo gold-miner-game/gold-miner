@@ -128,6 +128,12 @@ public class CrossLevelStatus : MonoBehaviour
     public static CrossLevelStatus StartFresh(Type type)
     {
         StoreView.ShuffleStock();
+        return Replace(type);
+    }
+
+    // Swap the record for a new one of this type, leaving the store's shelf alone
+    static CrossLevelStatus Replace(Type type)
+    {
         if (type == null || !typeof(CrossLevelStatus).IsAssignableFrom(type)) type = typeof(PigStatus);
         if (Active != null)
         {
@@ -155,7 +161,9 @@ public class CrossLevelStatus : MonoBehaviour
             }
         }
 
-        CrossLevelStatus created = StartFresh(type);
+        // Not StartFresh: switching heroes is not a new round, so the store keeps its shelf
+        // (and what was already bought from it) until a round ends (GameManager.AnnounceEnd)
+        CrossLevelStatus created = Replace(type);
         foreach (PlayerSkill goodsItem in goods)
         {
             PlayerSkill skill = created.addSkill(goodsItem.id);

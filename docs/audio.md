@@ -114,6 +114,7 @@ level (louder in battles, softer on the world map) and stops in menus.
 | hit_impact + hurt_<character> | the player is hit (`player_hit`) |
 | shield_soak | the store shield absorbs a hit |
 | skill_block / roll / tail / tongue / breath / charge | K skill starts, per character |
+| roll_cry | layered on J.K. Rolling's roll: an excited cat battle cry ("mrrrow!") |
 | skill_ready | the K skill's cooldown has run out (a soft marimba ding; not for hold skills) |
 | enemy_hit + enemy_yowl | a Brawler is knocked back: bounced off the pig's block, or shoved by the rhino's charge |
 | enemy_hit / enemy_down | a miner or walker takes damage / is destroyed |
